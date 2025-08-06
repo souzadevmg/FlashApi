@@ -247,6 +247,9 @@ const Websocket = 'ws://localhost:3000/ws'
 const modo = 'global' // global/client
 const secret = '123' //GLOBAL_WEBSOCKET_SECRET ou apikey da instacia
 
+let ws;
+let reconnectDelay = 5000; // 5 segundos
+
 /*
  * Define o secret para autenticação WebSocket com base no modo:
  * - 'global': Usa o GLOBAL_WEBSOCKET_SECRET do arquivo .env.
@@ -254,7 +257,7 @@ const secret = '123' //GLOBAL_WEBSOCKET_SECRET ou apikey da instacia
  */
 
 function connectWebSocket() {
-    const ws = new WebSocket(Websocket, [],
+    ws = new WebSocket(Websocket, [],
         {
             headers: {
                 "apikey": secret,
@@ -331,9 +334,15 @@ function connectWebSocket() {
 
     }
 
+       ws.onerror = (err) => {
+        console.error("❌ Erro no WebSocket:", err.message);
+        // OBS: onerror *não* fecha o socket automaticamente
+    };
+
     ws.onclose = (event) => {
-        console.log(`Conexão fechada. Código: ${event.code}, Motivo: ${event.reason}`);
-    }
+        console.warn(`⚠️ WebSocket desconectado (code ${event.code}). Tentando reconectar em ${reconnectDelay / 1000}s...`);
+        setTimeout(connectWebSocket, reconnectDelay);
+    };
 
 }
 connectWebSocket();
