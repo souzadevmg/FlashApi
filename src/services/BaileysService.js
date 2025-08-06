@@ -253,6 +253,7 @@ class BaileysService {
     // Credentials update
     sock.ev.on('creds.update', async (creds) => {
       try {
+
         // Salvar no arquivo (padrão Baileys)
         await saveCreds(creds);
 
@@ -399,11 +400,11 @@ class BaileysService {
       await this.chats_set(salvegrups);
     });
 
-    const originalEmit = sock.ev.emit;
+    // const originalEmit = sock.ev.emit;
     // sock.ev.emit = function (event, ...args) {
-    //     console.log(`📡 Evento recebido: ${event}`);
-    //     console.dir(args, { depth: null });
-    //     return originalEmit.call(this, event, ...args);
+    //     // console.log(`📡 Evento recebido: ${event}`);
+    //     // console.dir(args, { depth: null });
+    //     // return originalEmit.call(this, event, ...args);
     // };
 
     sock.ev.on('group-participants.update', async (event) => {
@@ -745,10 +746,10 @@ class BaileysService {
 
       logger.info(`✅ Sessão ${sessionId} conectada com sucesso! Telefone: ${phoneNumber}`);
 
-      // // Sincronização mais conservadora após conexão
-      // setTimeout(async () => {
-      //   await this.forceSyncContacts(sessionId);
-      // }, 15000); // Aguardar 15 segundos
+      // Sincronização mais conservadora após conexão
+      setTimeout(async () => {
+        await this.forceSyncAll(sessionId);
+      }, 15000); // Aguardar 15 segundos
     }
   }
 
