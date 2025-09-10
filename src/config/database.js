@@ -45,6 +45,20 @@ class Database {
             }
         }
     }
+    
+    async runAdmin(sql) {
+        let connection;
+        try {
+            connection = await this.pool.getConnection();
+            const [rows] = await connection.query(sql); // <- query, não execute
+            return rows;
+        } catch (err) {
+            logger.error('Erro ao executar comando administrativo:', err);
+            throw err;
+        } finally {
+            if (connection) connection.release();
+        }
+    }
 
     async getPoolStatus() {
         const poolInternals = this.pool.pool || {};

@@ -1,0 +1,7 @@
+{
+  "ignore": [
+    "sessions/*",
+    "swagger_full.json",
+    "postman_collection.json"
+  ]
+}

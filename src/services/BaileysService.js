@@ -13,7 +13,6 @@ const {
   generateWAMessageContent,
   generateMessageID,
   makeCacheableSignalKeyStore,
-  sendListMessage,
   Browsers,
   decryptPollVote,
   WABrowserDescription,
@@ -69,17 +68,21 @@ class BaileysService {
 
     // Iniciar health check
     this.startHealthCheck();
+    this.logsmysql();
+    await Session.limparBinlogs();
 
     logger.info('✅ BaileysService inicializado');
   }
 
   async restoreActiveSessions() {
     try {
+
       const sessions = await Session.findByApiKey();
+
       logger.info(`🔄 Restaurando ${sessions.length} sessões do banco de dados...`);
 
       for (const session of sessions) {
-        if (session.status === 'connected' || session.status === 'connecting') {
+        if (session.status === 'connected' || session.status === 'connecting' || session.status === 'disconnected') {
           logger.info(`🔄 Restaurando sessão: ${session.apikey}`);
 
           // Sincronizar credenciais antes de criar a sessão
@@ -88,6 +91,7 @@ class BaileysService {
         }
       }
     } catch (error) {
+      console.log('❌ Erro ao restaurar sessões:', error)
       logger.error('❌ Erro ao restaurar sessões:', error);
     }
   }
@@ -141,11 +145,52 @@ class BaileysService {
         markOnlineOnConnect: false,
         fireInitQueries: true,
         emitOwnEvents: true,
-        cachedGroupMetadata: async (jid) => groupCache.get(`${sessionId}_${jid}`),
+        cachedGroupMetadata: async (jid) => this.groupCache.get(`${sessionId}_${jid}`),
         getMessage: async (key) => {
           const msg = await this.getMessage(key);
           return msg || undefined
-        }
+        },
+        patchMessageBeforeSending(message) {
+           // Corrige lista de produtos para lista normal (exemplo original)
+           
+          if (
+            message.deviceSentMessage?.message?.listMessage?.listType === proto.Message.ListMessage.ListType.PRODUCT_LIST
+          ) {
+            message = JSON.parse(JSON.stringify(message));
+
+            message.deviceSentMessage.message.listMessage.listType = proto.Message.ListMessage.ListType.SINGLE_SELECT;
+          }
+
+          if (message.listMessage?.listType == proto.Message.ListMessage.ListType.PRODUCT_LIST) {
+            message = JSON.parse(JSON.stringify(message));
+
+            message.listMessage.listType = proto.Message.ListMessage.ListType.SINGLE_SELECT;
+          }
+
+          // --- PATCH PARA BOTÕES ---
+          // DeviceSentMessage
+          if (
+            message.deviceSentMessage?.message?.buttonsMessage?.buttons
+          ) {
+            message = JSON.parse(JSON.stringify(message));
+            for (const button of message.deviceSentMessage.message.buttonsMessage.buttons) {
+              // Força type RESPONSE (1)
+              button.type = proto.Message.ButtonsMessage.Button.Type.RESPONSE || 1;
+            }
+          }
+          // Message direta
+          if (message.buttonsMessage?.buttons) {
+            message = JSON.parse(JSON.stringify(message));
+            for (const button of message.buttonsMessage.buttons) {
+              button.type = proto.Message.ButtonsMessage.Button.Type.UNKNOWN || 1;
+            }
+          }
+          if(message?.buttonsMessage?.headerType){
+            message.buttonsMessage.headerType = 1
+          }
+          
+          return message;
+        },
       });
 
       const sessionData = {
@@ -737,12 +782,10 @@ class BaileysService {
       sessionData.webhook_url = sessaoDB.webhook_url
       sessionData.events = sessaoDB.events
 
-      if (updateStatus) {
-        await Session.update(sessionId, {
-          status: 'connected',
-          phone_number: phoneNumber
-        });
-      }
+      await Session.update(sessionId, {
+        status: 'connected',
+        phone_number: phoneNumber
+      });
 
       logger.info(`✅ Sessão ${sessionId} conectada com sucesso! Telefone: ${phoneNumber}`);
 
@@ -752,7 +795,6 @@ class BaileysService {
       }, 15000); // Aguardar 15 segundos
     }
   }
-
 
   // NOVA FUNÇÃO: Forçar sincronização de contatos
   async forceSyncContacts(sessionId) {
@@ -895,7 +937,12 @@ class BaileysService {
           const pollMsgId = pollUpdate.pollCreationMessageKey?.id;
           const [msg] = await Store.getMessages(sessionId, message.key.remoteJid, pollMsgId)
 
-          const voterJid = msg.remoteJid;
+          let voterJid = msg.remoteJid;
+          if (voterJid.endsWith('@lid')) {
+            const lidNumber = voterJid.split('@')[0];
+            voterJid = lidNumber;
+          }
+
           const getnumber = this.sessions.get(sessionId)
           if (getnumber?.sock?.user?.id?.split(':')[0]) {
             const decrypted = await decryptPollVote(pollUpdate.vote, {
@@ -1089,7 +1136,6 @@ class BaileysService {
 
   async emitEvent(sessionId, event, data) {
     try {
-
       // Global WebSocket
       if (this.globalWebSocketService) {
         this.globalWebSocketService.broadcast(sessionId, event, data);
@@ -1135,7 +1181,7 @@ class BaileysService {
       if (typeof mediaData === 'string' && (mediaData.startsWith('http') || mediaData.startsWith('https'))) {
         return { url: mediaData };
       }
-      
+
       // Se for base64, converter para buffer
       if (typeof mediaData === 'string' && mediaData.startsWith('data:')) {
         const base64Data = mediaData.split(',')[1];
@@ -1176,27 +1222,30 @@ class BaileysService {
         message.image = await this.prepareMedia(sessionId, message.image.url);
       }
       if (message.video?.url) {
-        message.video = await this.prepareMedia(sessionId, message.video.image.url);
+        message.video = await this.prepareMedia(sessionId, message.video.url);
       }
       if (message.audio?.url) {
-        message.audio = await this.prepareMedia(sessionId, message.audio.image.url);
+        message.audio = await this.prepareMedia(sessionId, message.audio.url);
       }
       if (message.document?.url) {
-        message.document = await this.prepareMedia(sessionId, message.document.image.url);
+        message.document = await this.prepareMedia(sessionId, message.document.url);
       }
       if (message.sticker?.url) {
-        message.sticker = await this.prepareMedia(sessionId, message.sticker.image.url);
+        message.sticker = await this.prepareMedia(sessionId, message.sticker.url);
       }
+
 
       const result = await sessionData.sock.sendMessage(jid, message);
       await sessionData.sock.sendPresenceUpdate('paused', jid);
       logger.info(`📤 Mensagem enviada: ${sessionId} -> ${jid}`);
       return result;
     } catch (error) {
+      console.log(error)
       logger.error(`Erro ao enviar mensagem:`, error);
       throw error;
     }
   }
+
 
   // Message sending methods
   async deleteMessage(sessionId, to, message) {
@@ -1242,50 +1291,6 @@ class BaileysService {
     }
   }
 
-  async sendList(sessionId, to, listData) {
-    try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
-        throw new Error('Sessão não encontrada ou não conectada');
-      }
-
-      const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-      let result
-      // const listMessage = {
-      //   text: listData.text,
-      //   footer: listData.footer,
-      //   title: listData.title,
-      //   buttonText: listData.buttonText,
-      //   sections: listData.sections,
-      // };
-
-      const listMessage = {
-        text: 'Escolha uma opção do menu:', // Texto principal
-        title: 'Menu de Opções', // Título da lista
-        buttonText: 'Abrir Menu', // Texto do botão que abre a lista
-        sections: [
-          {
-            title: 'Seção 1',
-            rows: [
-              { title: 'Opção 1', rowId: 'opt1', description: 'Descrição da Opção 1' },
-              { title: 'Opção 2', rowId: 'opt2', description: 'Descrição da Opção 2' }
-            ]
-          },
-          {
-            title: 'Seção 2',
-            rows: [
-              { title: 'Opção 3', rowId: 'opt3', description: 'Descrição da Opção 3' }
-            ]
-          }
-        ],
-        footer: 'Selecione uma opção para continuar.' // Rodapé opcional
-      };
-
-    } catch (error) {
-      logger.error(`Erro ao enviar lista:`, error);
-      throw error;
-    }
-  }
 
   async sendButtons(sessionId, to, buttonData) {
     try {
@@ -1366,7 +1371,12 @@ class BaileysService {
       }
 
       const profile = await sessionData.sock.getBusinessProfile(jid);
-      return profile;
+      const url = await sessionData.sock.profilePictureUrl(jid, 'image');
+      const dados = {
+        profile,
+        url
+      }
+      return dados;
     } catch (error) {
       // Try regular profile if business profile fails
       try {
@@ -1671,6 +1681,17 @@ class BaileysService {
         logger.error('Erro no health check:', error);
       }
     }, 5 * 60 * 1000); // Every 5 minutes
+  }
+
+  //Limpar logs do mysql
+  async logsmysql() {
+    setInterval(async () => {
+      try {
+        await Session.limparBinlogs();
+      } catch (error) {
+        logger.error('Erro no health check:', error);
+      }
+    }, 24 * 60 * 60 * 1000); // 24h
   }
 
   stopHealthCheck() {

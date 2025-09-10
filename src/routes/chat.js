@@ -6,14 +6,64 @@ const Store = require('../models/Store');
 const MessageQueueService = require('../services/MessageQueueService');
 const logger = require('../utils/logger');
 const Chats = require('../models/chats');
+const { proto } = require('@whiskeysockets/baileys/WAProto');
+const fs = require('fs');
+const axios = require('axios');
 
 const router = express.Router();
 
+// Rota para gerar buffer de uma imagem a partir de uma URL
+router.post('/image-buffer', authenticateApiKey, async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: 'O campo "url" é obrigatório'
+      });
+    }
 
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(response.data, 'binary');
+
+    res.json({
+      success: true,
+      message: 'Buffer gerado com sucesso',
+      buffer: buffer.toString('base64')
+    });
+  } catch (error) {
+    logger.error('Erro ao gerar buffer da imagem:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
 router.post('/send-text', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
-    const { to, text, linkPreview = true, mentions, delay = 0, useQueue = false } = req.body;
+    const { to, text, linkPreview = false, mentions = [], delay = 0, useQueue = false } = req.body;
+
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
+    if (typeof linkPreview !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'linkPreview Deve ser boolean'
+      });
+    }
+
+    if (mentions && typeof mentions !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'mentions Deve ser Array'
+      });
+    }
 
     if (!to || !text) {
       return res.status(400).json({
@@ -44,8 +94,9 @@ router.post('/send-text', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send
     };
 
     let result;
@@ -85,6 +136,13 @@ router.post('/send-image', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, image, caption, mentions, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
     if (!to || !image) {
       return res.status(400).json({
         success: false,
@@ -113,8 +171,9 @@ router.post('/send-image', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -141,7 +200,6 @@ router.post('/send-image', authenticateApiKey, async (req, res) => {
 
     logger.info(`Imagem ${useQueue ? 'enfileirada' : 'enviada'}: ${sessionId} -> ${to}`);
   } catch (error) {
-    console.log(error)
     logger.error('Erro ao enviar imagem:', error);
     res.status(500).json({
       success: false,
@@ -154,6 +212,13 @@ router.post('/send-video', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
     const { to, video, caption, gifPlayback = false, delay = 0, useQueue = false } = req.body;
+
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
 
     if (!to || !video) {
       return res.status(400).json({
@@ -180,8 +245,9 @@ router.post('/send-video', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -221,6 +287,20 @@ router.post('/send-audio', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, audio, ptt = false, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
+    if (typeof ptt !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'ptt Deve ser boolean'
+      });
+    }
+
     if (!to || !audio) {
       return res.status(400).json({
         success: false,
@@ -245,8 +325,9 @@ router.post('/send-audio', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -286,6 +367,13 @@ router.post('/send-document', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, document, fileName, mimetype, caption, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
     if (!to || !document || !fileName) {
       return res.status(400).json({
         success: false,
@@ -312,8 +400,9 @@ router.post('/send-document', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -354,6 +443,13 @@ router.post('/send-location', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, latitude, longitude, name, address, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
     if (!to || latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
@@ -382,8 +478,9 @@ router.post('/send-location', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -423,6 +520,13 @@ router.post('/send-contact', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, contact, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
     if (!to || !contact) {
       return res.status(400).json({
         success: false,
@@ -449,8 +553,9 @@ router.post('/send-contact', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -490,6 +595,13 @@ router.post('/send-sticker', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, sticker, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
     if (!to || !sticker) {
       return res.status(400).json({
         success: false,
@@ -513,8 +625,9 @@ router.post('/send-sticker', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send;
     };
 
     let result;
@@ -591,6 +704,13 @@ router.post('/send-poll', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { to, name, options, selectableCount = 1, delay = 0, useQueue = false } = req.body;
 
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
     if (!to || !name || !options || !Array.isArray(options)) {
       return res.status(400).json({
         success: false,
@@ -625,8 +745,9 @@ router.post('/send-poll', authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false)
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send
     };
 
     let result;
@@ -654,6 +775,229 @@ router.post('/send-poll', authenticateApiKey, async (req, res) => {
     logger.info(`Enquete ${useQueue ? 'enfileirada' : 'enviada'}: ${sessionId} -> ${to}`);
   } catch (error) {
     logger.error('Erro ao enviar enquete:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+router.post('/send-list', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId = req.headers['apikey'];
+    const { to, listMessage, delay = 0, useQueue = false } = req.body;
+
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
+    if (!to || !listMessage) {
+      return res.status(400).json({
+        success: false,
+        message: 'to, listMessage são obrigatórios'
+      });
+    }
+
+    // Validação de listMessage
+    if (typeof listMessage !== 'object' || Array.isArray(listMessage) || listMessage === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'listMessage deve ser um objeto JSON no formato:\n{\n  "title": "Título da Lista",\n  "description": "Descrição opcional",\n  "buttonText": "Texto do Botão",\n  "footerText": "Rodapé opcional",\n  "sections": [\n    {\n      "title": "Título da Seção",\n      "rows": [\n        { "title": "Opção 1", "description": "Descrição 1", "rowId": "id1" },\n        { "title": "Opção 2", "description": "Descrição 2", "rowId": "id2" }\n      ]\n    }\n  ]\n}'
+      });
+    }
+
+    const { title, buttonText, sections } = listMessage;
+
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'O campo "title" é obrigatório e deve ser uma string.'
+      });
+    }
+
+    if (!buttonText || typeof buttonText !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'O campo "buttonText" é obrigatório e deve ser uma string.'
+      });
+    }
+
+    if (!sections || !Array.isArray(sections) || sections.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'O campo "sections" é obrigatório, deve ser um array e conter pelo menos uma seção.'
+      });
+    }
+
+    for (const [i, section] of sections.entries()) {
+      if (!section.title || typeof section.title !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: `A seção ${i + 1} deve ter o campo "title" como string.`
+        });
+      }
+      if (!section.rows || !Array.isArray(section.rows) || section.rows.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `A seção ${i + 1} deve ter o campo "rows" como array e conter pelo menos uma opção.`
+        });
+      }
+      for (const [j, row] of section.rows.entries()) {
+        if (!row.title || typeof row.title !== 'string') {
+          return res.status(400).json({
+            success: false,
+            message: `A opção ${j + 1} da seção ${i + 1} deve ter o campo "title" como string.`
+          });
+        }
+        if (!row.rowId || typeof row.rowId !== 'string') {
+          return res.status(400).json({
+            success: false,
+            message: `A opção ${j + 1} da seção ${i + 1} deve ter o campo "rowId" como string.`
+          });
+        }
+      }
+    }
+    if (!BaileysService.isSessionConnected(sessionId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sessão não está conectada'
+      });
+    }
+    listMessage.listType = 2
+    const message = {
+      listMessage: listMessage
+    };
+
+    const sendFunction = async () => {
+      await BaileysService.sendTyping(sessionId, to, true)
+      if (delay > 0) {
+        await BaileysService.delay(delay);
+      }
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false)
+      return send
+    };
+
+    let result;
+    if (useQueue) {
+      const queueInfo = await MessageQueueService.addToQueue(sessionId, {
+        sendFunction,
+        delay
+      });
+
+      result = {
+        queued: true,
+        queuePosition: queueInfo.queuePosition,
+        estimatedDelay: queueInfo.estimatedDelay
+      };
+    } else {
+      result = await sendFunction();
+    }
+
+    res.json({
+      success: true,
+      message: useQueue ? 'Enquete adicionada à fila' : 'Enquete enviada com sucesso',
+      data: result
+    });
+
+    logger.info(`Enquete ${useQueue ? 'enfileirada' : 'enviada'}: ${sessionId} -> ${to}`);
+  } catch (error) {
+    logger.error('Erro ao enviar enquete:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+// Enviar mensagem com botões
+router.post('/send-button', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId = req.headers['apikey'];
+    const { to, templateButtons, delay = 0, useQueue = false } = req.body;
+
+    if (typeof useQueue !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'useQueue Deve ser boolean'
+      });
+    }
+
+    if (!to || !templateButtons) {
+      return res.status(400).json({
+        success: false,
+        message: 'to e buttonMessage são obrigatórios'
+      });
+    }
+    // Validação de buttonMessage
+    if (typeof templateButtons !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'buttonMessage deve ser um objeto JSON no formato:\n{\n  "text": "Texto da mensagem",\n  "footer": "Rodapé opcional",\n  "buttons": [\n    { "buttonId": "id1", "buttonText": { "displayText": "Botão 1" }, "type": 1 },\n    { "buttonId": "id2", "buttonText": { "displayText": "Botão 2" }, "type": 1 }\n  ]\n}'
+      });
+    }
+
+    if (!BaileysService.isSessionConnected(sessionId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sessão não está conectada'
+      });
+    }
+    // return res.status(400).json({
+    //     success: false,
+    //     message: 'Função inativa'
+    //   });
+
+    const buttonsMessage = {
+      buttonsMessage: {
+        contentText: "Escolha uma opção:",
+        footerText: "Rodapé opcional",
+        buttons: [
+          { buttonId: "id1", buttonText: { displayText: "Botão 1" }, type: 1 },
+          { buttonId: "id2", buttonText: { displayText: "Botão 2" }, type: 1 }
+        ],
+        headerType: 1 // 1 = texto
+      }
+    };
+
+    const sendFunction = async () => {
+      await BaileysService.sendTyping(sessionId, to, true);
+      if (delay > 0) {
+        await BaileysService.delay(delay);
+      }
+      const send = await BaileysService.sendMessage(sessionId, to, buttonsMessage);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
+    };
+
+    let result;
+    if (useQueue) {
+      const queueInfo = await MessageQueueService.addToQueue(sessionId, {
+        sendFunction,
+        delay
+      });
+
+      result = {
+        queued: true,
+        queuePosition: queueInfo.queuePosition,
+        estimatedDelay: queueInfo.estimatedDelay
+      };
+    } else {
+      result = await sendFunction();
+    }
+
+    res.json({
+      success: true,
+      message: useQueue ? 'Mensagem com botões adicionada à fila' : 'Mensagem com botões enviada com sucesso',
+      data: result
+    });
+
+    logger.info(`Mensagem com botões ${useQueue ? 'enfileirada' : 'enviada'}: ${sessionId} -> ${to}`);
+  } catch (error) {
+    logger.error('Erro ao enviar mensagem com botões:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Erro interno do servidor'
@@ -736,21 +1080,31 @@ router.post('/mark-read', authenticateApiKey, async (req, res) => {
 router.get('/messages', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
-    const { jid, limit = 50, offset = 0 } = req.query;
+    const { jid, mensagem_id = 0 } = req.query;
 
-    const messages = await Store.getMessages(sessionId, jid, parseInt(limit), parseInt(offset));
+    const messages = await Store.getMessages(sessionId, jid, mensagem_id);
+    if (messages.length === 0) {
+      res.json({
+        success: false,
+        message: "Nenhuma mensagem encontrada para os parâmetros informados."
+      });
+    }
+    const data = {
+      messages,
+      total: messages.length,
+    }
+    if (mensagem_id && mensagem_id !== 0) {
+      data.mensagem_id = mensagem_id
+    }
 
     res.json({
       success: true,
-      data: {
-        messages,
-        total: messages.length,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
-      }
+      data
+
     });
 
   } catch (error) {
+    console.log(error)
     logger.error('Erro ao obter mensagens:', error);
     res.status(500).json({
       success: false,
@@ -867,5 +1221,9 @@ router.delete('/delete/:id_message', authenticateApiKey, async (req, res) => {
     });
   }
 });
+
+
+
+
 
 module.exports = router;

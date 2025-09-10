@@ -56,7 +56,7 @@ class Store {
         query += ` AND remoteJid = ?`;
         params.push(remoteJid);
       }
-      if (mensagem_id) {
+      if (mensagem_id && mensagem_id !== 0) {
         query += ` AND mensagem_id = ?`;
         params.push(mensagem_id);
       }

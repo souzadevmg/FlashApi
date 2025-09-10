@@ -37,6 +37,43 @@ router.get('/list', authenticateApiKey, async (req, res) => {
   }
 });
 
+router.get('/ProfilePicture', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId = req.headers['apikey'];
+
+    if (!BaileysService.isSessionConnected(sessionId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sessão não está conectada'
+      });
+    }
+
+     try {
+        // Baileys retorna a URL da foto, ou lança erro se não houver
+        const url = await sock.profilePictureUrl(jid, 'image'); // 'image' ou 'preview'
+        return url; // pode ser null se não tiver foto
+    } catch (e) {
+        // Se não tiver foto, ou erro de privacidade, retorna null
+        return null;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        contacts,
+        total: contacts.length
+      }
+    });
+
+  } catch (error) {
+    logger.error('Erro ao listar contatos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
+  }
+});
+
 router.post('/sync', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
@@ -112,13 +149,14 @@ router.post('/profile', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { jid } = req.body;
 
+
     if (!jid) {
       return res.status(400).json({
         success: false,
         message: 'JID é obrigatório'
       });
     }
-
+       const to = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
@@ -126,7 +164,7 @@ router.post('/profile', authenticateApiKey, async (req, res) => {
       });
     }
 
-    const profile = await BaileysService.getContactProfile(sessionId, jid);
+    const profile = await BaileysService.getContactProfile(sessionId, to);
 
     res.json({
       success: true,

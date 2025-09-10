@@ -124,10 +124,8 @@
   async function startServer() {
     try {
       logger.info('✅ Iniciando Flash API - WhatsApp Multi-Session');
-      
       // Initialize BaileysService and restore sessions
       await BaileysService.initialize();
-      logger.info('✅ BaileysService inicializado');
       
       server.listen(PORT, '0.0.0.0', () => {
         logger.info(`🚀 Flash API rodando na porta ${PORT}`);

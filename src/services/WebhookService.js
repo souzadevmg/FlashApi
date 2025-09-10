@@ -6,7 +6,7 @@ class WebhookService {
     for (let i = 0; i < retries; i++) {
       try {
         const response = await axios.post(url, data, {
-          timeout: 10000,
+          timeout: 60000,
           headers: {
             'Content-Type': 'application/json',
             'User-Agent': 'flash-Multi-Session-Webhook/1.0'

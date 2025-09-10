@@ -84,6 +84,23 @@ class Session {
     return deletesessao
   }
 
+  static async limparBinlogs() {
+    try {
+      // Pega o último binlog
+      const logs = await db.runAdmin("SHOW BINARY LOGS");
+
+      if (logs.length > 2) {
+        const penultimo = logs[logs.length - 2].Log_name;
+        await db.runAdmin(`PURGE BINARY LOGS TO '${penultimo}'`);
+        console.log(`Binlogs antigos removidos até ${penultimo}`);
+      } else {
+        console.log("Poucos binlogs, nada para apagar.");
+      }
+    } catch (err) {
+      console.error("Erro ao limpar binlogs:", err);
+    }
+  }
+
 }
 
 module.exports = Session;
