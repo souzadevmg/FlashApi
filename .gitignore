@@ -9,6 +9,7 @@ yarn-error.log*
 
 # Sessions data
 sessions/
+keys/
 
 # Environment variables
 .env
