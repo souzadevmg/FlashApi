@@ -1,6 +1,6 @@
-const config = require('../config/env');
-const Session = require('../models/Session');
-const logger = require('../utils/logger');
+import config from '../config/env.js';
+import Session from '../models/Session.js';
+import logger from '../utils/logger.js';
 
 const authenticateGlobalApiKey = (req, res, next) => {
   try {
@@ -93,7 +93,7 @@ const authenticateWebSocketSecret = async (secret, modo) => {
   return { success: true };
 };
 
-module.exports = {
+export default {
   authenticateGlobalApiKey,
   authenticateWebhookSecret,
   authenticateWebSocketSecret

@@ -1,158 +1,159 @@
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
+import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
-  makeInMemoryStore,
-  jidNormalizedUser,
   proto,
-  getAggregateVotesInPollMessage,
-  downloadContentFromMessage,
-  generateWAMessageFromContent,
-  prepareWAMessageMedia,
-  generateWAMessageContent,
-  generateMessageID,
-  makeCacheableSignalKeyStore,
-  Browsers,
   decryptPollVote,
-  WABrowserDescription,
-  downloadMediaMessage
+  downloadMediaMessage,
+  initAuthCreds,
+  BufferJSON,
+  useMultiFileAuthState,
+} from '@whiskeysockets/baileys';
 
-} = require('@whiskeysockets/baileys');
 
+import fs from 'fs/promises';
+import path from 'path';
+import QRCode from 'qrcode';
+import pino from 'pino';
+import Session from '../models/Session.js';
+import Store from '../models/Store.js';
+import GlobalWebhookService from './GlobalWebhookService.js';
+import WebhookService from './WebhookService.js';
+import logger from '../utils/logger.js';
+import configenv from '../config/env.js';
+import digestSync from 'crypto-digest-sync';
+import moment from 'moment-timezone';
+import { release } from 'os';
+import qrTerminal from 'qrcode-terminal';
+import NodeCache from 'node-cache';
+import { ProxyAgent } from 'undici';
+import redis from './redis.js';
+import { fileURLToPath } from 'url';
+import { clearAuth, useRedisAuthState } from './redisSessao.js';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import Redis from "ioredis";
 
-const fs = require('fs');
-const path = require('path');
-const QRCode = require('qrcode');
-const pino = require('pino');
-const Session = require('../models/Session');
-const Store = require('../models/Store');
-const GlobalWebhookService = require('./GlobalWebhookService');
-const WebhookService = require('./WebhookService');
-const logger = require('../utils/logger');
-const configenv = require('../config/env');
-const GlobalWebSocketService = require('./GlobalWebSocketService');
-const digestSync = require('crypto-digest-sync');
-const moment = require('moment-timezone');
-const { release } = require('os');
-const qrTerminal = require('qrcode-terminal');
-const NodeCache = require('node-cache');
 
 class BaileysService {
   constructor() {
     this.globalWebSocketService = null;
     this.healthCheckInterval = null;
-    this.groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false }); //Cache de grupos
-    this.sessions = new Map(); //cache de sessão
-    this.messagesCache = new NodeCache({ stdTTL: 5 * 60, useClones: false }); //Cache de mensagem
-    this.contactsCache = new NodeCache({ stdTTL: 5 * 60, useClones: false }); //Cache de contatos
-    this.chatsCache = new NodeCache({ stdTTL: 5 * 60, useClones: false }); //Cache de Chats
-    this.tentativas = new Map();
+    this.keepAliveInterval = null;
+    this.sessionMonitors = new Map();
   }
 
-  setGlobalWebSocketService(service) {
+  static redis = redis
+  static sockets = new Map();
+  static msgRetryCounterCache = new NodeCache({ stdTTL: 5 * 60, useClones: false })
+  static keepAliveIntervals = new Map();
+  static sessionHeartbeats = new Map();
+  static reconnectAttempts = new Map();
+  static qrcodelimites = new Map();
+
+
+  static setGlobalWebSocketService(service) {
     this.globalWebSocketService = service;
   }
 
-  async initialize() {
+  static async initialize() {
     logger.info('🔄 Inicializando BaileysService...');
-
-    // Criar diretório de sessões se não existir
-    const sessionsDir = path.join(process.cwd(), 'sessions');
-    if (!fs.existsSync(sessionsDir)) {
-      fs.mkdirSync(sessionsDir, { recursive: true });
-    }
 
     // Restaurar sessões ativas do banco
     await this.restoreActiveSessions();
 
     // Iniciar health check
     this.startHealthCheck();
-    this.logsmysql();
     await Session.limparBinlogs();
 
     logger.info('✅ BaileysService inicializado');
   }
 
-  async restoreActiveSessions() {
+  static async restoreActiveSessions() {
     try {
-
       const sessions = await Session.findByApiKey();
-
       logger.info(`🔄 Restaurando ${sessions.length} sessões do banco de dados...`);
 
       for (const session of sessions) {
-        if (session.status === 'connected' || session.status === 'connecting' || session.status === 'disconnected') {
-          logger.info(`🔄 Restaurando sessão: ${session.apikey}`);
-
-          // Sincronizar credenciais antes de criar a sessão
-          await this.syncCreds(session.apikey);
-          await this.createSession(session.apikey, session.numero, false);
-        }
+        await Session.update(session.apikey, { status: 'disconnected' })
+        logger.info(`⌛ Aguardando antes de restaurar ${session.apikey}...`);
+        await this.delay(2000);
+        logger.info(`🔄 Restaurando sessão: ${session.apikey}`);
+        await this.createSession(session.apikey, session.numero, false);
       }
+
     } catch (error) {
-      console.log('❌ Erro ao restaurar sessões:', error)
       logger.error('❌ Erro ao restaurar sessões:', error);
     }
   }
 
-  async createSession(sessionId, phoneNumber = null, updateStatus = true) {
+  static async createSession(sessionId, phoneNumber = null, type = 'qrcode') {
     try {
-      // Se a sessão já existe, remover primeiro
-      if (this.sessions.has(sessionId)) {
-        logger.warn(`⚠️ Sessão ${sessionId} já existe, removendo para recriar...`);
-        await this.deleteSession(sessionId);
+
+      const getsessao = await Session.findById(sessionId)
+      if (!getsessao) return { success: false, message: 'Sessão não encontrada no banco de dados' };
+      if (getsessao) {
+        if (getsessao.status == 'connected') {
+          logger.warn(`⚠️ Sessão ${sessionId} já está conectada. Não criar outra instância.`);
+          return { success: false, message: 'Sessão já conectada' };
+        }
       }
-
-      logger.info(`🚀 Criando sessão: ${sessionId}`);
-
-      const sessionDir = path.join(process.cwd(), 'sessions', sessionId);
-      if (!fs.existsSync(sessionDir)) {
-        fs.mkdirSync(sessionDir, { recursive: true });
-      }
-
-      // Tentar sincronizar credenciais antes de criar a sessão
-      await this.syncCreds(sessionId);
-
-      const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-      const { version, isLatest } = await fetchLatestBaileysVersion();
-
-      logger.info(`📱 Usando Baileys v${version.join('.')}, isLatest: ${isLatest}`);
+      
+      // Usar a instância singleton do Redis ao invés de criar uma nova
+      const { state, saveCreds } = await useRedisAuthState(sessionId, this.redis.client);
+      // const version = await getversion();
+      const { version, isLatest } = await fetchLatestBaileysVersion()
+      logger.info(`using WA v${version.join('.')}, isLatest: ${isLatest}`);
 
       let browserOptions = {}
       let number = false
-      if (phoneNumber && phoneNumber !== '') {
-        number = phoneNumber;
 
-        logger.info(`Phone number: ${number}`);
+      //Verificar se a conexão e via codigo ou qrcode
+      if (type == 'code') {
+        if (!phoneNumber || phoneNumber == '') {
+          return { success: false, message: 'Número de telefone é obrigatório para login por código' }
+        }
+        number = phoneNumber;
       } else {
         const browser = [configenv.sessao_phone, configenv.sessao_phone_name, release()];
         browserOptions = { browser };
       }
 
+      const getMessage = async (key) => {
+        const keymsg = `message:${sessionId}_${key.id}`;
+        const existingMessage = await this.redis.get(keymsg);
+        return existingMessage || undefined;
+      };
 
-      const sock = makeWASocket({
+      const configs = {
         version,
         logger: pino({ level: 'error' }),
         printQRInTerminal: false,
         ...browserOptions,
-        auth: {
-          creds: state.creds,
-          keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'error' }))
-        },
-        generateHighQualityLinkPreview: true,
+        auth: state,
+        generateHighQualityLinkPreview: false,
         syncFullHistory: true,
-        markOnlineOnConnect: false,
+        markOnlineOnConnect: true,
         fireInitQueries: true,
         emitOwnEvents: true,
-        cachedGroupMetadata: async (jid) => this.groupCache.get(`${sessionId}_${jid}`),
-        getMessage: async (key) => {
-          const msg = await this.getMessage(key);
-          return msg || undefined
+        msgRetryCounterCache: this.msgRetryCounterCache,
+        defaultQueryTimeoutMs: 60000,
+        retryRequestDelayMs: 500,
+        maxMsgRetryCount: 3,
+        fireInitQueries: true,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 15000,
+        qrTimeout: 45000,
+        // cachedGroupMetadata: async (jid) => {
+        //   return this.groupCache.get(`${sessionId}_${jid}`)
+        // },
+        getMessage,
+        shouldIgnoreJid: jid => {
+          if (!jid) return true;
+          if (jid.includes('@broadcast') || jid.includes('@newsletter')) return true;
+          return false;
         },
         patchMessageBeforeSending(message) {
-           // Corrige lista de produtos para lista normal (exemplo original)
-           
+          // Corrige lista de produtos para lista normal (exemplo original)
           if (
             message.deviceSentMessage?.message?.listMessage?.listType === proto.Message.ListMessage.ListType.PRODUCT_LIST
           ) {
@@ -167,58 +168,46 @@ class BaileysService {
             message.listMessage.listType = proto.Message.ListMessage.ListType.SINGLE_SELECT;
           }
 
-          // --- PATCH PARA BOTÕES ---
-          // DeviceSentMessage
-          if (
-            message.deviceSentMessage?.message?.buttonsMessage?.buttons
-          ) {
-            message = JSON.parse(JSON.stringify(message));
-            for (const button of message.deviceSentMessage.message.buttonsMessage.buttons) {
-              // Força type RESPONSE (1)
-              button.type = proto.Message.ButtonsMessage.Button.Type.RESPONSE || 1;
-            }
-          }
-          // Message direta
-          if (message.buttonsMessage?.buttons) {
-            message = JSON.parse(JSON.stringify(message));
-            for (const button of message.buttonsMessage.buttons) {
-              button.type = proto.Message.ButtonsMessage.Button.Type.UNKNOWN || 1;
-            }
-          }
-          if(message?.buttonsMessage?.headerType){
-            message.buttonsMessage.headerType = 1
-          }
-          
+
           return message;
         },
-      });
+      }
+
+      if (configenv.proxy_state === 'true') {
+        const proxyUrl = `${configenv.proxy_protocol}://${configenv.proxy_usename}:${configenv.proxy_password}@${configenv.proxy_host}:${configenv.proxy_port}`;
+        logger.info(`Instacia ${sessionId} 🛰️ Usando proxy: ${proxyUrl}`);
+
+        try {
+          configs.fetchAgent = new ProxyAgent(proxyUrl);
+        } catch (err) {
+          logger.error('❌ Erro ao criar ProxyAgent:', err);
+          configs.fetchAgent = undefined; // fallback sem proxy
+        }
+      }
+      const sock = makeWASocket(configs);
+      this.sockets.set(sessionId, sock);
 
       const sessionData = {
-        sock,
         status: 'connecting',
         phoneNumber: number,
         lastConnected: null,
-        connectionAttempts: 0,
-        qrRetries: 0,
-        maxQrRetries: 5,
-        ignorar_grupos: null,
-        msg_rejectCalls: null,
-        autoRead: null,
-        rejeitar_ligacoes: null,
-        webhook_status: null,
-        webhook_url: null,
-        events: []
+        ignorar_grupos: getsessao.ignorar_grupos,
+        msg_rejectcalls: getsessao.msg_rejectcalls,
+        autoRead: getsessao.leitura_automatica,
+        rejeitar_ligacoes: getsessao.rejeitar_ligacoes,
+        webhook_status: getsessao.webhook_status === 1,
+        webhook_url: getsessao.webhook_url,
+        events: getsessao.events,
+        url_imagem: null,
+        reconect: true,
       };
-      this.sessions.set(sessionId, sessionData);
 
-      if (!this.tentativas.get(sessionId)) this.tentativas.set(sessionId, { tentativas: 0 })
-
-
+      await this.redis.set(`sessao:${sessionId}`, sessionData);
 
       // Event handlers
-      this.EventsGet(sock, sessionId, saveCreds, updateStatus);
+      this.EventsGet(sock, sessionId, saveCreds);
 
-      return sessionData;
+      return { success: true, message: sessionData };
     } catch (error) {
       console.log(error)
       logger.error(`❌ Erro ao criar sessão ${sessionId}:`, error);
@@ -226,328 +215,228 @@ class BaileysService {
     }
   }
 
-  // função para remover sessão sem deletar arquivos
-  async removeSession(sessionId, delarquivos = false) {
-    try {
-      const sessionData = this.sessions.get(sessionId);
-      if (sessionData) {
+  //Buscar sockets
+  static getSocket(sessionId) {
+    return this.sockets.get(sessionId);
+  }
 
+  //Carregar sessões do banco de dados
+  static async loadStateFromDb(sessionId) {
+    const authRecord = await Session.getCreds(sessionId)
+    if (!authRecord || !authRecord.auth) {
+      return { creds: initAuthCreds() }
+    }
 
-        if (delarquivos) {
-          await Session.saveCreds(sessionId, null)
-          if (sessionData.sock) {
-            try {
-              if (sessionData.sock.ws && sessionData.sock.ws.readyState === 1) {
-                // 1 = WebSocket.OPEN
-                await sessionData.sock.logout();
-              } else {
-                console.warn("⚠️ WebSocket já fechado. Pulando logout.");
-              }
+    const dados = authRecord.auth
 
-              await sessionData.sock.end().catch(err => {
-                console.warn("⚠️ Erro ao encerrar sessão com .end():", err.message);
-              });
-
-              if (sessionData.sock.ws && sessionData.sock.ws.readyState !== 3) {
-                // 3 = WebSocket.CLOSED
-                sessionData.sock.ws.close();
-              }
-
-            } catch (err) {
-              console.error("❌ Erro ao encerrar sessão:", err.message);
-            }
-          }
-        } else {
-          // Fechar WebSocket se existir
-          if (sessionData.sock?.ws) {
-            await sessionData.sock.ws.close();
-          }
-        }
-
-        // Remover do Map
-        this.sessions.delete(sessionId);
-
-        await Session.update(sessionId, {
-          qr_code: 'null',
-          code: 'null',
-          status: 'disconnected'
-        })
-
-        logger.info(`🗑️ Sessão ${sessionId} removida da memória`);
-      }
-    } catch (error) {
-      console.log(error)
-      logger.error(`Erro ao remover sessão ${sessionId}:`, error);
+    return {
+      creds: JSON.parse(dados.creds, BufferJSON.reviver)
     }
   }
 
-  async getMessage(key, full = false) {
-    try {
+  static async saveStateToDb(sessionId, authState) {
+    const credsJson = JSON.stringify(authState.creds, BufferJSON.replacer)
 
-    } catch (error) { }
+    const authJson = JSON.stringify({ creds: credsJson })
+    await Session.saveCreds(sessionId, authJson)
   }
 
+
   //Eventos
-  EventsGet(sock, sessionId, saveCreds, updateStatus) {
+  static EventsGet(sock, sessionId, saveCreds) {
 
-    // Connection updates
-    sock.ev.on('connection.update', async (update) => {
-      await this.update_conexao(sessionId, update, updateStatus);
-    });
+    try {
+      // Connection updates
+      sock.ev.on('connection.update', async (update) => {
+        await this.update_conexao(sessionId, update);
+      });
 
-    // Credentials update
-    sock.ev.on('creds.update', async (creds) => {
-      try {
-
-        // Salvar no arquivo (padrão Baileys)
-        await saveCreds(creds);
-
-        // Salvar no banco como backup
-        await this.saveCredsToDatabase(sessionId);
-
-        logger.debug(`💾 Credenciais atualizadas para sessão: ${sessionId}`);
-      } catch (error) {
-        logger.error(`❌ Erro ao salvar credenciais para ${sessionId}:`, error);
-      }
-    });
+      // Credentials update
+      sock.ev.on("creds.update", saveCreds);
 
 
-    // Messages - com throttling
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      await this.msgrecebidas(sessionId, messages, type);
-    });
+      // Messages - com throttling
+      sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        await this.msgrecebidas(sessionId, messages, type);
+      });
 
-    // Message updates (read receipts, etc)
-    sock.ev.on('messages.update', async (updates) => {
-      await this.update_mensagem(sessionId, updates);
-    });
+      // Message updates (read receipts, etc)
+      sock.ev.on('messages.update', async (updates) => {
+        await this.update_mensagem(sessionId, updates);
+      });
 
-    // Chats - com throttling
-    sock.ev.on('chats.set', async ({ chats }) => {
-      await this.emitEvent(sessionId, 'chats_set', chats);
-      await this.chats_set(async () => {
-        try {
-          logger.info(`📂 Evento chats.set: ${chats.length} chats recebidos para sessão ${sessionId}`);
+      // Chats - com throttling
+      sock.ev.on('chats.set', async ({ chats }) => {
+        await this.emitEvent(sessionId, 'chats_set', chats);
+        await this.chats_set(async () => {
+          try {
+            logger.info(`📂 Evento chats.set: ${chats.length} chats recebidos para sessão ${sessionId}`);
 
-          // Processar em lotes para evitar sobrecarga
-          const batchSize = 50;
-          for (let i = 0; i < chats.length; i += batchSize) {
-            const batch = chats.slice(i, i + batchSize);
-            for (const chat of batch) {
-              if (!chat.id) continue;
-              const key = `${sessionId}_${chat.id}`
-              if (!this.chatsCache.has(key)) {
-                this.chatsCache.set(key, chat)
+            // Processar em lotes para evitar sobrecarga
+            const batchSize = 50;
+            for (let i = 0; i < chats.length; i += batchSize) {
+              const batch = chats.slice(i, i + batchSize);
+              for (const chat of batch) {
+                if (!chat.id) continue;
                 await Store.saveChat(sessionId, chat);
               }
-
+              // Pequena pausa entre lotes
+              await this.delay(100);
             }
-            // Pequena pausa entre lotes
-            await this.delay(100);
-          }
 
-          logger.info(`💾 ${chats.length} chats salvos no MySQL para sessão ${sessionId}`);
-        } catch (error) {
-          logger.error(`Erro ao salvar chats no MySQL:`, error);
-        }
+            logger.info(`💾 ${chats.length} chats salvos no MySQL para sessão ${sessionId}`);
+          } catch (error) {
+            logger.error(`Erro ao salvar chats no MySQL:`, error);
+          }
+        });
       });
-    });
 
-    sock.ev.on('chats.update', async (updates) => {
-      await this.emitEvent(sessionId, 'chats_update', updates);
-      await this.chats_set(async () => {
-        try {
-          for (const update of updates) {
-            if (!update.id) continue;
-            const key = `${sessionId}_${update.id}`
-            if (!this.chatsCache.has(key)) {
-              logger.info(`📂 Atualizando ${updates.length} chats para sessão ${sessionId}`);
-              this.chatsCache.set(key, update)
-              await Store.saveChat(sessionId, update);
-            }
+      sock.ev.on('chats.update', async (updates) => {
+        await this.emitEvent(sessionId, 'chats_update', updates);
+        await this.chats_set(async () => {
+          try {
+            for (const update of updates) {
+              if (!update.id) continue;
+              const key = `chats:${sessionId}_${update.id}`
+              const getchat = await this.redis.exists(key)
+              if (!getchat) {
+                logger.info(`📂 Atualizando ${updates.length} chats para sessão ${sessionId}`);
+                await this.redis.set(key, update)
+                await Store.saveChat(sessionId, update);
+                if (update.id.endsWith('@s.whatsapp.net')) {
+                  const message = update.messages[0].message
+                  update.id = message.key.id
+                  update.name = message.pushName || ''
+                  update.notify = message.pushName || ''
+                  update.verifiedName = message.pushName || ''
+                  try {
+                    const perfil = await sock.profilePictureUrl(update.id);
+                    update.url_imagem = perfil;
+                  } catch (error) {
 
-          }
-        } catch (error) {
-          logger.error(`Erro ao atualizar chats:`, error);
-        }
-      });
-    });
-
-    // Contacts - com throttling
-    sock.ev.on('contacts.set', async ({ contacts }) => {
-      await this.emitEvent(sessionId, 'contacts_set', contacts);
-      await this.chats_set(async () => {
-        try {
-          logger.info(`👥 Evento contacts.set: ${contacts.length} contatos recebidos para sessão ${sessionId}`);
-
-          // Processar em lotes
-          const batchSize = 100;
-          for (let i = 0; i < contacts.length; i += batchSize) {
-            const batch = contacts.slice(i, i + batchSize);
-            for (const contact of batch) {
-              if (!contact.id) continue;
-              const key = `${sessionId}_${contact.id}`
-              if (!this.contactsCache.has(key)) {
-                this.contactsCache.set(key, contact)
-                await Store.saveContact(sessionId, contact);
-              }
-
-            }
-            await this.delay(50);
-          }
-
-          logger.info(`💾 ${contacts.length} contatos salvos no MySQL para sessão ${sessionId}`);
-        } catch (error) {
-          logger.error(`Erro ao salvar contatos no MySQL:`, error);
-        }
-      });
-    });
-
-    sock.ev.on('contacts.update', async (updates) => {
-      await this.emitEvent(sessionId, 'contacts_update', updates);
-      await this.chats_set(async () => {
-        try {
-          for (const update of updates) {
-            if (!update.id) continue;
-            const key = `${sessionId}_${update.id}`
-            if (!this.contactsCache.has(key)) {
-              logger.info(`👥 Atualizando ${updates.length} contatos para sessão ${sessionId}`);
-              this.contactsCache.set(key, update)
-              await Store.saveContact(sessionId, update);
-            }
-          }
-        } catch (error) {
-          logger.error(`Erro ao atualizar contatos:`, error);
-        }
-      });
-    });
-
-    // Eventos de grupo update
-    sock.ev.on('groups.update', async (updates) => {
-      await this.emitEvent(sessionId, 'groups_update', updates);
-      //Função para salvar grupos no banco de dados
-      const salvegrups = async () => {
-        try {
-          for (const update of updates) {
-            if (!update.id) continue;
-            const metadata = await sock.groupMetadata(update.id)
-            const key = `${sessionId}_${update.id}`
-            if (!this.groupCache.has(key)) {
-              logger.info(`👥 Atualizando ${updates.length} grupos para sessão ${sessionId}`);
-              this.groupCache.set(key, metadata);
-              await Store.saveGroup(sessionId, update);
-            }
-          }
-        } catch (error) {
-          logger.error(`Erro ao atualizar grupos:`, error);
-        }
-      }
-      await this.chats_set(salvegrups);
-    });
-
-    // const originalEmit = sock.ev.emit;
-    // sock.ev.emit = function (event, ...args) {
-    //     // console.log(`📡 Evento recebido: ${event}`);
-    //     // console.dir(args, { depth: null });
-    //     // return originalEmit.call(this, event, ...args);
-    // };
-
-    sock.ev.on('group-participants.update', async (event) => {
-      await this.emitEvent(sessionId, 'group_participants_update', event);
-      const metadata = await sock.groupMetadata(event.id)
-      const key = `${sessionId}_${event.id}`
-      if (!this.groupCache.has(key)) {
-        this.groupCache.set(key, metadata)
-      }
-
-    })
-
-    // Presence updates
-    sock.ev.on('presence.update', async ({ id, presences }) => {
-      await this.handlePresenceUpdate(sessionId, id, presences);
-    });
-
-    // Call events
-    sock.ev.on('call', async (calls) => {
-      await this.event_call(sessionId, calls);
-    });
-
-    // Histórico - com throttling
-    sock.ev.on('messaging-history.set', async ({ chats, contacts, messages, isLatest }) => {
-
-      await this.emitEvent(sessionId, 'messaging_history_set', { chats, contacts, messages });
-      await this.chats_set(async () => {
-        try {
-          logger.info(`📚 Histórico carregado para sessão ${sessionId}: ${chats.length} chats, ${contacts.length} contatos, ${messages.length} mensagens`);
-
-          // Processar em lotes pequenos
-          const batchSize = 25;
-
-          // Salvar chats
-          for (let i = 0; i < chats.length; i += batchSize) {
-            const batch = chats.slice(i, i + batchSize);
-            for (const chat of batch) {
-              try {
-                if (!chat.id) continue;
-                const key = `${sessionId}_${chat.id}`
-                if (!this.chatsCache.has(key)) {
-                  this.chatsCache.set(key)
-                  await Store.saveChat(sessionId, chat);
+                  }
+                  await Store.saveContact(sessionId, update);
                 }
-
-              } catch (error) {
-                console.error('Error ao salvar contato: ', error)
               }
 
             }
-            await this.delay(100);
+          } catch (error) {
+            logger.error(`Erro ao atualizar chats:`, error);
           }
+        });
+      });
 
-          // Salvar contatos
-          for (let i = 0; i < contacts.length; i += batchSize) {
-            const batch = contacts.slice(i, i + batchSize);
-            for (const contact of batch) {
-              try {
+      // Contacts - com throttling
+      sock.ev.on('contacts.set', async (dados) => {
+        await this.emitEvent(sessionId, 'contacts_set', contacts);
+        await this.chats_set(async () => {
+          try {
+            logger.info(`👥 Evento contacts.set: ${contacts.length} contatos recebidos para sessão ${sessionId}`);
+
+            // Processar em lotes
+            const batchSize = 100;
+            for (let i = 0; i < contacts.length; i += batchSize) {
+              const batch = contacts.slice(i, i + batchSize);
+              for (const contact of batch) {
                 if (!contact.id) continue;
-                const key = `${sessionId}_${contact.id}`
-                if (!this.contactsCache.has(key)) {
-                  this.contactsCache.set(key, contact)
+                const key = `contatos:${sessionId}_${contact.id}`
+                const contatoExiste = this.redis.exists(key)
+                if (!contatoExiste) {
+                  this.redis.set(key, contact)
+                  const result = await sock.profilePictureUrl(contact.id);
+                  contact.url_imagem = result
                   await Store.saveContact(sessionId, contact);
                 }
 
-              } catch (error) {
-                console.error('Error ao salvar contato: ', error)
               }
-
+              await this.delay(50);
             }
-            await this.delay(100);
-          }
 
-          // Salvar mensagens (limitado)
-          const limitedMessages = messages.slice(0, 100); // Limitar a 100 mensagens
-          for (let i = 0; i < limitedMessages.length; i += batchSize) {
-            const batch = limitedMessages.slice(i, i + batchSize);
-            for (const message of batch) {
-              if (!message?.key?.id) continue;
-              const key = `${sessionId}_${message.key.id}`
-              if (!this.messagesCache.has(key)) {
-                this.messagesCache.set(key, message)
-                await Store.saveMessage(sessionId, message);
+            logger.info(`💾 ${contacts.length} contatos salvos no MySQL para sessão ${sessionId}`);
+          } catch (error) {
+            logger.error(`Erro ao salvar contatos no MySQL:`, error);
+          }
+        });
+      });
+
+      sock.ev.on('contacts.update', async (updates) => {
+
+        await this.emitEvent(sessionId, 'contacts_update', updates);
+        await this.chats_set(async () => {
+          try {
+            for (const update of updates) {
+              if (!update?.id || update.id.includes('@lid')) continue;
+              const key = `contatos:${sessionId}_${update.id}`
+              const getctt = await this.redis.exists(key)
+              if (!getctt) {
+                logger.info(`👥 Atualizando ${updates.length} contatos para sessão ${sessionId}`);
+                await this.redis.set(key, update)
+                try {
+                  const url = await sock.profilePictureUrl(update.id);
+                  update.url_imagem = url
+                } catch (error) {
+
+                }
+                await Store.saveContact(sessionId, update);
               }
             }
-            await this.delay(100);
+          } catch (error) {
+            logger.error(`Erro ao atualizar contatos:`, error);
           }
+        });
+      });
 
-          logger.info(`💾 Histórico salvo no MySQL para sessão ${sessionId}`);
+      // Eventos de grupo update
+      sock.ev.on('groups.update', async (updates) => {
+        const getsessao = await this.redis.get(`sessao:${sessionId}`);
+        if (!getsessao || getsessao.ignorar_grupos) return
+        await this.emitEvent(sessionId, 'groups_update', updates);
+      });
+
+      // // const originalEmit = sock.ev.emit;
+      // sock.ev.emit = function (event, ...args) {
+      //     console.log(`📡 Evento recebido: ${event}`);
+      //     console.dir(args, { depth: null });
+      //     // return originalEmit.call(this, event, ...args);
+      // };
+
+      sock.ev.on('group-participants.update', async (event) => {
+        const getsessao = await this.redis.get(`sessao:${sessionId}`);
+        if (!getsessao || getsessao.ignorar_grupos) return;
+        await this.emitEvent(sessionId, 'group_participants_update', event);
+
+      })
+
+      // Presence updates
+      sock.ev.on('presence.update', async ({ id, presences }) => {
+        await this.handlePresenceUpdate(sessionId, id, presences);
+      });
+
+      // Call events
+      sock.ev.on('call', async (calls) => {
+        await this.emitEvent(sessionId, 'call_update', calls);
+        await this.event_call(sessionId, calls);
+      });
+
+      // Histórico - SALVAMENTO DIRETO POSTGRESQL (otimizado para grandes volumes)
+      sock.ev.on('messaging-history.set', async (dados) => {
+        try {
+          this.processHistoryBatchDirectly(sessionId, dados)
+
         } catch (error) {
-          logger.error(`Erro ao salvar histórico:`, error);
+          logger.error(`❌ Erro ao processar lote para ${sessionId}:`, error);
+          // Limpar estatísticas em caso de erro
+          await this.redis.del(`history_stats:${sessionId}`);
         }
       });
-    });
+    } catch (error) {
+      logger.error('Erro ao processar eventos:', error);
+    }
+
   }
 
   // Função para restaurar credenciais do banco para arquivos
-  async restoreCredsFromDB(sessionId) {
+  static async restoreCredsFromDB(sessionId) {
     try {
       logger.info(`🔄 Restaurando credenciais do banco para sessão: ${sessionId}`);
 
@@ -579,91 +468,8 @@ class BaileysService {
     }
   }
 
-  // Função para sincronizar credenciais entre arquivo e banco
-  async syncCreds(sessionId) {
-    try {
-      logger.info(`🔄 Sincronizando credenciais para sessão: ${sessionId}`);
-
-      const sessionDir = path.join(process.cwd(), 'sessions', sessionId);
-
-      // Verificar se diretório de sessão existe
-      if (!fs.existsSync(sessionDir)) {
-        logger.info(`📁 Diretório não existe, tentando restaurar do banco: ${sessionId}`);
-        return await this.restoreCredsFromDB(sessionId);
-      }
-
-      // Ler credenciais dos arquivos
-      const credsFiles = {};
-      const files = fs.readdirSync(sessionDir);
-
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          const filePath = path.join(sessionDir, file);
-          try {
-            const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            credsFiles[file] = content;
-          } catch (error) {
-            logger.warn(`⚠️ Erro ao ler arquivo ${file}:`, error.message);
-          }
-        }
-      }
-
-      // Se temos credenciais nos arquivos, salvar no banco
-      if (Object.keys(credsFiles).length > 0) {
-        await Session.saveCreds(sessionId, credsFiles);
-        logger.info(`💾 Credenciais sincronizadas do arquivo para banco: ${sessionId}`);
-        return true;
-      } else {
-        // Se não temos arquivos, tentar restaurar do banco
-        logger.info(`📥 Nenhum arquivo encontrado, restaurando do banco: ${sessionId}`);
-        return await this.restoreCredsFromDB(sessionId);
-      }
-    } catch (error) {
-      logger.error(`❌ Erro ao sincronizar credenciais para ${sessionId}:`, error);
-      return false;
-    }
-  }
-
-  // Função para salvar credenciais dos arquivos para o banco
-  async saveCredsToDatabase(sessionId) {
-    try {
-      const sessionDir = path.join(process.cwd(), 'sessions', sessionId);
-
-      if (!fs.existsSync(sessionDir)) {
-        logger.warn(`⚠️ Diretório de sessão não existe: ${sessionId}`);
-        return false;
-      }
-
-      const credsFiles = {};
-      const files = fs.readdirSync(sessionDir);
-
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          const filePath = path.join(sessionDir, file);
-          try {
-            const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            credsFiles[file] = content;
-          } catch (error) {
-            logger.warn(`⚠️ Erro ao ler arquivo de credencial ${file}:`, error.message);
-          }
-        }
-      }
-
-      if (Object.keys(credsFiles).length > 0) {
-        await Session.saveCreds(sessionId, credsFiles);
-        logger.debug(`💾 Credenciais salvas no banco para sessão: ${sessionId}`);
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      logger.error(`❌ Erro ao salvar credenciais no banco para ${sessionId}:`, error);
-      return false;
-    }
-  }
-
   // Função para throttling de sincronização
-  async chats_set(syncFunction) {
+  static async chats_set(syncFunction) {
 
     try {
       await syncFunction();
@@ -672,26 +478,41 @@ class BaileysService {
     }
   }
 
-  async update_conexao(sessionId, update, updateStatus = true) {
+  static async update_conexao(sessionId, update) {
     const { connection, lastDisconnect, qr } = update;
-    const sessionData = this.sessions.get(sessionId);
-    const tentativas = this.tentativas.get(sessionId);
-    if (!sessionData) return;
+    const sock = this.getSocket(sessionId)
+    const sessionData = await this.redis.get(`sessao:${sessionId}`);
+    if (!sessionData || !sock) return;
+
     logger.info(`🔄 Conexão ${sessionId}: ${connection || 'indefinido'}`);
 
     await this.emitEvent(sessionId, 'connection_update', update);
 
     if (qr) {
-      try {
 
+      let limiteqrcode = await this.qrcodelimites.get(`limiteqrcode:${sessionId}`);
+      if (!limiteqrcode) {
+        limiteqrcode = { limite: 0 };
+        await this.qrcodelimites.set(`limiteqrcode:${sessionId}`, limiteqrcode);
+      }
+
+      if (limiteqrcode.limite >= parseInt(configenv.qrcode_limite)) {
+        logger.info(`❌ Máximo de qrcode atingido para ${sessionId}`);
+        return await this.deleteSession(sessionId);
+      }
+      limiteqrcode.limite += 1;
+      await this.qrcodelimites.set(`limiteqrcode:${sessionId}`, limiteqrcode);
+
+      try {
         qrTerminal.generate(qr, { small: true }, (qrcode) => {
-          console.log(`QR Code Sessão ${sessionId}:\n`, qrcode);
+          logger.info(`QR Code ${limiteqrcode.limite++}/${configenv.qrcode_limite} Sessão ${sessionId}:\n`, qrcode);
         });
         let code = null
+
         if (sessionData.phoneNumber && sessionData.phoneNumber !== '') {
           try {
             await this.delay(1000);
-            code = await sessionData.sock.requestPairingCode(sessionData.phoneNumber);
+            code = await sock.requestPairingCode(sessionData.phoneNumber);
             logger.info(`Codigo de pareamento: ${code}`)
           } catch (error) {
             logger.error('erro ao gerar codigo de conexão')
@@ -701,16 +522,14 @@ class BaileysService {
         const qrCodeDataURL = await QRCode.toDataURL(qr);
         sessionData.qrCode = qrCodeDataURL;
 
-        if (updateStatus) {
-          await Session.update(sessionId, {
-            status: 'qr_ready',
-            qr_code: qrCodeDataURL,
-            code
-          });
-        }
+        await Session.update(sessionId, {
+          status: 'qr_ready',
+          qr_code: qrCodeDataURL,
+          code
+        });
 
         // Emit QR code event
-        await this.emitEvent(sessionId, 'qr_updated', { qr: qrCodeDataURL, code });
+        this.emitEvent(sessionId, 'qr_updated', { qr: qrCodeDataURL, code });
 
         logger.info(`📱 QR Code gerado para sessão ${sessionId}`);
       } catch (error) {
@@ -720,38 +539,25 @@ class BaileysService {
 
     if (connection === 'close') {
       try {
-        const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+        sessionData.status = 'disconnected';
+        await Session.update(sessionId, { status: 'disconnected' });
+        const shouldReconnect = (lastDisconnect?.error && lastDisconnect.error.output?.statusCode) !== DisconnectReason.loggedOut;
 
         if (shouldReconnect) {
-          tentativas.tentativas++;
-          logger.info(`🔄 Tentativa de reconexão ${tentativas.tentativas} para ${sessionId}`);
-
-          if (tentativas.tentativas <= 5) {
-
-            // Remover sessão atual antes de tentar reconectar
-            await this.deleteSession(sessionId)
-
-            setTimeout(async () => {
-              try {
-                await this.createSession(sessionId, sessionData.phoneNumber, updateStatus);
-              } catch (error) {
-                logger.error(`Erro na reconexão automática ${sessionId}:`, error);
-              }
-            }, 5000 * tentativas.tentativas);
-          } else {
-            logger.error(`❌ Máximo de tentativas de reconexão atingido para ${sessionId}`);
-            await this.deleteSession(sessionId, true);
-          }
-        } else {
-          logger.info(`🚪 Sessão ${sessionId} foi desconectada (logout)`);
-          await this.deleteSession(sessionId, true);
-        }
-
-        if (updateStatus) {
-          await Session.update(sessionId, { status: 'disconnected' });
+          // Sistema de reconexão inteligente com backoff exponencial
+          return await this.handleReconnection(sessionId, lastDisconnect);
         }
 
         await this.emitEvent(sessionId, 'session_disconnected', { reason: lastDisconnect?.error?.message });
+        logger.info(`🚪 Sessão ${sessionId} foi desconectada (logout)`);
+        try {
+          await clearAuth(sessionId, this.redis.client);
+        } catch (err) {
+          console.error("Erro ao remover sessão:", err);
+        }
+        await this.deleteSession(sessionId);
+        return;
+
       } catch (error) {
         console.error(`Erro na conexão ${sessionId}: `, error)
       }
@@ -761,91 +567,78 @@ class BaileysService {
 
     if (connection === 'connecting') {
       sessionData.status = 'connecting';
-      sessionData.connectionAttempts++;
 
-      if (updateStatus) {
-        await Session.update(sessionId, { status: 'connecting' });
-      }
+      await Session.update(sessionId, { status: 'connecting' });
     }
 
     if (connection === 'open') {
       sessionData.status = 'connected';
       sessionData.lastConnected = moment().tz(configenv.timeZone).format('YYYY-MM-DD HH:mm:ss');
-      tentativas.tentativas = 0;
-      sessionData.connectionAttempts = 0;
-      const phoneNumber = sessionData.sock?.user?.id?.split(':')[0];
+      await this.qrcodelimites.delete(`limiteqrcode:${sessionId}`);
+      await this.redis.del(`tentativas:${sessionId}`);
+      // Limpar tentativas de reconexão
+      this.reconnectAttempts.delete(sessionId);
+
+      const phoneNumber = sock?.user?.id?.split(':')[0];
       const sessaoDB = await Session.findById(sessionId)
+
+      sessionData.phoneNumber = phoneNumber
       sessionData.ignorar_grupos = sessaoDB.ignorar_grupos
       sessionData.rejeitar_ligacoes = sessaoDB.rejeitar_ligacoes
-      sessionData.msg_rejectCalls = sessaoDB.msg_rejectCalls
+      sessionData.msg_rejectcalls = sessaoDB.msg_rejectcalls
       sessionData.webhook_status = sessaoDB.webhook_status
       sessionData.webhook_url = sessaoDB.webhook_url
       sessionData.events = sessaoDB.events
-
       await Session.update(sessionId, {
         status: 'connected',
         phone_number: phoneNumber
       });
 
       logger.info(`✅ Sessão ${sessionId} conectada com sucesso! Telefone: ${phoneNumber}`);
-
       // Sincronização mais conservadora após conexão
-      setTimeout(async () => {
-        await this.forceSyncAll(sessionId);
-      }, 15000); // Aguardar 15 segundos
+      this.forceSyncAll(sessionId);
     }
+
+    await this.redis.set(`sessao:${sessionId}`, sessionData)
+
   }
 
-  // NOVA FUNÇÃO: Forçar sincronização de contatos
-  async forceSyncContacts(sessionId) {
+
+  // Função para sincronização de contatos do Baileys v7
+  static async forceSyncContatos(sessionId) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) return;
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+
+      if (!sessionData || !sock) return;
 
       logger.info(`🔄 Forçando sincronização de contatos para sessão ${sessionId}...`);
 
-      const sock = sessionData.sock;
-      const store = sessionData.store;
-      // Estratégia 1: Tentar obter contatos do store
-      if (store && store.contacts) {
-        const contacts = Object.values(store.contacts);
-        logger.info(`📱 Encontrados ${contacts.length} contatos no store interno`);
-
-        // Processar em lotes pequenos
-        const batchSize = 50;
-        for (let i = 0; i < contacts.length; i += batchSize) {
-          const batch = contacts.slice(i, i + batchSize);
-          for (const contact of batch) {
-            await Store.saveContact(sessionId, contact);
-          }
-          await this.delay(200); // Pausa maior entre lotes
+      // Método válido no Baileys v7: Sincronizar contatos via eventos
+      try {
+        // Força um evento de sincronização de contatos (se disponível)
+        if (typeof sock.ev?.emit === 'function') {
+          logger.info(`📱 Tentando forçar evento de sincronização de contatos`);
         }
-      }
 
-      // Estratégia 2: Extrair contatos dos chats (limitado)
-      if (store && store.chats) {
-        const chats = Object.values(store.chats);
+        // Alternativa: Extrair contatos dos chats existentes
+        const chats = await Store.getChats(sessionId);
         let contactsFromChats = 0;
 
-        for (const chat of chats) {
-          if (!chat.id.includes('@g.us')) { // Não é grupo
-            const contactData = {
-              id: chat.id,
-              name: chat.name || chat.notify || null,
-              notify: chat.notify || null
-            };
+        if (chats && chats.length > 0) {
+          logger.info(`📂 Extraindo contatos de ${chats.length} chats existentes`);
 
-            await Store.saveContact(sessionId, contactData);
-            contactsFromChats++;
+          for (const chat of chats) {
 
-            // Pausa a cada 10 contatos
-            if (contactsFromChats % 10 === 0) {
-              await this.delay(100);
-            }
           }
+
+          logger.info(`📱 ${contactsFromChats} contatos extraídos e salvos dos chats`);
+        } else {
+          logger.warn(`📂 Nenhum chat encontrado para extrair contatos`);
         }
 
-        logger.info(`📱 Extraídos ${contactsFromChats} contatos dos chats`);
+      } catch (syncError) {
+        logger.error(`Erro na sincronização de contatos:`, syncError.message);
       }
 
     } catch (error) {
@@ -854,15 +647,20 @@ class BaileysService {
   }
 
   // NOVA FUNÇÃO: Forçar sincronização completa 
-  async forceSyncAll(sessionId) {
+  static async forceSyncAll(sessionId) {
     try {
       logger.info(`🔄 Iniciando sincronização completa para sessão ${sessionId}...`);
 
-      await this.forceSyncContacts(sessionId);
+      // Executa sequencialmente para reduzir uso simultâneo de memória/IO
+      await this.forceSyncContatos(sessionId);
       await this.delay(2000);
       await this.forceSyncChats(sessionId);
       await this.delay(2000);
-      await this.forceSyncGroups(sessionId);
+      const getsessao = await this.redis.get(`sessao:${sessionId}`);
+      if (getsessao && !getsessao.ignorar_grupos) {
+        await this.forceSyncGroups(sessionId);
+      }
+
 
       logger.info(`✅ Sincronização completa finalizada para sessão ${sessionId}`);
     } catch (error) {
@@ -870,9 +668,9 @@ class BaileysService {
     }
   }
 
-  async forceSyncChats(sessionId) {
+  static async forceSyncChats(sessionId) {
     try {
-      const sessionData = this.sessions.get(sessionId);
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       if (!sessionData || !sessionData.store) return;
 
       const store = sessionData.store;
@@ -895,19 +693,15 @@ class BaileysService {
     }
   }
 
-  async forceSyncGroups(sessionId) {
+  static async forceSyncGroups(sessionId) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) return;
-
-      const sock = sessionData.sock;
-
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sock) return;
       // Obter grupos que o usuário participa
       const groups = await sock.groupFetchAllParticipating();
       const groupList = Object.values(groups);
-
       logger.info(`👥 Sincronizando ${groupList.length} grupos`);
-
       // Processar em lotes pequenos
       const batchSize = 10;
       for (let i = 0; i < groupList.length; i += batchSize) {
@@ -923,38 +717,199 @@ class BaileysService {
   }
 
   // Função pública para sincronização manual
-  async syncContactsManually(sessionId) {
-    await this.forceSyncContacts(sessionId);
+  static async syncContactsManually(sessionId) {
+    await this.forceSyncContatos(sessionId);
   }
 
-  async msgrecebidas(sessionId, messages, type) {
-    for (const message of messages) {
+  // ✅ SALVAMENTO DIRETO POSTGRESQL - PROCESSAMENTO EM TEMPO REAL
 
-      let selectedOptions = null;
-      const pollUpdate = message.message?.pollUpdateMessage;
-      if (pollUpdate) {
+  // Processar lote imediatamente no PostgreSQL (sem acumular na memória)
+  static async processHistoryBatchDirectly(sessionId, { chats, contacts, messages }) {
+    try {
+      // Processar de forma assíncrona para não bloquear outros lotes
+      setImmediate(async () => {
         try {
-          const pollMsgId = pollUpdate.pollCreationMessageKey?.id;
-          const [msg] = await Store.getMessages(sessionId, message.key.remoteJid, pollMsgId)
+          let savedChats = 0, savedContacts = 0, savedMessages = 0;
 
-          let voterJid = msg.remoteJid;
-          if (voterJid.endsWith('@lid')) {
-            const lidNumber = voterJid.split('@')[0];
-            voterJid = lidNumber;
+          // Salvar contatos do lote atual
+          for (const contact of contacts) {
+            try {
+
+              if (!contact.id || !contact.id.includes('@s.whatsapp.net') || contact.id == '0') continue;
+              const key = `contatos:${sessionId}_${contact.id}`;
+              const existingContact = await this.redis.exists(key);
+              if (!existingContact) {
+                await this.redis.set(key, contact, 3600); // Cache por 1 hora
+
+                // Tentar obter foto de perfil (com timeout rápido)
+                try {
+                  const sock = this.getSocket(sessionId);
+                  if (sock) {
+                    const profilePromise = sock.profilePictureUrl(contact.id);
+                    const timeoutPromise = new Promise((_, reject) =>
+                      setTimeout(() => reject(new Error('Timeout')), 2000)
+                    );
+                    const profileUrl = await Promise.race([profilePromise, timeoutPromise]);
+                    contact.url_imagem = profileUrl;
+                  }
+                } catch (profileError) {
+                  // Ignorar erros de foto de perfil
+                }
+
+                await Store.saveContact(sessionId, contact);
+                savedContacts++;
+              }
+            } catch (error) {
+              // Continuar mesmo com erro em item individual
+            }
           }
 
-          const getnumber = this.sessions.get(sessionId)
-          if (getnumber?.sock?.user?.id?.split(':')[0]) {
-            const decrypted = await decryptPollVote(pollUpdate.vote, {
-              pollCreatorJid: getnumber.sock.user.id.split(':')[0] + '@s.whatsapp.net',
+          // Salvar mensagens do lote atual (limitado para performance)
+          const limitedMessages = messages.slice(-50); // Apenas últimas 50 mensagens por lote
+
+          for (const message of limitedMessages) {
+            try {
+              if (!message?.key?.id) continue;
+              const key = `message:${sessionId}_${message.key.id}`;
+              const existingMessage = await this.redis.exists(key);
+              if (!existingMessage) {
+                let temp_delete = null;
+                if (configenv.delete_message) {
+                  temp_delete = configenv.temp_delet_message;
+                }
+                this.redis.set(key, message, temp_delete);
+                await Store.saveMessage(sessionId, message);
+                savedMessages++;
+              }
+            } catch (error) {
+              // Continuar mesmo com erro em item individual
+            }
+          }
+
+          if (savedChats > 0 || savedContacts > 0 || savedMessages > 0) {
+            logger.info(`💾 Lote salvo para ${sessionId}: ${savedChats} chats, ${savedContacts} contatos, ${savedMessages} mensagens`);
+          }
+
+        } catch (error) {
+          logger.error(`❌ Erro ao processar lote direto para ${sessionId}:`, error);
+        }
+      });
+
+    } catch (error) {
+      logger.error(`❌ Erro ao agendar processamento para ${sessionId}:`, error);
+    }
+  }
+
+
+  // Obter estatísticas das sincronizações no Redis
+  static async getHistoryAccumulatorStats() {
+    try {
+      const patterns = ['history_stats:*', 'history_accumulator:*']; // Compatibilidade
+      const stats = {
+        total: 0,
+        sessions: [],
+        directProcessing: true // Indica que usa processamento direto
+      };
+
+      for (const pattern of patterns) {
+        const keys = await this.redis.keys(pattern);
+        stats.total += keys.length;
+
+        for (const key of keys) {
+          const sessionId = key.split(':')[1];
+          const data = await this.redis.get(key);
+
+          if (data) {
+            const sessionStats = {
+              sessionId,
+              batches: data.batches || 0,
+              totalChats: data.totalChats || (data.chats?.length || 0),
+              totalContacts: data.totalContacts || (data.contacts?.length || 0),
+              totalMessages: data.totalMessages || (data.messages?.length || 0),
+              duration: data.startTime ? (Date.now() - data.startTime) / 1000 : 0,
+              processing: pattern.includes('stats') ? 'direct' : 'accumulated'
+            };
+            stats.sessions.push(sessionStats);
+          }
+        }
+      }
+
+      return stats;
+    } catch (error) {
+      logger.error('❌ Erro ao obter estatísticas Redis:', error);
+      return { total: 0, sessions: [], directProcessing: true };
+    }
+  }
+
+  static async msgrecebidas(sessionId, messages, type) {
+    const getsessao = await this.redis.get(`sessao:${sessionId}`);
+    const sock = this.getSocket(sessionId)
+    for (const message of messages) {
+      if (message.key.addressingMode === 'lid' && message.key.remoteJidAlt) {
+        const jid = message.key.remoteJidAlt;
+        const lid = message.key.remoteJid;
+        message.key.remoteJidAlt = lid;
+        message.key.remoteJid = jid;
+      }
+      // Validação básica da estrutura da mensagem
+      if (!message || !message.key || !message.key.remoteJid) {
+        logger.warn(`⚠️ Mensagem inválida recebida na sessão ${sessionId}:`, {
+          hasMessage: !!message,
+          hasKey: !!message?.key,
+          hasRemoteJid: !!message?.key?.remoteJid
+        });
+        continue;
+      }
+
+      try {
+        const remoteJid = message.key.remoteJid;
+        if (remoteJid && remoteJid.endsWith('@g.us') && getsessao.ignorar_grupos) continue;
+      } catch (error) {
+        continue;
+      }
+      let selectedOptions = null;
+      const pollMsgId1 = message?.message?.pollCreationMessageKey?.id || null;
+      const pollMsgId2 = message?.message?.pollUpdateMessage?.pollCreationMessageKey?.id || null;
+      const pollMsgId = pollMsgId1 || pollMsgId2;
+      const pollId = message.key.id;
+
+      if (pollMsgId && message.key?.remoteJid) {
+        try {
+
+          // const [msg] = await Store.getMessagesvote(sessionId, message.key, pollMsgId)
+          const key = `message:${sessionId}_${pollMsgId}`
+          const getmessage = await this.redis.exists(key)
+
+          if (!getmessage) {
+            logger.warn(`⚠️ Mensagem de enquete não encontrada para ID ${pollMsgId} na sessão ${sessionId}`);
+            continue;
+          }
+          const msg = await this.redis.get(key)
+          const creatpollJid = msg.participant ? msg.participant.split(':')[0] + '@s.whatsapp.net' : sock.user.id.split(':')[0] + '@s.whatsapp.net'
+
+          let voterJid = message.key.remoteJid
+          if (message.key.fromMe) {
+            voterJid = sock.user.id.split(':')[0] + '@s.whatsapp.net'
+          } else {
+            if (message.key.addressingMode === 'lid') {
+              voterJid = message.key.participantAlt || message.key.participant;
+
+            }
+          }
+
+
+          if (sock?.user?.id?.split(':')[0] && msg.message?.messageContextInfo?.messageSecret) {
+            const decrypted = await decryptPollVote(message?.message.pollUpdateMessage.vote, {
+              pollCreatorJid: creatpollJid,
               pollMsgId: pollMsgId,
-              pollEncKey: Buffer.from(msg.conteudo_mensagem.messageContextInfo?.messageSecret, 'base64'),
-              voterJid,
+              pollEncKey: Buffer.from(msg.message.messageContextInfo.messageSecret, 'base64'),
+              voterJid: voterJid,
             });
+
 
             for (const decryptedHash of decrypted.selectedOptions) {
               const hashHex = Buffer.from(decryptedHash).toString('hex').toUpperCase();
-              for (const option of msg.conteudo_mensagem.pollCreationMessageV3?.options || []) {
+              for (const option of msg.message.pollCreationMessageV3?.options || []) {
                 const hash = Buffer.from(digestSync("SHA-256", new TextEncoder().encode(Buffer.from(option.optionName).toString())))
                   .toString("hex")
                   .toUpperCase();
@@ -967,25 +922,36 @@ class BaileysService {
           }
 
         } catch (error) {
-          console.error(`Erro ao processar atualização de enquete (sessionId: ${sessionId}):`, error);
+          logger.error(`❌ Erro ao processar atualização de enquete (sessionId: ${sessionId}):`, {
+            error: error.message,
+            stack: error.stack,
+            messageKey: message?.key,
+            pollUpdate: message?.message ? 'presente' : 'ausente',
+            hasRemoteJid: !!message?.key?.remoteJid
+          });
         }
       }
-
 
       try {
         // Salvar mensagem no store
         if (!message?.key?.id) continue;
-        const key = `${sessionId}_${message.key.id}`
-        if (!this.messagesCache.has(key)) {
-          this.messagesCache.set(key, message)
+        const key = `message:${sessionId}_${message.key.id}`
+        const getmessage = await this.redis.exists(key)
+        if (!getmessage) {
+          let temp_delete = null
+          if (configenv.delete_message) {
+            temp_delete = configenv.temp_delet_message
+          }
+          this.redis.set(key, message, temp_delete)
           await Store.saveMessage(sessionId, message);
+
         }
 
         // Verificar configurações da sessão
-        const config = this.sessions.get(sessionId);
+        const config = await this.redis.get(`sessao:${sessionId}`);
 
         // Auto-read
-        if (config?.autoRead && !message.key.fromMe) {
+        if (config?.autoRead && !message.key.fromMe && message.key.remoteJid && message.key.id) {
           await this.markAsRead(sessionId, message.key.remoteJid, message.key.id);
         }
 
@@ -994,7 +960,7 @@ class BaileysService {
         }
 
         let mensagemSend = message
-        const decryptMidia = await this.baixarMediaComoBase64(message, config.sock)
+        const decryptMidia = await this.baixarMediaComoBase64(message, sock)
         if (decryptMidia) {
           mensagemSend = decryptMidia
         }
@@ -1005,74 +971,139 @@ class BaileysService {
 
         });
 
+        try {
+          message.id = message.key.id
+          message.name = message.pushName || ''
+          message.notify = message.pushName || ''
+          message.verifiedName = message.pushName || ''
+          try {
+            const perfil = await sock.profilePictureUrl(message.id);
+            message.url_imagem = perfil;
+          } catch (error) {
+
+          }
+          if (message.id.endsWith('@s.whatsapp.net')) {
+            await Store.saveContact(sessionId, message);
+          }
+        } catch (error) {
+
+        }
+
       } catch (error) {
-        console.log(error)
         logger.error(`Erro ao processar mensagem:`, error);
       }
     }
   }
 
-  async baixarMediaComoBase64(message, sock) {
+  static async baixarMediaComoBase64(message, sock) {
     try {
       if (!message?.message) return null;
 
-      // Detectar tipo principal
-      let tipoOriginal = Object.keys(message.message)[0];
-      let midiaOriginal = message.message[tipoOriginal];
+      let msg = message.message;
 
-      // Tratar mensagens encapsuladas (ex: documentWithCaptionMessage)
-      if (tipoOriginal.endsWith('WithCaptionMessage') && midiaOriginal?.message) {
-        const tipoInterno = Object.keys(midiaOriginal.message)[0];
-        const midiaInterna = midiaOriginal.message[tipoInterno];
-        tipoOriginal = tipoInterno;
-        midiaOriginal = midiaInterna;
-      }
-
-      // Verifica se é mídia suportada
-      const tiposSuportados = [
-        'imageMessage',
-        'videoMessage',
-        'audioMessage',
-        'documentMessage',
-        'stickerMessage',
-        'messageContextInfo'
-      ];
-
-      if (!tiposSuportados.includes(tipoOriginal)) {
-        // console.warn(`⚠️ Tipo de mídia não tratado: ${tipoOriginal}`);
-        return null;
-      }
-
-      // Baixar mídia
-      const buffer = await downloadMediaMessage(message, 'buffer', {}, {
-        logger: console,
-        reuploadRequest: sock.updateMediaMessage,
-      });
-
-      const base64 = buffer.toString('base64');
-      const mimetype = midiaOriginal.mimetype || 'application/octet-stream';
-      const dataUrl = `data:${mimetype};base64,${base64}`;
-
-      // Clonar e modificar a mensagem
-      const novaMensagem = JSON.parse(JSON.stringify(message)); // clone profundo
-
-      novaMensagem.message[tipoOriginal] = {
-        ...midiaOriginal,
-        base64,
-        dataUrl,
+      // --- DESENCAPSULA mensagens ---
+      const unwrap = (obj) => {
+        const tipos = [
+          "ephemeralMessage",
+          "viewOnceMessage",
+          "viewOnceMessageV2",
+          "viewOnceMessageV2Extension",
+          "documentWithCaptionMessage",
+          "deviceSentMessage"
+        ];
+        while (tipos.some(t => obj?.[t])) {
+          const tipo = Object.keys(obj)[0];
+          obj = obj[tipo].message || obj[tipo];
+        }
+        return obj;
       };
 
-      return novaMensagem;
+      msg = unwrap(msg);
 
-    } catch (err) {
-      // console.error('❌ Erro ao baixar mídia:', err);
+      const tipo = Object.keys(msg)[0];
+      const conteudo = msg[tipo];
+
+      const tiposSuportados = [
+        "imageMessage",
+        "videoMessage",
+        "audioMessage",
+        "documentMessage",
+        "stickerMessage"
+      ];
+
+      if (!tiposSuportados.includes(tipo)) return null;
+
+      // --- BAIXA MÍDIA ---
+      const buffer = await downloadMediaMessage(
+        message,
+        "buffer",
+        {},
+        {
+          logger: console,
+          reuploadRequest: sock.updateMediaMessage?.bind(sock)
+        }
+      );
+
+      // --- LIMITE ---
+      const MAX_BYTES = parseInt(configenv.max_media_bytes || `${5 * 1024 * 1024}`);
+
+      // Grande → salva arquivo
+      if (buffer.length > MAX_BYTES) {
+        const tmpDir = path.join(process.cwd(), "tmp");
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+        const ext = (conteudo.mimetype || "bin").split("/")[1] || "dat";
+
+        const tmpFile = path.join(
+          tmpDir,
+          `${message.key.id}_${tipo}.${ext}`
+        );
+
+        await fs.promises.writeFile(tmpFile, buffer);
+
+        return {
+          ...message,
+          media: {
+            filePath: tmpFile,
+            size: buffer.length,
+            mimetype: conteudo.mimetype,
+            largeFile: true
+          }
+        };
+      }
+
+      // Pequeno → base64
+      const base64 = buffer.toString("base64");
+
+      return {
+        ...message,
+        media: {
+          base64,
+          dataUrl: `data:${conteudo.mimetype};base64,${base64}`,
+          mimetype: conteudo.mimetype,
+          size: buffer.length
+        }
+      };
+
+    } catch (e) {
+      console.error("Erro baixar mídia:", e);
       return null;
     }
   }
 
-  async update_mensagem(sessionId, updates) {
+
+  static async update_mensagem(sessionId, updates) {
     for (const update of updates) {
       try {
+        if (!update?.key?.remoteJid) {
+          logger.warn(`⚠️ Update de mensagem inválido na sessão ${sessionId}:`, {
+            hasUpdate: !!update,
+            hasKey: !!update?.key,
+            hasRemoteJid: !!update?.key?.remoteJid
+          });
+          continue;
+        }
+
         await this.emitEvent(sessionId, 'message_update', {
           jid: update.key.remoteJid,
           update
@@ -1087,7 +1118,7 @@ class BaileysService {
     }
   }
 
-  async handlePresenceUpdate(sessionId, id, presences) {
+  static async handlePresenceUpdate(sessionId, id, presences) {
     try {
       await this.emitEvent(sessionId, 'presence_update', {
         jid: id,
@@ -1098,25 +1129,23 @@ class BaileysService {
     }
   }
 
-  async event_call(sessionId, calls) {
+  static async event_call(sessionId, calls) {
     try {
       await this.emitEvent(sessionId, 'call', calls);
-      const sessiondata = this.sessions.get(sessionId);
-      if (!sessiondata) return
+      const sessiondata = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessiondata || !sock) return
 
       for (const call of calls) {
         if (sessiondata?.rejectCalls && call.status === 'offer') {
-          const sessionData = this.sessions.get(sessionId);
-          if (sessionData?.sock) {
-            await sessionData.sock.rejectCall(call.id, call.from);
-            if (sessiondata?.msg_rejectCalls && sessiondata?.msg_rejectCalls !== '') {
-              const message = {
-                text: sessiondata.msg_rejectCalls,
-              };
-              await this.sendMessage(sessionId, call.from, message)
-            }
-            logger.info(`📞 Chamada rejeitada automaticamente de ${call.from}`);
+          await sock.rejectCall(call.id, call.from);
+          if (sessiondata?.msg_rejectcalls && sessiondata?.msg_rejectcalls !== '') {
+            const message = {
+              text: sessiondata.msg_rejectcalls,
+            };
+            await this.sendMessage(sessionId, call.from, message)
           }
+          logger.info(`📞 Chamada rejeitada automaticamente de ${call.from}`);
         }
       }
     } catch (error) {
@@ -1134,8 +1163,9 @@ class BaileysService {
     return JSON.stringify(message);
   }
 
-  async emitEvent(sessionId, event, data) {
+  static async emitEvent(sessionId, event, data) {
     try {
+
       // Global WebSocket
       if (this.globalWebSocketService) {
         this.globalWebSocketService.broadcast(sessionId, event, data);
@@ -1148,7 +1178,7 @@ class BaileysService {
       });
 
       // Session-specific webhook
-      const config = await this.sessions.get(sessionId);
+      const config = await this.redis.get(`sessao:${sessionId}`);
 
       if (config?.webhook_status && config.webhook_status == '1' && config?.events && Array.isArray(config.events)) {
         const Isevent = config.events.find(e => e == event)
@@ -1164,16 +1194,17 @@ class BaileysService {
       }
 
     } catch (error) {
-      console.log(error)
       logger.error(`Erro ao emitir evento ${event}:`, error);
     }
   }
 
   // Função para preparar mídia antes de enviar
-  async prepareMedia(sessionId, mediaData) {
+  static async prepareMedia(sessionId, mediaData) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+  
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+  
+      if (!sessionData) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
@@ -1208,10 +1239,13 @@ class BaileysService {
   }
 
   // Message sending methods
-  async sendMessage(sessionId, to, message) {
+  static async sendMessage(sessionId, to, message) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
@@ -1220,6 +1254,8 @@ class BaileysService {
       // Preparar mídia se necessário
       if (message?.image?.url) {
         message.image = await this.prepareMedia(sessionId, message.image.url);
+        message.fileName = 'image.jpg';
+        message.mimetype = 'image/jpeg';
       }
       if (message.video?.url) {
         message.video = await this.prepareMedia(sessionId, message.video.url);
@@ -1234,32 +1270,30 @@ class BaileysService {
         message.sticker = await this.prepareMedia(sessionId, message.sticker.url);
       }
 
-
-      const result = await sessionData.sock.sendMessage(jid, message);
-      await sessionData.sock.sendPresenceUpdate('paused', jid);
+      const result = await sock.sendMessage(jid, message);
+      await sock.sendPresenceUpdate('paused', jid);
       logger.info(`📤 Mensagem enviada: ${sessionId} -> ${jid}`);
       return result;
     } catch (error) {
-      console.log(error)
       logger.error(`Erro ao enviar mensagem:`, error);
+      console.log('Erro ao enviar mensagem de texto:', error);
       throw error;
     }
   }
 
 
   // Message sending methods
-  async deleteMessage(sessionId, to, message) {
+  static async deleteMessage(sessionId, to, message) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+      const result = await sock.sendMessage(to, { delete: message });
 
-      const result = await sessionData.sock.sendMessage(jid, { delete: message });
-
-      logger.info(`📤 Mensagem Deletada: ${sessionId} -> ${jid}`);
+      logger.info(`📤 Mensagem Deletada: ${sessionId} -> ${to}`);
       return result;
     } catch (error) {
       logger.error(`Erro ao Deletar mensagem:`, error);
@@ -1267,10 +1301,11 @@ class BaileysService {
     }
   }
 
-  async sendReaction(sessionId, to, messageId, emoji) {
+  static async sendReaction(sessionId, to, messageId, emoji) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
@@ -1283,7 +1318,7 @@ class BaileysService {
         }
       };
 
-      const result = await sessionData.sock.sendMessage(jid, reactionMessage);
+      const result = await sock.sendMessage(jid, reactionMessage);
       return result;
     } catch (error) {
       logger.error(`Erro ao enviar reação:`, error);
@@ -1291,47 +1326,19 @@ class BaileysService {
     }
   }
 
-
-  async sendButtons(sessionId, to, buttonData) {
+  static async sendTyping(sessionId, to, typing, audio = false) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
-        throw new Error('Sessão não encontrada ou não conectada');
-      }
-
-      const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-
-      const buttonMessage = {
-        text: buttonData.text,
-        footer: buttonData.footer,
-        buttons: buttonData.buttons.map((btn, index) => ({
-          buttonId: `btn_${index}`,
-          buttonText: { displayText: btn.displayText },
-          type: 1
-        })),
-        headerType: 1
-      };
-
-      const result = await sessionData.sock.sendMessage(jid, buttonMessage);
-      return result;
-    } catch (error) {
-      logger.error(`Erro ao enviar botões:`, error);
-      throw error;
-    }
-  }
-
-  async sendTyping(sessionId, to, typing, audio = false) {
-    try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
       const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
       if (audio) {
-        await sessionData.sock.sendPresenceUpdate(typing ? 'recording' : 'paused', jid);
+        await sock.sendPresenceUpdate(typing ? 'recording' : 'paused', jid);
       } else {
-        await sessionData.sock.sendPresenceUpdate(typing ? 'composing' : 'paused', jid);
+        await sock.sendPresenceUpdate(typing ? 'composing' : 'paused', jid);
       }
 
 
@@ -1342,17 +1349,18 @@ class BaileysService {
     }
   }
 
-  async markAsRead(sessionId, jid, messageId = null) {
+  static async markAsRead(sessionId, jid, messageId = null) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
       if (messageId) {
-        await sessionData.sock.readMessages([{ remoteJid: jid, id: messageId }]);
+        await sock.readMessages([{ remoteJid: jid, id: messageId }]);
       } else {
-        await sessionData.sock.chatModify({ markRead: true }, jid);
+        await sock.chatModify({ markRead: true }, jid);
       }
 
       return { success: true };
@@ -1363,25 +1371,19 @@ class BaileysService {
   }
 
   // Contact methods
-  async getContactProfile(sessionId, jid) {
+  static async getContactProfile(sessionId, jid) {
+    const sessionData = await this.redis.get(`sessao:${sessionId}`);
+    const sock = this.getSocket(sessionId)
+    if (!sessionData || !sock) {
+      throw new Error('Sessão não encontrada ou não conectada');
+    }
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
-        throw new Error('Sessão não encontrada ou não conectada');
-      }
-
-      const profile = await sessionData.sock.getBusinessProfile(jid);
-      const url = await sessionData.sock.profilePictureUrl(jid, 'image');
-      const dados = {
-        profile,
-        url
-      }
-      return dados;
+      const profile = await sock.getBusinessProfile(jid);
+      return profile;
     } catch (error) {
       // Try regular profile if business profile fails
       try {
-        const sessionData = this.sessions.get(sessionId);
-        const status = await sessionData.sock.fetchStatus(jid);
+        const status = await sock.fetchStatus(jid);
         return { status: status?.status };
       } catch (err) {
         logger.error(`Erro ao obter perfil do contato:`, error);
@@ -1390,10 +1392,11 @@ class BaileysService {
     }
   }
 
-  async checkNumbers(sessionId, numbers) {
+  static async checkNumbers(sessionId, numbers) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
@@ -1401,7 +1404,7 @@ class BaileysService {
       for (const number of numbers) {
         try {
           const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
-          const [result] = await sessionData.sock.onWhatsApp(jid);
+          const [result] = await sock.onWhatsApp(jid);
           results.push({
             number,
             exists: !!result?.exists,
@@ -1423,14 +1426,15 @@ class BaileysService {
     }
   }
 
-  async blockContact(sessionId, jid) {
+  static async blockContact(sessionId, jid) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      await sessionData.sock.updateBlockStatus(jid, 'block');
+      await sock.updateBlockStatus(jid, 'block');
       return { success: true };
     } catch (error) {
       logger.error(`Erro ao bloquear contato:`, error);
@@ -1438,14 +1442,15 @@ class BaileysService {
     }
   }
 
-  async unblockContact(sessionId, jid) {
+  static async unblockContact(sessionId, jid) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      await sessionData.sock.updateBlockStatus(jid, 'unblock');
+      await sock.updateBlockStatus(jid, 'unblock');
       return { success: true };
     } catch (error) {
       logger.error(`Erro ao desbloquear contato:`, error);
@@ -1454,14 +1459,15 @@ class BaileysService {
   }
 
   // Group methods
-  async getGroupInfo(sessionId, groupJid) {
+  static async getGroupInfo(sessionId, groupJid) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const groupInfo = await sessionData.sock.groupMetadata(groupJid);
+      const groupInfo = await sock.groupMetadata(groupJid);
       return groupInfo;
     } catch (error) {
       logger.error(`Erro ao obter informações do grupo:`, error);
@@ -1469,14 +1475,15 @@ class BaileysService {
     }
   }
 
-  async createGroup(sessionId, subject, participants) {
+  static async createGroup(sessionId, subject, participants) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const group = await sessionData.sock.groupCreate(subject, participants);
+      const group = await sock.groupCreate(subject, participants);
       return group;
     } catch (error) {
       logger.error(`Erro ao criar grupo:`, error);
@@ -1484,14 +1491,15 @@ class BaileysService {
     }
   }
 
-  async addParticipants(sessionId, groupJid, participants) {
+  static async addParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const result = await sessionData.sock.groupParticipantsUpdate(groupJid, participants, 'add');
+      const result = await sock.groupParticipantsUpdate(groupJid, participants, 'add');
       return result;
     } catch (error) {
       logger.error(`Erro ao adicionar participantes:`, error);
@@ -1499,14 +1507,15 @@ class BaileysService {
     }
   }
 
-  async removeParticipants(sessionId, groupJid, participants) {
+  static async removeParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const result = await sessionData.sock.groupParticipantsUpdate(groupJid, participants, 'remove');
+      const result = await sock.groupParticipantsUpdate(groupJid, participants, 'remove');
       return result;
     } catch (error) {
       logger.error(`Erro ao remover participantes:`, error);
@@ -1514,14 +1523,15 @@ class BaileysService {
     }
   }
 
-  async promoteParticipants(sessionId, groupJid, participants) {
+  static async promoteParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const result = await sessionData.sock.groupParticipantsUpdate(groupJid, participants, 'promote');
+      const result = await sock.groupParticipantsUpdate(groupJid, participants, 'promote');
       return result;
     } catch (error) {
       logger.error(`Erro ao promover participantes:`, error);
@@ -1529,14 +1539,15 @@ class BaileysService {
     }
   }
 
-  async demoteParticipants(sessionId, groupJid, participants) {
+  static async demoteParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      const result = await sessionData.sock.groupParticipantsUpdate(groupJid, participants, 'demote');
+      const result = await sock.groupParticipantsUpdate(groupJid, participants, 'demote');
       return result;
     } catch (error) {
       logger.error(`Erro ao rebaixar participantes:`, error);
@@ -1544,14 +1555,15 @@ class BaileysService {
     }
   }
 
-  async leaveGroup(sessionId, groupJid) {
+  static async leaveGroup(sessionId, groupJid) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      await sessionData.sock.groupLeave(groupJid);
+      await sock.groupLeave(groupJid);
       return { success: true };
     } catch (error) {
       logger.error(`Erro ao sair do grupo:`, error);
@@ -1559,14 +1571,15 @@ class BaileysService {
     }
   }
 
-  async updateGroupSubject(sessionId, groupJid, subject) {
+  static async updateGroupSubject(sessionId, groupJid, subject) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      await sessionData.sock.groupUpdateSubject(groupJid, subject);
+      await sock.groupUpdateSubject(groupJid, subject);
       return { success: true };
     } catch (error) {
       logger.error(`Erro ao atualizar nome do grupo:`, error);
@@ -1574,14 +1587,31 @@ class BaileysService {
     }
   }
 
-  async updateGroupDescription(sessionId, groupJid, description) {
+  static async groupSettingUpdate(sessionId, groupJid, subject) {
     try {
-      const sessionData = this.sessions.get(sessionId);
-      if (!sessionData || !sessionData.sock) {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
         throw new Error('Sessão não encontrada ou não conectada');
       }
 
-      await sessionData.sock.groupUpdateDescription(groupJid, description);
+      await sock.groupSettingUpdate(groupJid, subject);
+      return { success: true };
+    } catch (error) {
+      logger.error(`Erro ao abrir/fechar grupos:`, error);
+      throw error;
+    }
+  }
+
+  static async updateGroupDescription(sessionId, groupJid, description) {
+    try {
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId)
+      if (!sessionData || !sock) {
+        throw new Error('Sessão não encontrada ou não conectada');
+      }
+
+      await sock.groupUpdateDescription(groupJid, description);
       return { success: true };
     } catch (error) {
       logger.error(`Erro ao atualizar descrição do grupo:`, error);
@@ -1589,37 +1619,24 @@ class BaileysService {
     }
   }
 
-  // Session management
-  async reconnectSession(sessionId) {
+  static async deleteSession(sessionId) {
     try {
-      // Remover sessão atual
-      await this.deleteSession(sessionId);
+      // Limpar tentativas de reconexão
+      this.reconnectAttempts.delete(sessionId);
+      try {
 
-      // Buscar dados da sessão no banco
-      const session = await Session.findById(sessionId);
-      if (session) {
-        // Recriar sessão
-        await this.createSession(sessionId, session.numero);
-        logger.info(`🔄 Sessão ${sessionId} reconectada manualmente`);
+       await clearAuth(sessionId, this.redis.client);
+      } catch (err) {
+        console.error("Erro ao remover sessão:", err);
       }
-    } catch (error) {
-      logger.error(`Erro ao reconectar sessão ${sessionId}:`, error);
-      throw error;
-    }
-  }
-
-  async deleteSession(sessionId, deleteAll = false) {
-    try {
 
       // Remover da memória
-      await this.removeSession(sessionId, deleteAll);
-
-      // Remove session directory
-      const sessionDir = path.join(process.cwd(), 'sessions', sessionId);
-      if (fs.existsSync(sessionDir)) {
-        fs.rmSync(sessionDir, { recursive: true, force: true });
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sock = this.getSocket(sessionId);
+      if (sessionData) {
+        await this.qrcodelimites.delete(`limiteqrcode:${sessionId}`);
+        await this.redis.del(`tentativas:${sessionId}`);
       }
-
       logger.info(`🗑️ Sessão ${sessionId} deletada completamente`);
     } catch (error) {
       logger.error(`Erro ao deletar sessão ${sessionId}:`, error);
@@ -1627,53 +1644,68 @@ class BaileysService {
     }
   }
 
+
   static delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
   // Utility methods
-  async isSessionConnected(sessionId) {
+  static async isSessionConnected(sessionId) {
     const sessionData = await Session.findById(sessionId);
-    return sessionData?.status === 'connected' && sessionData?.sock?.ws?.readyState === 1;
+    const sock = this.getSocket(sessionId)
+    return sessionData?.status === 'connected' && sock?.ws?.readyState === 1;
   }
 
-  getSession(sessionId) {
-    return this.sessions.get(sessionId);
+  static async getSession(sessionId) {
+    const sessionData = await this.redis.get(`sessao:${sessionId}`);
+    const sock = this.getSocket(sessionId);
+
+    if (sock && sessionData && sessionData.status === 'connected' && sessionData.phoneNumber) {
+      try {
+        const perfil = await sock.profilePictureUrl(`${sessionData.phoneNumber}@s.whatsapp.net`);
+        sessionData.url_imagem = perfil;
+      } catch (error) {
+        logger.error('Erro ao obter imagem de perfil:', error);
+      }
+    }
+    return sessionData;
   }
 
-  getActiveSessions() {
-    return Array.from(this.sessions.keys());
+  static getActiveSessions() {
+    return Array.from(this.redis.getAllSessions());
   }
 
-  getSessionsStats() {
-    const sessions = Array.from(this.sessions.values());
+  static getSessionsStats() {
+    const sessions = Array.from(this.redis.getAllSessions());
     return {
-      total: sessions.length,
+      total: 0,
       connected: sessions.filter(s => s.status === 'connected').length,
       connecting: sessions.filter(s => s.status === 'connecting').length,
       disconnected: sessions.filter(s => s.status === 'disconnected').length
     };
   }
 
-  async healthCheck() {
+  static async healthCheck() {
     const stats = this.getSessionsStats();
     const activeSessions = this.getActiveSessions();
+    const historyStats = await this.getHistoryAccumulatorStats();
 
     return {
       status: 'healthy',
       timestamp: moment().tz(configenv.timeZone).toISOString(),
       sessions: stats,
       activeSessions,
+      historyAccumulators: historyStats,
       memory: process.memoryUsage(),
-      uptime: process.uptime()
+      uptime: process.uptime(),
+      redis: {
+        connected: true,
+        accumulatorsInProgress: historyStats.total
+      }
     };
   }
 
-  startHealthCheck() {
+  static startHealthCheck() {
     this.healthCheckInterval = setInterval(async () => {
       try {
         await this.cleanupSessions();
@@ -1683,32 +1715,26 @@ class BaileysService {
     }, 5 * 60 * 1000); // Every 5 minutes
   }
 
-  //Limpar logs do mysql
-  async logsmysql() {
-    setInterval(async () => {
-      try {
-        await Session.limparBinlogs();
-      } catch (error) {
-        logger.error('Erro no health check:', error);
-      }
-    }, 24 * 60 * 60 * 1000); // 24h
-  }
-
-  stopHealthCheck() {
+  static stopHealthCheck() {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
     }
   }
 
-  async cleanupSessions() {
+  static async cleanupSessions() {
     const sessionsToCleanup = [];
+    const getsessoes = await this.redis.getAllSessions()
 
-    for (const [sessionId, session] of this.sessions.entries()) {
+    for (const sessao of getsessoes) {
+      let sessionId = null
+      try {
+        sessionId = sessao.key.split(':')[1]
+      } catch (error) {
 
-      if (configenv.delete_sessao && configenv.status === 'disconnected') {
-
-        const pastTime = moment.tz(session.lastConnected, 'America/Sao_Paulo');
+      }
+      if (configenv.delete_sessao && sessao.value.status === 'disconnected' && sessionId) {
+        const pastTime = moment.tz(sessao.value.lastConnected, 'America/Sao_Paulo');
         const currentTime = moment.tz('America/Sao_Paulo');
 
         const diffInHours = currentTime.diff(pastTime, 'hours', true);
@@ -1716,7 +1742,6 @@ class BaileysService {
 
         if (hasPassedFiveHours) {
           // Sincronizar credenciais antes de limpar
-          await this.syncCreds(sessionId);
           sessionsToCleanup.push(sessionId);
         }
       }
@@ -1726,13 +1751,88 @@ class BaileysService {
     for (const sessionId of sessionsToCleanup) {
       logger.info(`🧹 Limpando sessão inativa: ${sessionId}`);
 
-      await this.deleteSession(sessionId, true);
+      // await this.deleteSession(sessionId, true);
     }
 
     if (sessionsToCleanup.length > 0) {
       logger.info(`🧹 ${sessionsToCleanup.length} sessões inativas removidas`);
     }
   }
+
+  // Gerenciar reconexão inteligente com backoff exponencial
+  static async handleReconnection(sessionId, lastDisconnect) {
+    try {
+      let attempts = this.reconnectAttempts.get(sessionId) || 0;
+      attempts++;
+      this.reconnectAttempts.set(sessionId, attempts);
+
+      const maxAttempts = 8; // Reduzido para evitar loops infinitos
+      if (attempts > maxAttempts) {
+        logger.error(`❌ Máximo de tentativas de reconexão atingido para ${sessionId} (${attempts}/${maxAttempts})`);
+        await this.deleteSession(sessionId);
+        return;
+      }
+
+      // Backoff exponencial: 2^attempts segundos, máximo 2 minutos
+      const backoffSeconds = Math.min(Math.pow(2, attempts), 120);
+      logger.info(`🔄 Tentativa de reconexão ${attempts}/${maxAttempts} para ${sessionId} em ${backoffSeconds}s`);
+
+      // Aguardar antes de reconectar
+      await this.delay(backoffSeconds * 1000);
+
+      // Verificar se a sessão ainda existe
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      if (!sessionData) {
+        logger.warn(`⚠️ Sessão ${sessionId} foi removida durante reconexão`);
+        return;
+      }
+      // Tentar reconectar
+      await this.createSession(sessionId, sessionData.phoneNumber);
+
+    } catch (error) {
+      logger.error(`❌ Erro na reconexão de ${sessionId}:`, error);
+
+      // Se erro crítico, aguardar mais tempo antes da próxima tentativa
+      const attempts = this.reconnectAttempts.get(sessionId) || 0;
+      if (attempts < 8) {
+        setTimeout(async () => {
+          await this.handleReconnection(sessionId, lastDisconnect);
+        }, 60000); // Aguardar 1 minuto em caso de erro
+      } else {
+        await this.deleteSession(sessionId);
+      }
+    }
+  }
+
+  // Gerenciar perda de conexão detectada
+  static async handleConnectionLoss(sessionId) {
+    try {
+      logger.warn(`🔌 Perda de conexão detectada para ${sessionId}`);
+
+      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      if (!sessionData) return;
+
+      // Marcar como desconectado
+      sessionData.status = 'disconnected';
+      await this.redis.set(`sessao:${sessionId}`, sessionData);
+      await Session.update(sessionId, { status: 'disconnected' });
+
+
+      // Remover socket
+      this.sockets.delete(sessionId);
+
+      // Emitir evento de desconexão
+      await this.emitEvent(sessionId, 'session_disconnected', {
+        reason: 'Connection timeout - heartbeat lost'
+      });
+
+      // Iniciar processo de reconexão
+      await this.handleReconnection(sessionId, null);
+
+    } catch (error) {
+      logger.error(`❌ Erro ao gerenciar perda de conexão ${sessionId}:`, error);
+    }
+  }
 }
 
-module.exports = new BaileysService();
+export default BaileysService

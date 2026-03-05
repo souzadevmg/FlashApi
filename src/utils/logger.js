@@ -1,5 +1,5 @@
-const pino = require('pino');
-const moment = require('moment-timezone');
+import pino from 'pino';
+import moment from 'moment-timezone';
 
 // Definir o fuso horário global
 process.env.TZ = 'America/Sao_Paulo';
@@ -17,4 +17,4 @@ const logger = pino({
   }
 });
 
-module.exports = logger;
+export default logger;

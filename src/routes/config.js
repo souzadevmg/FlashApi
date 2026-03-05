@@ -1,10 +1,10 @@
-const express = require('express');
-const { authenticateApiKey } = require('../middleware/auth');
-const Store = require('../models/Store');
-const Session = require('../models/Session');
-const logger = require('../utils/logger');
-const config = require('../config/env');
-const BaileysService = require('../services/BaileysService');
+import express from 'express';
+import authenticateApiKey from '../middleware/auth.js';
+import Store from '../models/Store.js';
+import Session from '../models/Session.js';
+import logger from '../utils/logger.js';
+import config from '../config/env.js';
+import BaileysService from '../services/BaileysService.js';
 
 const router = express.Router();
 
@@ -49,7 +49,7 @@ router.get('/session', authenticateApiKey, async (req, res) => {
 router.put('/config', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
-    const { ignoreGroups = false, autoRead = false, msg_rejectCalls = null, rejectCalls = false } = req.body;
+    const { ignoreGroups = false, autoRead = false, msg_rejectcalls = null, rejectCalls = false } = req.body;
 
     const session = await Session.findById(sessionId);
     if (!session) {
@@ -63,9 +63,9 @@ router.put('/config', authenticateApiKey, async (req, res) => {
     currentConfig.rejeitar_ligacoes = rejectCalls
     currentConfig.ignorar_grupos = ignoreGroups
     currentConfig.leitura_automatica = autoRead
-    currentConfig.msg_rejectCalls = msg_rejectCalls;
+    currentConfig.msg_rejectcalls = msg_rejectcalls;
 
-    const getsessao = BaileysService.sessions.get(sessionId);
+    const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
     if (!getsessao) {
       BaileysService.createSession(sessionId)
       res.status(500).json({
@@ -74,18 +74,33 @@ router.put('/config', authenticateApiKey, async (req, res) => {
       });
       return
     }
-    getsessao.rejeitar_ligacoes = session.rejeitar_ligacoes
-    getsessao.ignorar_grupos = session.ignorar_grupos
-    getsessao.autoRead = session.leitura_automatica
-    getsessao.msg_rejectCalls = session.msg_rejectCalls;
-
+    getsessao.rejeitar_ligacoes = rejectCalls
+    getsessao.ignorar_grupos = ignoreGroups
+    getsessao.autoRead = autoRead
+    getsessao.msg_rejectcalls = msg_rejectcalls;
+    await BaileysService.redis.set(`sessao:${sessionId}`, getsessao)
     const success = await Store.saveSessionConfig(sessionId, currentConfig);
+    try {
+      BaileysService.forceSyncAll(sessionId)
+    } catch (error) {
 
+    }
     if (!success) {
       return res.status(500).json({
         success: false,
         message: 'Erro ao salvar configurações'
       });
+    }
+    const sock = await BaileysService.getSocket(sessionId);
+    if (sock) {
+      if (sock?.end) {
+        try {
+          await sock.end();
+        } catch (error) {
+
+        }
+
+      }
     }
 
     res.json({
@@ -136,9 +151,8 @@ router.put('/webhook', authenticateApiKey, async (req, res) => {
     currentConfig.events = events;
     currentConfig.webhook_status = status;
     const success = await Store.saveSessionConfig(sessionId, currentConfig);
-    const getsessao = BaileysService.sessions.get(sessionId);
+    const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
     if (!getsessao) {
-      BaileysService.createSession(sessionId)
       res.status(500).json({
         success: false,
         message: 'Erro ao buscar sessão reniciando sessao tente novamente em instantes'
@@ -148,7 +162,7 @@ router.put('/webhook', authenticateApiKey, async (req, res) => {
     getsessao.webhook_url = currentConfig.webhook_url
     getsessao.events = currentConfig.events
     getsessao.webhook_status = currentConfig.webhook_status
-    // console.log(getsessao)
+    await BaileysService.redis.set(`sessao:${sessionId}`, getsessao);
     if (!success) {
       return res.status(500).json({
         success: false,
@@ -165,7 +179,6 @@ router.put('/webhook', authenticateApiKey, async (req, res) => {
     logger.info(`Webhook da sessão ${sessionId} ${webhookUrl ? 'configurado' : 'removido'}`);
 
   } catch (error) {
-    console.log(error)
     logger.error('Erro ao configurar webhook:', error);
     res.status(500).json({
       success: false,
@@ -211,4 +224,4 @@ router.get('/stats', authenticateApiKey, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

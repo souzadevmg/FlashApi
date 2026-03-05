@@ -1,11 +1,9 @@
-const ApiKey = require('../models/ApiKey');
-const logger = require('../utils/logger');
-const config = require('../config/env');
+import ApiKey from '../models/ApiKey.js';
+import logger from '../utils/logger.js';
 
 const authenticateApiKey = async (req, res, next) => {
   try {
-    const apiKey = req.headers['apikey'];
-
+    const apiKey = req.headers['apikey'] || req.headers['ApiKey'] || req.headers['APIKEY']
     if (!apiKey) {
       return res.status(401).json({
         success: false,
@@ -33,4 +31,4 @@ const authenticateApiKey = async (req, res, next) => {
   }
 };
 
-module.exports = { authenticateApiKey };
+export default authenticateApiKey;

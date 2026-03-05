@@ -32,7 +32,7 @@
                                     "description": "Rejeitar chamadas automaticamente",
                                     "default": true
                                 },
-                                "msg_rejectCalls": {
+                                "msg_rejectcalls": {
                                     "type": "string",
                                     "description": "Resposta De regeitar msg",
                                     "default": "Não atendemos ligações"

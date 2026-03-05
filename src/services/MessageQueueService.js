@@ -1,4 +1,4 @@
-const logger = require('../utils/logger');
+import logger from '../utils/logger.js';
 
 class MessageQueueService {
   constructor() {
@@ -62,7 +62,6 @@ class MessageQueueService {
           await this.delay(messageData.delay);
         }
       } catch (error) {
-        console.log(error)
         logger.error(`❌ Erro ao processar mensagem da fila ${sessionId}:`, error);
         // Continuar processando outras mensagens mesmo se uma falhar
       }
@@ -99,4 +98,4 @@ class MessageQueueService {
   }
 }
 
-module.exports = new MessageQueueService();
+export default new MessageQueueService();

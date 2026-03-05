@@ -1,3 +1,5 @@
+
+
 const el = document.getElementById('userInfo');
 let instacias = JSON.parse(el.dataset.instance);
 const apiurl = `${window.location.protocol}//${window.location.host}`
@@ -27,6 +29,24 @@ document.querySelectorAll('.btn-disconnect').forEach(button => {
         }
     });
 });
+
+//reniciar sessão
+document.querySelectorAll('.btn-restart').forEach(button => {
+    button.addEventListener('click', function () {
+        const instanceId = this.dataset.id;
+        const $btn = $(this);
+        $btn.prop('disabled', true);
+        $btn.find('.btn-text').text('Reiniciando...');
+        $btn.find('.spinner-border').removeClass('d-none');
+        if (confirm("Deseja realmente reiniciar a instância?")) {
+            setTimeout(() => {
+                restartSession(instanceId);
+            }
+                , 3000);
+        }
+    });
+});
+
 
 //botão atualizar qrcode
 document.querySelectorAll('.btn-att-qrcode').forEach(button => {
@@ -79,11 +99,30 @@ async function generateQRCode(instanceId, modal = true) {
 
         }
     } catch (error) {
-        console.log(error)
         alert('Error ao gerar sessão tente novamente');
         window.location.reload();
     } finally {
 
+    }
+}
+
+//função reiniciar sessão
+async function restartSession(instanceId) {
+    const getapikey = instacias.find(i => i.id == instanceId);
+    try {
+        const headers = {
+            'apikey': getapikey.apikey
+        }
+        const response = await axios.put(`${apiurl}/api/session/restart`, null, {
+            headers
+        })
+        if (response.data.success) {
+            alert(response.data.message);
+            window.location.reload();
+        }
+    } catch (error) {
+        alert('Error ao reiniciar sessão tente novamente');
+        window.location.reload();
     }
 }
 
@@ -110,7 +149,6 @@ async function disconnectInstance(instanceId) {
         window.location.reload();
 
     } catch (error) {
-        console.log(error)
         alert('Error ao gerar sessão tente novamente');
     }
 }
@@ -129,7 +167,7 @@ async function configuracao(instanceId) {
         $('#webhook-status').prop('checked', getapikey.webhook_status == '1')
         $('[name="events[]"]').val(getapikey.events);
 
-        $('#mensagem-rejeicao').val(getapikey.msg_rejectCalls)
+        $('#mensagem-rejeicao').val(getapikey.msg_rejectcalls)
         $('#rejeitar-chamada').prop('checked', getapikey.rejeitar_ligacoes == '1')
 
         $('#sempre-online').prop('checked', getapikey.leitura_automatica == '1')
@@ -171,13 +209,13 @@ $('#form-config-Instance').on('submit', async function (e) {
     const ignoreGroups = $('#ignorar-grupos').prop('checked');
     const autoRead = $('#sempre-online').prop('checked');
     const rejectCalls = $('#rejeitar-chamada').prop('checked');
-    const msg_rejectCalls = $('#mensagem-rejeicao').val();
+    const msg_rejectcalls = $('#mensagem-rejeicao').val();
 
     const dados2 = {
         ignoreGroups: ignoreGroups == true,
         autoRead: autoRead == true,
         rejectCalls: rejectCalls == true,
-        msg_rejectCalls
+        msg_rejectcalls
     }
 
     await att_config(dados2, headers)
@@ -206,7 +244,6 @@ async function att_webhook(data, headers) {
         }
         return false
     } catch (error) {
-        console.log(error)
         return false
     }
 }

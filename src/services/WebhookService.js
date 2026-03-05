@@ -1,12 +1,12 @@
-const axios = require('axios');
-const logger = require('../utils/logger');
+import axios from 'axios';
+import logger from '../utils/logger.js';
 
 class WebhookService {
   async sendWebhook(url, data, retries = 3) {
     for (let i = 0; i < retries; i++) {
       try {
         const response = await axios.post(url, data, {
-          timeout: 60000,
+          timeout: 10000,
           headers: {
             'Content-Type': 'application/json',
             'User-Agent': 'flash-Multi-Session-Webhook/1.0'
@@ -34,4 +34,4 @@ class WebhookService {
   }
 }
 
-module.exports = WebhookService;
+export default WebhookService;

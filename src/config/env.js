@@ -1,10 +1,15 @@
-const path = require('path');
-require('dotenv').config();
+
+import dotenv from 'dotenv';
+import { resolve } from 'path';
+dotenv.config({ path: resolve('.env')});
+
+const minPort = process.env.PROXY_PORT_MIN ? Number(process.env.PROXY_PORT_MIN) : 10000;
+const maxPort = process.env.PROXY_PORT_MAX ? Number(process.env.PROXY_PORT_MAX) : 20000;
 
 const config = {
   // Server
   port: process.env.PORT || 3000,
-  hostapi: process.env.HOST || 'localhost',
+  hostapi: process.env.HOST || 'http://localhost:3000',
   nodeEnv: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
   protocol: process.env.PROTOCOLO || 'http',
@@ -30,10 +35,6 @@ const config = {
   // Database
   databasePath: process.env.DATABASE_PATH || './database.sqlite',
 
-  // Rate Limiting
-  rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
-
   // Validation
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: process.env.NODE_ENV === 'development',
@@ -49,18 +50,49 @@ const config = {
   sessaoPhone: process.env.SESSION_PHONE_NAME || 'Flash-Api',
 
   //Banco de dados
-  host: process.env.MYSQL_HOST || 'localhost',
-  porta: process.env.MYSQL_PORT || 3306,
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  database: process.env.MYSQL_DATABASE || 'FlashApi',
-  connectionLimit: process.env.MYSQL_CONNECTION_LIMIT || 50,
+  host: process.env.DB_HOST || 'localhost',
+  porta: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'FlashApi',
+  connectionLimit: process.env.DB_CONNECTION_LIMIT || 50,
   queuelimit: process.env.QUEUELIMIT || 0,
+  db_client: process.env.DB_TYPE || 'mysql', 
+
+  //Redis
+  redis_host: process.env.REDIS_HOST || '127.0.0.1', 
+  redis_port: process.env.REDIS_PORT || 6379, 
+  redis_pass: process.env.REDIS_PASS || '', 
 
   //manager
   manger_secret: process.env.CHAVE_SECRET_SESSION_MANAGER || 'ASDASDSA55WQ88E55R8ER5T2QW5E5Q',
   manager_status: process.env.MANAGER === "true",
+
+  //Proxy
+  proxy_state: process.env.PROXY_STATE || false,
+  proxy_host: process.env.PROXY_HOST || "",
+  proxy_port: process.env.PROXY_PORT
+  ? Number(process.env.PROXY_PORT)
+  : getRandomPort(minPort, maxPort),
+  proxy_protocol: process.env.PROXY_PROTOCOL || "http",
+  proxy_usename: process.env.PROXY_USERNAME || "",
+  proxy_password: process.env.PROXY_PASSWORD || "",
+
+  // Limite qrcode 
+  qrcode_limite: process.env.LIMITE_QRCODE || 10,
+
+  //Temp message
+  delete_message: process.env.DELETE_TEMP_MENSAGE === "true",
+  temp_delet_message: process.env.TEMP_MENSAGE || 3600,
+  apiversao: process.env.VERSAO || '1.0.4',
+  sync_sessions: process.env.SYNC_SESSIONS === 'false' ? false : true,
 };
+
+
+
+function getRandomPort(min = 10000, max = 20000) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
 // Validate required configurations
 if (config.enableGlobalWebhook && !config.globalWebhookUrl) {
@@ -72,4 +104,4 @@ if (config.globalApiKey === 'default-api-key-change-me' && config.isProduction) 
   process.exit(1);
 }
 
-module.exports = config;
+export default config;

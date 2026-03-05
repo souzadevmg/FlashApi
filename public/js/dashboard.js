@@ -1,5 +1,7 @@
+
 const el = document.getElementById('userInfo');
 let instacias = JSON.parse(el.dataset.instance);
+
 const apikeyGlobal = el.dataset.apikey;
 const apiurl = `${window.location.protocol}//${window.location.host}`
 
@@ -93,7 +95,6 @@ async function generateQRCode(instanceId, modal = true) {
 
         }
     } catch (error) {
-        console.log(error)
         alert('Error ao gerar sessão tente novamente');
     } finally {
 
@@ -123,7 +124,6 @@ async function disconnectInstance(instanceId) {
         window.location.reload();
 
     } catch (error) {
-        console.log(error)
         alert('Error ao gerar sessão tente novamente');
     }
 }
@@ -151,7 +151,6 @@ async function deleteInstance(instanceId) {
         window.location.reload();
 
     } catch (error) {
-        console.log(error)
         alert('Error ao gerar sessão tente novamente');
     }
 }
@@ -187,7 +186,6 @@ $('#form-Criar-Instance').on('submit', async (event) => {
         }
 
     } catch (error) {
-        console.log(error)
         alert('Error ao gerar sessão tente novamente');
     } finally {
         window.location.reload();
@@ -210,8 +208,7 @@ async function configuracao(instanceId) {
         $('#webhook-url').val(getapikey.webhook_url)
         $('#webhook-status').prop('checked', getapikey.webhook_status == '1')
         $('[name="events[]"]').val(getapikey.events);
-
-        $('#mensagem-rejeicao').val(getapikey.msg_rejectCalls)
+        $('#mensagem-rejeicao').val(getapikey.msg_rejectcalls)
         $('#rejeitar-chamada').prop('checked', getapikey.rejeitar_ligacoes == '1')
 
         $('#sempre-online').prop('checked', getapikey.leitura_automatica == '1')
@@ -253,13 +250,13 @@ $('#form-config-Instance').on('submit', async function (e) {
     const ignoreGroups = $('#ignorar-grupos').prop('checked');
     const autoRead = $('#sempre-online').prop('checked');
     const rejectCalls = $('#rejeitar-chamada').prop('checked');
-    const msg_rejectCalls = $('#mensagem-rejeicao').val();
+    const msg_rejectcalls = $('#mensagem-rejeicao').val();
 
     const dados2 = {
         ignoreGroups: ignoreGroups == true,
         autoRead: autoRead == true,
         rejectCalls: rejectCalls == true,
-        msg_rejectCalls
+        msg_rejectcalls
     }
     await att_config(dados2, headers)
     alert('Configurações atualizadas')

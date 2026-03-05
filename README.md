@@ -43,7 +43,7 @@ cp .env.exemplo .env
 npm install
 
 # Gera o banco de dados (arquivo JS que verifica e executa o SQL)
-npm run migrate_mysql
+npm run migrate
 
 # Inicia com pm2
 npm install pm2 -g
@@ -247,9 +247,6 @@ const Websocket = 'ws://localhost:3000/ws'
 const modo = 'global' // global/client
 const secret = '123' //GLOBAL_WEBSOCKET_SECRET ou apikey da instacia
 
-let ws;
-let reconnectDelay = 5000; // 5 segundos
-
 /*
  * Define o secret para autenticação WebSocket com base no modo:
  * - 'global': Usa o GLOBAL_WEBSOCKET_SECRET do arquivo .env.
@@ -257,7 +254,7 @@ let reconnectDelay = 5000; // 5 segundos
  */
 
 function connectWebSocket() {
-    ws = new WebSocket(Websocket, [],
+    const ws = new WebSocket(Websocket, [],
         {
             headers: {
                 "apikey": secret,
@@ -334,15 +331,9 @@ function connectWebSocket() {
 
     }
 
-       ws.onerror = (err) => {
-        console.error("❌ Erro no WebSocket:", err.message);
-        // OBS: onerror *não* fecha o socket automaticamente
-    };
-
     ws.onclose = (event) => {
-        console.warn(`⚠️ WebSocket desconectado (code ${event.code}). Tentando reconectar em ${reconnectDelay / 1000}s...`);
-        setTimeout(connectWebSocket, reconnectDelay);
-    };
+        console.log(`Conexão fechada. Código: ${event.code}, Motivo: ${event.reason}`);
+    }
 
 }
 connectWebSocket();
@@ -365,7 +356,7 @@ Você pode configurar uma **URL de Webhook** ao criar uma sessão para receber n
 | Evento                      | Descrição                                  | Emoji |
 | --------------------------- | ------------------------------------------ | :---: |
 | `presence_update`           | Atualização de presença (ex: online)       |   🟢  |
-| `qr_updated`                | Novo QR Code gerado                        |   📷  |
+| `qr_updated`                | Novo QR Code gerado / Code                 |   📷  |
 | `connection_update`         | Atualização de conexão                     |   ✅  |
 | `chats_set`                 | Lista inicial de chats                     |   📥  |
 | `message_received`          | Nova mensagem recebida                     |   📩  |
@@ -375,7 +366,7 @@ Você pode configurar uma **URL de Webhook** ao criar uma sessão para receber n
 | `contacts_update`           | Um ou mais contatos foram atualizados      |   📝  |
 | `groups_update`             | Metadados de grupos foram atualizados      |   👤  |
 | `group_participants_update` | Participantes do grupo foram alterados     |  ➕➖|
-| `call`                      | Evento relacionado a chamadas de voz/vídeo |   📞  |
+| `call_update`               | Evento relacionado a chamadas de voz/vídeo |   📞  |
 | `messaging_history_set`     | Sincronização de mensagens históricas      |  🕰️   |
 
 
@@ -485,7 +476,6 @@ Acesse a documentação interativa via Swagger:
 ## Segurança
 
 - Autenticação via API Key
-- Rate limiting
 - Helmet para headers de segurança
 - Validação de dados
 - Logs estruturados

@@ -1,7 +1,10 @@
+import fs from 'fs';
+import path from 'path';
+import config from './env.js';
+import { fileURLToPath } from 'url';
 
-const fs = require('fs');
-const path = require('path');
-const config = require('./env');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const webhookPath = JSON.parse(fs.readFileSync(path.join(__dirname, '../routes/docsJson/docs_config.json'), 'utf8'));
 const docs_chats = JSON.parse(fs.readFileSync(path.join(__dirname, '../routes/docsJson/docs_chats.json'), 'utf8'));
@@ -88,4 +91,4 @@ const swaggerOptions = {
   apis: ['./src/routes/*.js'] // Path to files containing OpenAPI definitions
 };
 
-module.exports = { swaggerOptions };
+export default swaggerOptions;

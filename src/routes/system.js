@@ -1,127 +1,49 @@
-const express = require('express');
-const { authenticateGlobalApiKey } = require('../middleware/globalAuth');
-const BaileysService = require('../services/BaileysService');
-const GlobalWebhookService = require('../services/GlobalWebhookService');
-const Store = require('../models/Store');
-const config = require('../config/env');
-const logger = require('../utils/logger');
-const os = require('os');
-const { statSync } = require('fs');
-const { sep } = require('path');
-const { execSync } = require('child_process');
-const si = require('systeminformation');
+import express from 'express';
+import globalAuth from '../middleware/globalAuth.js';
+import BaileysService from '../services/BaileysService.js';
+import GlobalWebhookService from '../services/GlobalWebhookService.js';
+import Store from '../models/Store.js';
+import config from '../config/env.js';
+import logger from '../utils/logger.js';
+import os from 'os';
+import { statSync } from 'fs';
+import { sep } from 'path';
+import { execSync } from 'child_process';
+import si from 'systeminformation';
 
 const router = express.Router();
 
-router.get('/status', authenticateGlobalApiKey, async (req, res) => {
+router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
-    const sessionsStats = BaileysService.getSessionsStats();
-    const sessions = Array.from(BaileysService.sessions.values()).map(s => ({
-      id: s.id,
-      status: s.status,
-      user: s.user || null,
-      lastActive: s.lastActive || null
-    }));
-
+    const sessionsStats = BaileysService.getSessionsStats();  
     const webhookInfo = GlobalWebhookService.getWebhookInfo();
     const poolStatus = await Store.getPoolStatus();
-
-    // Espaço em disco
-    let diskInfo = {};
-    try {
-      const rootPath = os.platform() === 'win32' ? process.cwd().split(sep)[0] + sep : '/';
-      const { total, free } = statSync(rootPath);
-      // Fallback usando os.totalmem e os.freemem para info de RAM, mas para disco:
-      let totalDisk = 0, freeDisk = 0;
-      if (os.platform() === 'win32') {
-        const drives = await si.fsSize();
-        const drive = drives.find(d => d.mount.toLowerCase().startsWith(rootPath.toLowerCase()));
-        if (drive) {
-          freeDisk = drive.available;
-          totalDisk = drive.size;
-        }
-        const lines = output.trim().split('\n').slice(1);
-        for (const line of lines) {
-          const parts = line.trim().split(/\s+/);
-          if (parts.length === 3 && parts[0].toLowerCase() === rootPath.replace(sep, '').toLowerCase()) {
-        freeDisk = parseInt(parts[1]);
-        totalDisk = parseInt(parts[2]);
-        break;
-          }
-        }
-      } else {
-        const output = execSync(`df -k '${rootPath}'`).toString();
-        const lines = output.trim().split('\n');
-        if (lines.length > 1) {
-          const parts = lines[1].split(/\s+/);
-          totalDisk = parseInt(parts[1]) * 1024;
-          freeDisk = parseInt(parts[3]) * 1024;
-        }
-      }
-      diskInfo = {
-        total: totalDisk,
-        free: freeDisk,
-        used: totalDisk - freeDisk,
-        usagePercent: totalDisk ? (((totalDisk - freeDisk) / totalDisk) * 100).toFixed(2) : null
-      };
-    } catch (e) {
-      diskInfo = { error: e.message };
-    }
-
+    
     res.json({
       success: true,
       data: {
         system: {
           status: 'online',
-          hostname: os.hostname(),
-          platform: os.platform(),
-          arch: os.arch(),
-          uptime: {
-            seconds: process.uptime(),
-            formatted: new Date(process.uptime() * 1000).toISOString().substr(11, 8)
-          },
-          memory: {
-            process: process.memoryUsage(),
-            total: os.totalmem(),
-            free: os.freemem(),
-            usagePercent: ((1 - os.freemem() / os.totalmem()) * 100).toFixed(2)
-          },
-          cpu: {
-            cores: os.cpus().length,
-            model: os.cpus()[0].model,
-            loadavg: os.loadavg()
-          },
-          disk: diskInfo,
-          node: {
-            version: process.version,
-            dependencies: Object.keys(require(require('path').join(__dirname, '../../package.json')).dependencies || {})
-          },
-          environment: config.nodeEnv,
-          envVars: {
-            NODE_ENV: process.env.NODE_ENV,
-            PORT: process.env.PORT,
-            // Adicione outras variáveis relevantes aqui
-          }
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+          version: config.apiversao,
+          environment: config.nodeEnv
         },
-        sessions: {
-          stats: sessionsStats,
-          details: sessions
-        },
+        sessions: sessionsStats,
         webhook: {
           global: webhookInfo,
           enabled: config.enableGlobalWebhook
         },
         websocket: {
           enabled: config.enableGlobalWebsocket,
-          clients: 0 // Atualize conforme necessário
+          clients: 0 // Will be updated by WebSocket service
         },
         database: {
-          mysql: poolStatus
+          dados: poolStatus
         }
       }
     });
   } catch (error) {
-    console.log(error)
     logger.error('Erro ao obter status do sistema:', error);
     res.status(500).json({
       success: false,
@@ -130,8 +52,9 @@ router.get('/status', authenticateGlobalApiKey, async (req, res) => {
   }
 });
 
-router.get('/config', authenticateGlobalApiKey, async (req, res) => {
+router.get('/config', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
+    const sessoes = await BaileysService.redis.getAllSessions();
     res.json({
       success: true,
       data: {
@@ -139,12 +62,8 @@ router.get('/config', authenticateGlobalApiKey, async (req, res) => {
           globalWebhook: config.enableGlobalWebhook,
           globalWebsocket: config.enableGlobalWebsocket
         },
-        limits: {
-          rateLimitWindow: config.rateLimitWindowMs,
-          rateLimitMax: config.rateLimitMaxRequests
-        },
-        environment: config.nodeEnv,
-        version: '1.0.0'
+        version: config.apiversao,
+        instacias: sessoes.length
       }
     });
   } catch (error) {
@@ -156,7 +75,7 @@ router.get('/config', authenticateGlobalApiKey, async (req, res) => {
   }
 });
 
-router.post('/cleanup', authenticateGlobalApiKey, async (req, res) => {
+router.post('/cleanup', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
     await BaileysService.cleanupSessions();
     
@@ -175,4 +94,65 @@ router.post('/cleanup', authenticateGlobalApiKey, async (req, res) => {
   }
 });
 
-module.exports = router;
+// Endpoint para forçar sincronização manual
+router.post('/sync/:sessionId', globalAuth.authenticateGlobalApiKey, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { type } = req.body; // 'all', 'contacts', 'chats', 'groups'
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'SessionId é obrigatório'
+      });
+    }
+
+    // Verificar se a sessão existe
+    const session = await BaileysService.getSession(sessionId);
+    if (!session || session.status !== 'connected') {
+      return res.status(400).json({
+        success: false,
+        message: 'Sessão não encontrada ou não conectada'
+      });
+    }
+
+    logger.info(`🔄 Iniciando sincronização manual para sessão ${sessionId}, tipo: ${type || 'all'}`);
+
+    let result = {};
+    
+    switch (type) {
+      case 'contacts':
+        await BaileysService.forceSyncContacts(sessionId);
+        result.contacts = 'sincronizado';
+        break;
+      case 'chats':
+        await BaileysService.forceSyncChats(sessionId);
+        result.chats = 'sincronizado';
+        break;
+      case 'groups':
+        await BaileysService.forceSyncGroups(sessionId);
+        result.groups = 'sincronizado';
+        break;
+      default:
+        await BaileysService.forceSyncAll(sessionId);
+        result = { contacts: 'sincronizado', chats: 'sincronizado', groups: 'sincronizado' };
+    }
+    
+    res.json({
+      success: true,
+      message: 'Sincronização executada com sucesso',
+      data: result
+    });
+    
+    logger.info(`✅ Sincronização manual concluída para sessão ${sessionId}`);
+  } catch (error) {
+    logger.error('Erro na sincronização manual:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor',
+      error: error.message
+    });
+  }
+});
+
+export default router;

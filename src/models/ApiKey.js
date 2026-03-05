@@ -1,8 +1,8 @@
-const bcrypt = require('bcrypt');
-const { v4: uuidv4 } = require('uuid');
-const Database = require('../config/database');
-const config = require('../config/env');
-const logger = require('../utils/logger');
+import bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
+import Database from '../config/database.js';
+import config from '../config/env.js';
+import logger from '../utils/logger.js';
 
 // Instância singleton do banco
 const db = new Database();
@@ -11,7 +11,9 @@ class ApiKey {
 
   static async findByKey(key) {
     try {
-      const [getapikey] = await db.execute(`SELECT * FROM sessao WHERE active = 1 AND apikey = ?`, [key]);
+      const isMySQL = config.db_client === 'mysql';
+      const active = isMySQL ? 1 : true;
+      const [getapikey] = await db.execute(`SELECT * FROM sessao WHERE active = ? AND apikey = ?`, [active, key]);
       return getapikey
     } catch (error) {
       logger.error('Erro ao buscar sessao: ', error)
@@ -32,7 +34,9 @@ class ApiKey {
 
   static async deactivate(id) {
     try {
-      const desativarkey = await db.execute('UPDATE api_keys SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE apikey = ?', [id])
+      const isMySQL = config.db_client === 'mysql';
+      const active = isMySQL ? 0 : false;
+      const desativarkey = await db.execute('UPDATE api_keys SET active = ?, updated_at = CURRENT_TIMESTAMP WHERE apikey = ?', [active, id])
       return desativarkey.affectedRows > 0
     } catch (error) {
       logger.error('Erro ao buscar desativar sessao')
@@ -43,4 +47,4 @@ class ApiKey {
 
 }
 
-module.exports = ApiKey;
+export default ApiKey;

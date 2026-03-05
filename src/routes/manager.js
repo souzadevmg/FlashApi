@@ -1,12 +1,10 @@
-const express = require('express');
-const { authenticateApiKey } = require('../middleware/auth');
-const BaileysService = require('../services/BaileysService');
-const Store = require('../models/Store');
-const logger = require('../utils/logger');
-const { authenticateGlobalApiKey } = require('../middleware/globalAuth');
-const config = require('../config/env');
-const Session = require('../models/Session');
-
+import express from 'express';
+import authenticateApiKey from '../middleware/auth.js';
+import BaileysService from '../services/BaileysService.js';
+import Store from '../models/Store.js';
+import logger from '../utils/logger.js';
+import config from '../config/env.js';
+import Session from '../models/Session.js';
 
 const router = express.Router();
 
@@ -51,6 +49,7 @@ router.get('/dashboard', checkAuth, async (req, res) => {
     } else if (modo == 'user') {
         const getintacias = await Session.findByApiKey();
         const instances = getintacias.filter(i => i.apikey == userId);
+
         if (!instances) {
             req.session.error = { message: 'Apikey invalida.', icon: 'danger' };
             res.redirect('/manager/login');
@@ -83,4 +82,4 @@ function checkAuth(req, res, next) {
         res.redirect('/manager/login');
     }
 }
-module.exports = router;
+export default router;

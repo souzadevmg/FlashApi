@@ -1,6 +1,6 @@
-const axios = require('axios');
-const config = require('../config/env');
-const logger = require('../utils/logger');
+import axios from 'axios';
+import config from '../config/env.js';
+import logger from '../utils/logger.js';
 
 class GlobalWebhookService {
   constructor() {
@@ -33,7 +33,6 @@ class GlobalWebhookService {
           return true;
         }
       } catch (error) {
-        console.log(error)
         logger.error(`Tentativa ${i + 1} - Erro ao enviar webhook global:`, {
           error: error.message,
           event: eventData.event,
@@ -84,4 +83,4 @@ class GlobalWebhookService {
   }
 }
 
-module.exports = new GlobalWebhookService();
+export default new GlobalWebhookService();

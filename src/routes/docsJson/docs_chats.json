@@ -36,6 +36,13 @@
                                     "description": "false ou true",
                                     "default": "false"
                                 },
+                                "mentions": {
+                                    "type": "array",
+                                    "description": "[ '5599999999999']",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
                                 "delay": {
                                     "type": "number",
                                     "description": "Delay de mensagem",
@@ -116,6 +123,13 @@
                                     "type": "string",
                                     "description": "Link ou base64",
                                     "default": "https://exemplo.com.br/imagem.png"
+                                },
+                                "mentions": {
+                                    "type": "array",
+                                    "description": "[ '5599999999999']",
+                                    "items": {
+                                        "type": "string"
+                                    }
                                 },
                                 "delay": {
                                     "type": "number",
@@ -324,38 +338,31 @@
                 "properties": {
                   "to": {
                     "type": "string",
-                    "description": "Número do destinatário",
-                    "default": "5599999999999"
+                    "description": "Número do destinatário"
                   },
                   "document": {
                     "type": "string",
-                    "description": "URL do documento ou base64",
-                    "default": "https://s3.quickgestor.com/dados1921/uploads/PRO.pdf"
+                    "description": "URL do documento ou base64"
                   },
                   "fileName": {
                     "type": "string",
-                    "description": "Nome do arquivo",
-                    "default": "PRO.pdf"
+                    "description": "Nome do arquivo"
                   },
                   "mimetype": {
                     "type": "string",
-                    "description": "Tipo MIME do arquivo",
-                    "default": "pdf"
+                    "description": "Tipo MIME do arquivo"
                   },
                   "caption": {
                     "type": "string",
-                    "description": "Legenda do documento",
-                    "default": "arquivo pdf"
+                    "description": "Legenda do documento"
                   },
                   "delay": {
                     "type": "number",
-                    "description": "Delay em milissegundos",
-                    "default": 1200
+                    "description": "Delay em milissegundos"
                   },
                   "useQueue": {
                     "type": "boolean",
-                    "description": "Usar fila de mensagens",
-                    "default": false
+                    "description": "Usar fila de mensagens"
                   }
                 }
               }

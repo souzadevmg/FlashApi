@@ -51,3 +51,8 @@ temp/
 # Build outputs
 dist/
 build/
+
+postman_collection.json
+swagger_full.json
+
+examples/

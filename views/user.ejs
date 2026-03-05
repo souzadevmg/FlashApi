@@ -9,6 +9,9 @@
     <!-- Boostrap CSS 5.3 -->
     <link href="/css/bootstrap.min.css" rel="stylesheet" />
 
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
     <!-- Boostrap JS 5.3 -->
     <script src="/js/bootstrap.bundle.min.js"></script>
 
@@ -41,7 +44,7 @@
 
         body {
             min-height: 100vh;
-            background: 
+            background:
                 radial-gradient(circle at 20% 80%, rgba(255, 102, 0, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 80% 20%, rgba(255, 193, 7, 0.08) 0%, transparent 50%),
                 linear-gradient(-45deg, #0a0a0a, #1a1a1a, #0f0f0f, #1e1e1e);
@@ -72,33 +75,44 @@
         }
 
         @keyframes gradientMove {
-            0%, 100% {
+
+            0%,
+            100% {
                 background-position: 0% 50%;
             }
+
             25% {
                 background-position: 100% 50%;
             }
+
             50% {
                 background-position: 100% 100%;
             }
+
             75% {
                 background-position: 0% 100%;
             }
         }
 
         @keyframes float {
-            0%, 100% {
+
+            0%,
+            100% {
                 transform: translateY(0px);
             }
+
             50% {
                 transform: translateY(-10px);
             }
         }
 
         @keyframes pulse-glow {
-            0%, 100% {
+
+            0%,
+            100% {
                 box-shadow: 0 0 20px rgba(255, 102, 0, 0.3);
             }
+
             50% {
                 box-shadow: 0 0 40px rgba(255, 102, 0, 0.6);
             }
@@ -126,97 +140,97 @@
         /* Card Improvements */
         .card-instance {
             background: linear-gradient(145deg, #111111, #1a1a1a);
-            border: 2px solid transparent;
+            border: 2px solid rgba(255, 102, 0, 0.06);
             border-radius: var(--border-radius);
-            box-shadow: 
+            box-shadow:
                 var(--shadow-primary),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                inset 0 1px 0 rgba(255, 255, 255, 0.02);
             transition: var(--transition);
-            padding: 24px;
+            padding: 20px;
             position: relative;
             overflow: hidden;
             animation: float 6s ease-in-out infinite;
         }
 
-        .card-instance::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--orange-gradient);
-            opacity: 0;
-            transition: var(--transition);
-            z-index: -1;
+        .card-instance .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
         }
 
-        .card-instance::after {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            right: 2px;
-            bottom: 2px;
-            background: linear-gradient(145deg, #111111, #1a1a1a);
-            border-radius: calc(var(--border-radius) - 2px);
-            z-index: -1;
+        .card-instance .meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .card-instance:hover {
             transform: translateY(-8px) scale(1.02);
-            box-shadow: 
+            box-shadow:
                 0 20px 60px rgba(255, 102, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
             animation-play-state: paused;
         }
 
-        .card-instance:hover::before {
-            opacity: 1;
-        }
-
-        .card-instance:nth-child(2n) {
-            animation-delay: -2s;
-        }
-
-        .card-instance:nth-child(3n) {
-            animation-delay: -4s;
-        }
-
-        /* Status Indicators */
-        .status-connected {
+        .status-connected-badge {
+            background: rgba(16, 185, 129, 0.12);
             color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.18);
+            padding: 4px 8px;
+            border-radius: 999px;
             font-weight: 600;
             display: inline-flex;
             align-items: center;
             gap: 8px;
         }
 
-        .status-connected::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: #10b981;
-            border-radius: 50%;
-            animation: pulse-glow 2s infinite;
-            box-shadow: 0 0 10px #10b981;
-        }
-
-        .status-disconnected {
+        .status-disconnected-badge {
+            background: rgba(239, 68, 68, 0.08);
             color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.12);
+            padding: 4px 8px;
+            border-radius: 999px;
             font-weight: 600;
             display: inline-flex;
             align-items: center;
             gap: 8px;
         }
 
-        .status-disconnected::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: #ef4444;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+        /* Copy button */
+        .copiar-btn {
+            font-size: 14px;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .copiar-btn.copied {
+            background: rgba(16, 185, 129, 0.12);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+            transform: scale(1.05);
+        }
+
+        .card-actions .btn i {
+            vertical-align: -2px;
+        }
+
+        .spinner-border {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .small-muted {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
         }
 
         /* Button Improvements */
@@ -302,18 +316,15 @@
             transform: scale(1.1);
         }
 
-        .copiar-btn {
-            font-size: 14px;
-            width: 32px;
-            height: 32px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-        }
+
 
         /* Typography */
-        h1, h2, h3, h4, h5, h6 {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             font-weight: 600;
             letter-spacing: -0.025em;
         }
@@ -335,7 +346,7 @@
             background: linear-gradient(145deg, #111111, #1a1a1a) !important;
             border: 2px solid transparent !important;
             border-radius: var(--border-radius) !important;
-            box-shadow: 
+            box-shadow:
                 0 25px 80px rgba(0, 0, 0, 0.8),
                 var(--shadow-primary) !important;
             backdrop-filter: blur(20px);
@@ -407,16 +418,15 @@
             border-left: 4px solid #ef4444;
         }
 
-        /* Responsive Improvements */
         @media (max-width: 768px) {
             .card-instance {
-                padding: 20px;
+                padding: 16px;
             }
-            
+
             .navbar-brand {
                 font-size: 1.25rem !important;
             }
-            
+
             body {
                 padding: 10px;
             }
@@ -478,6 +488,7 @@
             0% {
                 transform: rotate(0deg);
             }
+
             100% {
                 transform: rotate(360deg);
             }
@@ -494,10 +505,10 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-primary">
         <div class="container-fluid">
-            <a class="navbar-brand text-primary fw-bold" href="#">⚡ Flash API</a>
+            <a class="navbar-brand text-primary fw-bold" href="#">Flash API</a>
 
             <div class="d-flex align-items-center">
-                <span class="me-3 text-light">APIKEY: <strong class="text-secondary">
+                <span class="me-3 text-light small-muted">APIKEY: <strong class="text-secondary">
                         <%= userId %>
                     </strong></span>
 
@@ -509,20 +520,20 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <h2 class="text-primary">🚀 Painel de Instâncias Flash API</h2>
+                <h2 class="text-primary">Painel de Instâncias Flash API</h2>
             </div>
         </div>
 
         <% if (error) { %>
             <div class="alert alert-danger">
-                ⚠️ <%= error %>
+                <%= error %>
             </div>
             <% } %>
 
                 <div class="row g-4 mb-3">
                     <div class="col-12">
                         <a href="/manager/logout" class="btn btn-sm btn-danger">
-                            🚪 Sair
+                            <i class="bi bi-box-arrow-right me-1"></i> 🚪 Sair
                         </a>
                     </div>
                 </div>
@@ -530,27 +541,43 @@
                 <div class="row g-4">
                     <% instances.forEach(instance=> { %>
                         <div class="col-md-6 col-lg-4">
-                            <div class="card-instance" data-nome="<%= instance.nome_sessao %>" data-apikey="<%= instance.apikey %>">
-                                <h5 class="text-primary">
-                                    📱 Nome: <%= instance.nome_sessao %>
-                                        <button class="btn btn-sm btn-outline-light ms-2 copiar-btn"
-                                            data-copy="<%= instance.nome_sessao %>" title="Copiar nome">
-                                            📋
-                                        </button>
-                                </h5>
+                            <div class="card-instance" data-nome="<%= instance.nome_sessao %>"
+                                data-apikey="<%= instance.apikey %>">
+                                <div class="top-row mb-2">
+                                    <div>
+                                        <h5 class="text-primary mb-1">📱 <%= instance.nome_sessao %>
+                                        </h5>
+                                        <div class="small-muted">🔑 <%= instance.apikey %>
+                                        </div>
+                                        <% if (instance.numero) { %>
+                                            <div class="small-muted">📞 <strong>
+                                                    <%= instance.numero %>
+                                                </strong></div>
+                                            <% } %>
+                                    </div>
 
-                                <h5 class="text-primary">
-                                    🔑 APIKey: <%= instance.apikey %>
-                                        <button class="btn btn-sm btn-outline-light ms-2 copiar-btn"
-                                            data-copy="<%= instance.apikey %>" title="Copiar APIKey">
-                                            📋
+                                    <div class="meta">
+                                        <button class="btn copiar-btn" data-bs-toggle="tooltip" data-bs-placement="top"
+                                            data-copy="<%= instance.nome_sessao %>" title="Copiar nome"
+                                            aria-label="Copiar nome">
+                                            <i class="bi bi-clipboard"></i>
                                         </button>
-                                </h5>
-                                <p>📊 Status:
+
+                                        <button class="btn copiar-btn" data-bs-toggle="tooltip" data-bs-placement="top"
+                                            data-copy="<%= instance.apikey %>" title="Copiar APIKey"
+                                            aria-label="Copiar apikey">
+                                            <i class="bi bi-clipboard-data"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <p class="mb-2">📊 Status:
                                     <% if (instance.status==='connected' ) { %>
-                                        <span class="status-connected">Conectado</span>
+                                        <span class="status-connected-badge"><i class="bi bi-check-circle-fill"></i>
+                                            Conectado</span>
                                         <% } else { %>
-                                            <span class="status-disconnected">Desconectado</span>
+                                            <span class="status-disconnected-badge"><i class="bi bi-x-circle-fill"></i>
+                                                Desconectado</span>
                                             <% } %>
                                 </p>
 
@@ -560,28 +587,42 @@
                                             <div class="col">
                                                 <button class="btn-generate btn btn-sm btn-success w-100"
                                                     data-id="<%= instance.id %>">
-                                                    <span class="btn-text">🔌 Conectar</span>
+                                                    <i class="bi bi-plug-fill me-1"></i><span
+                                                        class="btn-text">Conectar</span>
                                                     <span class="spinner-border spinner-border-sm d-none" role="status"
                                                         aria-hidden="true"></span>
                                                 </button>
                                             </div>
-                                            <% } %>
 
+                                            <% } else { %>
                                                 <div class="col">
-                                                    <button class="btn-disconnect btn btn-sm btn-danger w-100"
+                                                    <button class="btn-restart btn btn-sm btn-success w-100"
                                                         data-id="<%= instance.id %>">
-                                                        <span class="btn-text">🔌 Desconectar</span>
+                                                        <i class="bi bi-arrow-repeat me-1"></i><span
+                                                            class="btn-text">Reniciar</span>
                                                         <span class="spinner-border spinner-border-sm d-none"
                                                             role="status" aria-hidden="true"></span>
                                                     </button>
                                                 </div>
+                                                <% } %>
 
-                                                <div class="col">
-                                                    <button class="btn-config btn btn-sm btn-secondary w-100"
-                                                        data-id="<%= instance.id %>">
-                                                        ⚙️ Configuração
-                                                    </button>
-                                                </div>
+                                                    <div class="col">
+                                                        <button class="btn-disconnect btn btn-sm btn-danger w-100"
+                                                            data-id="<%= instance.id %>">
+                                                            <i class="bi bi-power me-1"></i><span
+                                                                class="btn-text">Desconectar</span>
+                                                            <span class="spinner-border spinner-border-sm d-none"
+                                                                role="status" aria-hidden="true"></span>
+                                                        </button>
+                                                    </div>
+
+                                                    <div class="col">
+                                                        <button class="btn-config btn btn-sm btn-secondary w-100"
+                                                            data-id="<%= instance.id %>">
+                                                            <i class="bi bi-gear me-1"></i><span
+                                                                class="btn-text">Configuração</span>
+                                                        </button>
+                                                    </div>
                                     </div>
                                 </div>
                             </div>
@@ -597,7 +638,8 @@
             <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="staticBackdropLabel">📱 Conectar WhatsApp</h1>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
                     <div id="qr-code-info"></div>
@@ -619,7 +661,8 @@
             <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="staticBackdropLabel">➕ Criar Nova Sessão</h1>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <form id="form-Criar-Instance">
                     <div class="modal-body">
@@ -636,13 +679,13 @@
                                     <span class="input-group-text border-primary border-2">🔑 APIKey</span>
                                     <input type="text" id="apikey-sessao" class="form-control border-primary border-2">
                                 </div>
-                                <div class="form-text text-white">Deixar vazio para gerar automaticamente<br>Formato: <span
-                                        class="text-danger">(ex: 83725a47-fc7a-404a-bbac-206d590bae8f)</span></div>
+                                <div class="form-text text-white">Deixar vazio para gerar automaticamente<br>Formato:
+                                    <span class="text-danger">(ex: 83725a47-fc7a-404a-bbac-206d590bae8f)</span></div>
                             </div>
                             <div class="row-12 mb-3">
                                 <div class="input-group">
-                                    <span class="input-group-text border-primary border-2"
-                                        id="basic-addon3">📞 Número</span>
+                                    <span class="input-group-text border-primary border-2" id="basic-addon3">📞
+                                        Número</span>
                                     <input type="number" id="numero-sessao" class="form-control border-primary border-2"
                                         placeholder="5521999999999" aria-describedby="basic-addon3 basic-addon4">
                                 </div>
@@ -764,6 +807,25 @@
 
     <script src="/js/user.js"></script>
 
+    <!-- Footer -->
+    <!-- <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark">
+        <div class="container">
+            <p class="mb-2">🔗 Links úteis:</p>
+            <div class="d-flex justify-content-center flex-wrap gap-3 mb-3">
+                <a href="https://www.postman.com/winter-star-5220/flash-api/collection/3w62mm8/flash-api-v1-0-0"
+                    target="_blank" class="text-secondary text-decoration-none">📦
+                    Postman</a>
+                <a href="https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI" target="_blank"
+                    class="text-secondary text-decoration-none">💬 WhatsApp</a>
+                <a href="/api-docs" target="_blank" class="text-secondary text-decoration-none">📄 API Docs</a>
+                <a href="https://github.com/clsshbr2/FlashApi" target="_blank"
+                    class="text-secondary text-decoration-none">🐙 GitHub</a>
+                <a href="https://hub.docker.com/r/flashconect/flash-api" target="_blank"
+                    class="text-secondary text-decoration-none">🐳 Docker Hub</a>
+            </div>
+            <small class="text-muted">© <%= new Date().getFullYear() %> Flash API. Todos os direitos reservados.</small>
+        </div>
+    </footer> -->
 </body>
 
 </html>

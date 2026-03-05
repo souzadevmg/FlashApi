@@ -1,9 +1,9 @@
-const WebSocket = require('ws');
-const config = require('../config/env');
-const { authenticateWebSocketSecret } = require('../middleware/globalAuth');
-const logger = require('../utils/logger');
-const BaileysService = require('./BaileysService');
-const moment = require('moment-timezone');
+import WebSocket from 'ws';
+import config from '../config/env.js';
+import auth from '../middleware/globalAuth.js';
+import logger from '../utils/logger.js';
+import BaileysService from './BaileysService.js';
+import moment from 'moment-timezone';
 
 class GlobalWebSocketService {
   constructor(wss) {
@@ -135,7 +135,7 @@ class GlobalWebSocketService {
 
       const { apikey = null, modo = null, eventos = [] } = data
 
-      const authResult = await authenticateWebSocketSecret(apikey, modo);
+      const authResult = await auth.authenticateWebSocketSecret(apikey, modo);
 
       if (!authResult.success) {
         ws.close(1000, authResult.message);
@@ -152,7 +152,6 @@ class GlobalWebSocketService {
       return true;
 
     } catch (error) {
-      console.log(error)
       logger.error('Erro na autenticação WebSocket global:', error);
       ws.close(1000, 'Erro na autenticação');
       return false;
@@ -215,4 +214,4 @@ class GlobalWebSocketService {
 
 }
 
-module.exports = GlobalWebSocketService;
+export default GlobalWebSocketService

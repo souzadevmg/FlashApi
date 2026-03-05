@@ -1,5 +1,11 @@
-const Database = require("../config/database");
-const config = require("../config/env");
+import Database from "../config/database.js";
+import config from "../config/env.js";
+import logger from "../utils/logger.js";
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Instância singleton do banco
 const db = new Database();
@@ -7,7 +13,7 @@ const db = new Database();
 class Session {
 
   static async addsessao(dados) {
-    const addsessao = await db.execute('INSERT INTO sessao (apikey, numero, nome_sessao) VALUES (?, ?, ?)', [dados.uuid, dados.numero, dados.finalNomeSessao]);
+    const addsessao = await db.execute('INSERT INTO sessao (apikey, nome_sessao, rejeitar_ligacoes, ignorar_grupos) VALUES (?, ?, ?, ?)', [dados.uuid, dados.finalNomeSessao, 0, 1]);
     return addsessao.affectedRows > 0
   }
 
@@ -63,44 +69,72 @@ class Session {
     return upsessao.affectedRows > 0
   }
 
-  static async saveCreds(id, creds) {
-    try {
-
-      const saveCreds = await db.execute('UPDATE sessao SET creds = ?, updated_at = CURRENT_TIMESTAMP WHERE apikey = ?', [creds, id]);
-      return saveCreds.affectedRows > 0;
-    } catch (error) {
-
-      console.error('Erro ao salvar credenciais:', error);
-      return false;
-    }
+  static async getCreds(id) {
+    const [getcreds] = await db.execute('SELECT * FROM baileys_sessions WHERE id = ?', [id])
+    return getcreds
   }
 
-  static async delete(id) {
-    const deletesessao = await db.execute(`DELETE FROM sessao WHERE apikey = ?`, [id])
+  static async saveCreds(id, auth) {
+    const isPostgres = process.env.DB_TYPE === 'postgres';
+    const query = isPostgres
+      ? `INSERT INTO baileys_sessions (id, auth)
+       VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE
+       SET auth = EXCLUDED.auth, updated_at = CURRENT_TIMESTAMP`
+      : `INSERT INTO baileys_sessions (id, auth)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE auth = VALUES(auth), updated_at = CURRENT_TIMESTAMP`;
+
+    const params = [id, auth];
+
+    return db.execute(query, params);
+
+  }
+
+  static async deleteCreds(id) {
+    return db.execute(
+      `DELETE FROM baileys_sessions WHERE id = ?`,
+      [id]
+    )
+  }
+
+  static async delete(id, sessaodelete = true) {
+    if (sessaodelete) {
+      await db.execute(`DELETE FROM sessao WHERE apikey = ?`, [id])
+    }
+    try {
+      
+      const dir = path.join(__dirname, "..", "..", "sessions", id);
+      await fs.rm(dir, {
+            recursive: true,
+            force: true
+          });
+    } catch (err) {
+      console.error("Erro ao remover sessão:", err);
+    }
+
     await db.execute(`DELETE FROM chats WHERE sessao_id = ?`, [id])
     await db.execute(`DELETE FROM contatos WHERE sessao_id = ?`, [id])
     await db.execute(`DELETE FROM grupos WHERE sessao_id = ?`, [id])
     await db.execute(`DELETE FROM mensagens WHERE sessao_id = ?`, [id])
-    return deletesessao
+    return true
   }
 
   static async limparBinlogs() {
     try {
       // Pega o último binlog
-      const logs = await db.runAdmin("SHOW BINARY LOGS");
-
-      if (logs.length > 2) {
-        const penultimo = logs[logs.length - 2].Log_name;
-        await db.runAdmin(`PURGE BINARY LOGS TO '${penultimo}'`);
-        console.log(`Binlogs antigos removidos até ${penultimo}`);
+      if (config.db_client == 'mysql') {
+        await db.runAdmin("PURGE BINARY LOGS BEFORE NOW();");
+        logger.info('Limpeza de logs concluida')
       } else {
-        console.log("Poucos binlogs, nada para apagar.");
+        logger.info('Usando postgres ignorando limpeza de logs')
       }
     } catch (err) {
-      console.error("Erro ao limpar binlogs:", err);
+      logger.error("Erro ao limpar binlogs:", err)
+      // console.error("Erro ao limpar binlogs:", err);
     }
   }
 
 }
 
-module.exports = Session;
+export default Session;

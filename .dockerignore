@@ -3,3 +3,6 @@ npm-debug.log
 .env
 Dockerfile
 .dockerignore
+examples
+keys
+sessions/

@@ -1,6 +1,5 @@
-const Database = require('../config/database');
-const config = require('../config/env');
-const logger = require('../utils/logger');
+import Database from '../config/database.js';
+import logger from '../utils/logger.js';
 
 // Instância singleton do banco
 const db = new Database();
@@ -38,4 +37,4 @@ class Chats {
   }
 }
 
-module.exports = Chats;
+export default Chats;

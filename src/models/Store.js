@@ -1,7 +1,7 @@
-const Database = require('../config/database');
-const config = require('../config/env');
-const logger = require('../utils/logger');
-const Long = require('long');
+import Database from '../config/database.js';
+import config from '../config/env.js';
+import logger from '../utils/logger.js';
+import Long from 'long';
 
 // Instância singleton do banco
 const db = new Database();
@@ -11,6 +11,7 @@ class Store {
   // ===== MENSAGENS =====
   static async saveMessage(sessionId, messageData) {
     try {
+
       const MESSAGE_STATUSES = ['received', 'sent', 'delivered', 'read'];
       const status = MESSAGE_STATUSES.includes(messageData.status) ? messageData.status : 'received';
       // Converter Long para número ou string
@@ -19,7 +20,6 @@ class Store {
           ? messageData.messageTimestamp.toNumber()
           : messageData.messageTimestamp
         : Date.now();
-
       await db.execute(`
         INSERT INTO mensagens (
           sessao_id, mensagem_id, remoteJid, fromMe, isgrupo, 
@@ -39,7 +39,7 @@ class Store {
       ]);
       return true;
     } catch (error) {
-      console.log(error)
+
       logger.error('Erro ao salvar mensagem:', error);
       return false;
     }
@@ -56,7 +56,7 @@ class Store {
         query += ` AND remoteJid = ?`;
         params.push(remoteJid);
       }
-      if (mensagem_id && mensagem_id !== 0) {
+      if (mensagem_id) {
         query += ` AND mensagem_id = ?`;
         params.push(mensagem_id);
       }
@@ -65,12 +65,35 @@ class Store {
 
 
       const rows = await db.execute(query, params); // Linha 67 (ou 62 em outra versão)
-      return rows.map(msg => ({
-        ...msg,
-        conteudo_mensagem: msg.conteudo_mensagem,
-        fromMe: msg.fromMe === 1,
-        isgrupo: msg.isgrupo === 1
-      }));
+      return rows;
+    } catch (error) {
+      console.error('Erro ao buscar mensagens:', error);
+      logger.error('Erro ao buscar mensagens:', error);
+      return [];
+    }
+  }
+
+  static async getMessagesvote(sessionId, key = null, mensagem_id = null) {
+    try {
+      // Garantir que limit seja um número inteiro
+
+      let query = `SELECT * FROM mensagens  WHERE sessao_id = ?`;
+      let params = [sessionId];
+
+      if (key) {
+        query += ` AND (remoteJid = ? OR remoteJid = ?)`;
+        params.push(key.remoteJid, key.remoteJidAlt);
+      }
+      if (mensagem_id) {
+        query += ` AND mensagem_id = ?`;
+        params.push(mensagem_id);
+      }
+
+      query += ` ORDER BY timestamp`;
+
+
+      const rows = await db.execute(query, params); // Linha 67 (ou 62 em outra versão)
+      return rows;
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
       logger.error('Erro ao buscar mensagens:', error);
@@ -81,25 +104,55 @@ class Store {
   // ===== CONTATOS =====
   static async saveContact(sessionId, contactData) {
     try {
-      await db.execute(`
-        INSERT INTO contatos (sessao_id, jid, nome, apelido, nome_verificado, url_imagem, status_contato)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        nome = VALUES(nome),
-        apelido = VALUES(apelido),
-        nome_verificado = VALUES(nome_verificado),
-        url_imagem = VALUES(url_imagem),
-        status_contato = VALUES(status_contato),
-        updated_at = CURRENT_TIMESTAMP
-      `, [
+
+      const isMySQL = db.dbType === 'mysql';
+
+      // Lista de campos
+      const fields = [
+        'sessao_id', 'jid', 'nome', 'apelido', 'nome_verificado',
+        'url_imagem', 'status_contato'
+      ];
+
+      const values = [
         sessionId,
         contactData.id,
         contactData.name || contactData.notify || null,
         contactData.notify || null,
         contactData.verifiedName || null,
-        contactData.imgUrl || null,
+        contactData.url_imagem || null,
         contactData.status || null
-      ]);
+      ];
+      let sql;
+      if (isMySQL) {
+        sql = `
+          INSERT INTO contatos (${fields.join(', ')})
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nome = VALUES(nome),
+            apelido = VALUES(apelido),
+            nome_verificado = VALUES(nome_verificado),
+            url_imagem = VALUES(url_imagem),
+            status_contato = VALUES(status_contato),
+            updated_at = CURRENT_TIMESTAMP
+        `;
+      } else {
+        // Em Postgres, substitua ? por $1, $2, ...
+        const pgFields = fields.map((_, i) => `$${i + 1}`).join(', ');
+        sql = `
+          INSERT INTO contatos (${fields.join(', ')})
+          VALUES (${pgFields})
+          ON CONFLICT (sessao_id, jid) DO UPDATE SET
+            nome = EXCLUDED.nome,
+            apelido = EXCLUDED.apelido,
+            nome_verificado = EXCLUDED.nome_verificado,
+            url_imagem = EXCLUDED.url_imagem,
+            status_contato = EXCLUDED.status_contato,
+            updated_at = CURRENT_TIMESTAMP
+        `;
+      }
+
+      // Executa
+      await db.execute(sql, values);
       return true;
     } catch (error) {
       logger.error('Erro ao salvar contato:', error);
@@ -134,20 +187,15 @@ class Store {
   // ===== CHATS =====
   static async saveChat(sessionId, chatData) {
     try {
-      await db.execute(`
-        INSERT INTO chats (
-          sessao_id, jid, nome, eh_grupo, mensagens_nao_lidas, arquivado, fixado, silenciado_ate
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        nome = VALUES(nome),
-        mensagens_nao_lidas = VALUES(mensagens_nao_lidas),
-        ultima_mensagem = VALUES(ultima_mensagem),
-        arquivado = VALUES(arquivado),
-        fixado = VALUES(fixado),
-        silenciado_ate = VALUES(silenciado_ate),
-        updated_at = CURRENT_TIMESTAMP
-      `, [
+
+      const isMySQL = db.dbType === 'mysql';
+
+      const fields = [
+        'sessao_id', 'jid', 'nome', 'eh_grupo',
+        'mensagens_nao_lidas', 'arquivado', 'fixado', 'silenciado_ate'
+      ];
+
+      const values = [
         sessionId,
         chatData.id,
         chatData.name || null,
@@ -156,7 +204,41 @@ class Store {
         chatData.archived ? 1 : 0,
         chatData.pinned ? 1 : 0,
         chatData.muteEndTime || null
-      ]);
+      ];
+      let sql;
+      if (isMySQL) {
+        sql = `
+          INSERT INTO chats (
+            ${fields.join(', ')}
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nome = VALUES(nome),
+            mensagens_nao_lidas = VALUES(mensagens_nao_lidas),
+            ultima_mensagem = VALUES(ultima_mensagem),
+            arquivado = VALUES(arquivado),
+            fixado = VALUES(fixado),
+            silenciado_ate = VALUES(silenciado_ate),
+            updated_at = CURRENT_TIMESTAMP
+        `;
+      } else {
+        // Postgres: $1, $2, ... placeholders
+        const pgFields = fields.map((_, i) => `$${i + 1}`).join(', ');
+        sql = `
+          INSERT INTO chats (
+            ${fields.join(', ')}
+          ) VALUES (${pgFields})
+          ON CONFLICT (sessao_id, jid) DO UPDATE SET
+            nome = EXCLUDED.nome,
+            mensagens_nao_lidas = EXCLUDED.mensagens_nao_lidas,
+            ultima_mensagem = EXCLUDED.ultima_mensagem,
+            arquivado = EXCLUDED.arquivado,
+            fixado = EXCLUDED.fixado,
+            silenciado_ate = EXCLUDED.silenciado_ate,
+            updated_at = CURRENT_TIMESTAMP
+        `;
+      }
+
+      await db.execute(sql, values);
       return true;
     } catch (error) {
       logger.error('Erro ao salvar chat:', error);
@@ -167,14 +249,8 @@ class Store {
   static async getChats(sessionId) {
     try {
       const chats = await db.execute(`
-        SELECT * FROM chats WHERE sessao_id = ? ORDER BY ultima_mensagem DESC
-      `, [sessionId]);
-      return chats.map(chat => ({
-        ...chat,
-        eh_grupo: chat.eh_grupo === 1,
-        arquivado: chat.arquivado === 1,
-        fixado: chat.fixado === 1
-      }));
+        SELECT * FROM chats WHERE sessao_id = ?`, [sessionId]);
+      return chats;
     } catch (error) {
       logger.error('Erro ao buscar chats:', error);
       return [];
@@ -184,27 +260,15 @@ class Store {
   // ===== GRUPOS =====
   static async saveGroup(sessionId, groupData) {
     try {
-      await db.execute(`
-        INSERT INTO grupos (
-          sessao_id, jid, assunto, dono_assunto, data_assunto,
-          data_criacao, dono_grupo, descricao_grupo, dono_descricao, id_descricao, 
-          restrito_mensagens, apenas_admins, tamanho_grupo, participantes
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        assunto = VALUES(assunto),
-        dono_assunto = VALUES(dono_assunto),
-        data_assunto = VALUES(data_assunto),
-        dono_grupo = VALUES(dono_grupo),
-        descricao_grupo = VALUES(descricao_grupo),
-        dono_descricao = VALUES(dono_descricao),
-        id_descricao = VALUES(id_descricao),
-        restrito_mensagens = VALUES(restrito_mensagens),
-        apenas_admins = VALUES(apenas_admins),
-        tamanho_grupo = VALUES(tamanho_grupo),
-        participantes = VALUES(participantes),
-        updated_at = CURRENT_TIMESTAMP
-      `, [
+      const isMySQL = db.dbType === 'mysql'; // ajuste conforme sua lógica de detecção
+
+      const fields = [
+        'sessao_id', 'jid', 'assunto', 'dono_assunto', 'data_assunto',
+        'data_criacao', 'dono_grupo', 'descricao_grupo', 'dono_descricao', 'id_descricao',
+        'restrito_mensagens', 'apenas_admins', 'tamanho_grupo', 'participantes'
+      ];
+
+      const values = [
         sessionId,
         groupData.id,
         groupData.subject || null,
@@ -219,7 +283,52 @@ class Store {
         groupData.announce ? 1 : 0,
         groupData.size || 0,
         JSON.stringify(groupData.participants || [])
-      ]);
+      ];
+
+      let sql;
+
+      if (isMySQL) {
+        sql = `
+        INSERT INTO grupos (
+          ${fields.join(', ')}
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          assunto = VALUES(assunto),
+          dono_assunto = VALUES(dono_assunto),
+          data_assunto = VALUES(data_assunto),
+          dono_grupo = VALUES(dono_grupo),
+          descricao_grupo = VALUES(descricao_grupo),
+          dono_descricao = VALUES(dono_descricao),
+          id_descricao = VALUES(id_descricao),
+          restrito_mensagens = VALUES(restrito_mensagens),
+          apenas_admins = VALUES(apenas_admins),
+          tamanho_grupo = VALUES(tamanho_grupo),
+          participantes = VALUES(participantes),
+          updated_at = CURRENT_TIMESTAMP
+      `;
+      } else {
+        const pgPlaceholders = fields.map((_, i) => `$${i + 1}`).join(', ');
+        sql = `
+        INSERT INTO grupos (
+          ${fields.join(', ')}
+        ) VALUES (${pgPlaceholders})
+        ON CONFLICT (sessao_id, jid) DO UPDATE SET
+          assunto = EXCLUDED.assunto,
+          dono_assunto = EXCLUDED.dono_assunto,
+          data_assunto = EXCLUDED.data_assunto,
+          dono_grupo = EXCLUDED.dono_grupo,
+          descricao_grupo = EXCLUDED.descricao_grupo,
+          dono_descricao = EXCLUDED.dono_descricao,
+          id_descricao = EXCLUDED.id_descricao,
+          restrito_mensagens = EXCLUDED.restrito_mensagens,
+          apenas_admins = EXCLUDED.apenas_admins,
+          tamanho_grupo = EXCLUDED.tamanho_grupo,
+          participantes = EXCLUDED.participantes,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+      }
+
+      await db.execute(sql, values);
       return true;
     } catch (error) {
       logger.error('Erro ao salvar grupo:', error);
@@ -227,17 +336,11 @@ class Store {
     }
   }
 
+
   static async getGroups(sessionId) {
     try {
-      const groups = await db.execute(`
-        SELECT * FROM grupos WHERE sessao_id = ? ORDER BY assunto ASC
-      `, [sessionId]);
-      return groups.map(group => ({
-        ...group,
-        restrito_mensagens: group.restrito_mensagens === 1,
-        apenas_admins: group.apenas_admins === 1,
-        participantes: group.participantes || []
-      }));
+      const groups = await db.execute(`SELECT * FROM grupos WHERE sessao_id = ?`, [sessionId]);
+      return groups;
     } catch (error) {
       logger.error('Erro ao buscar grupos:', error);
       return [];
@@ -252,7 +355,7 @@ class Store {
       if (group) {
         group.restrito_mensagens = group.restrito_mensagens === 1;
         group.apenas_admins = group.apenas_admins === 1;
-        group.participantes = JSON.parse(group.participantes || '[]');
+        group.participantes = group.participantes || '[]';
       }
       return group || null;
     } catch (error) {
@@ -272,7 +375,7 @@ class Store {
         rejeitar_ligacoes = ?,
         events = ?,
         webhook_status = ?,
-        msg_rejectCalls = ?,
+        msg_rejectcalls = ?,
         updated_at = CURRENT_TIMESTAMP
         WHERE apikey = ?
       `, [
@@ -280,9 +383,9 @@ class Store {
         configData.ignorar_grupos ? 1 : 0,
         configData.leitura_automatica ? 1 : 0,
         configData.rejeitar_ligacoes ? 1 : 0,
-        configData.events || {},
+        JSON.stringify(configData.events || {}),
         configData.webhook_status ? 1 : 0,
-        configData.msg_rejectCalls,
+        configData.msg_rejectcalls,
         sessionId
       ]);
       return true;
@@ -296,20 +399,11 @@ class Store {
     try {
       const [sessionConfig] = await db.execute(`
         SELECT webhook_url, events, webhook_status, ignorar_grupos, leitura_automatica, rejeitar_ligacoes,
-        msg_rejectCalls
+        msg_rejectcalls
         FROM sessao WHERE apikey = ?
       `, [sessionId]);
-
       if (sessionConfig) {
-        return {
-          webhook_url: sessionConfig.webhook_url,
-          webhook_status: sessionConfig.webhook_status === 1,
-          events: sessionConfig.events,
-          ignorar_grupos: sessionConfig.ignorar_grupos === 1,
-          leitura_automatica: sessionConfig.leitura_automatica === 1,
-          rejeitar_ligacoes: sessionConfig.rejeitar_ligacoes === 1,
-          msg_rejectCalls: sessionConfig.msg_rejectCalls || '',
-        };
+        return sessionConfig;
       }
       return null;
     } catch (error) {
@@ -322,28 +416,28 @@ class Store {
   static async getSessionStats(sessionId) {
     try {
       const [messageStats] = await db.execute(`
-        SELECT 
-          COUNT(*) as total_mensagens,
-          COUNT(CASE WHEN fromMe = 1 THEN 1 END) as mensagens_enviadas,
-          COUNT(CASE WHEN fromMe = 0 THEN 1 END) as mensagens_recebidas
-        FROM mensagens WHERE sessao_id = ?
-      `, [sessionId]);
+      SELECT 
+        COUNT(*) as total_mensagens,
+        COUNT(CASE WHEN fromMe = TRUE THEN 1 END) as mensagens_enviadas,
+        COUNT(CASE WHEN fromMe = FALSE THEN 1 END) as mensagens_recebidas
+      FROM mensagens WHERE sessao_id = ?
+    `, [sessionId]);
 
       const [contactStats] = await db.execute(`
-        SELECT COUNT(*) as total_contatos FROM contatos WHERE sessao_id = ?
-      `, [sessionId]);
+      SELECT COUNT(*) as total_contatos FROM contatos WHERE sessao_id = ?
+    `, [sessionId]);
 
       const [chatStats] = await db.execute(`
-        SELECT 
-          COUNT(*) as total_chats,
-          COUNT(CASE WHEN eh_grupo = 1 THEN 1 END) as chats_grupo,
-          COUNT(CASE WHEN eh_grupo = 0 THEN 1 END) as chats_privados
-        FROM chats WHERE sessao_id = ?
-      `, [sessionId]);
+      SELECT 
+        COUNT(*) as total_chats,
+        COUNT(CASE WHEN eh_grupo = TRUE THEN 1 END) as chats_grupo,
+        COUNT(CASE WHEN eh_grupo = FALSE THEN 1 END) as chats_privados
+      FROM chats WHERE sessao_id = ?
+    `, [sessionId]);
 
       const [groupStats] = await db.execute(`
-        SELECT COUNT(*) as total_grupos FROM grupos WHERE sessao_id = ?
-      `, [sessionId]);
+      SELECT COUNT(*) as total_grupos FROM grupos WHERE sessao_id = ?
+    `, [sessionId]);
 
       return {
         mensagens: messageStats || { total_mensagens: 0, mensagens_enviadas: 0, mensagens_recebidas: 0 },
@@ -368,4 +462,4 @@ class Store {
   }
 }
 
-module.exports = Store;
+export default Store;

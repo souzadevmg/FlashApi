@@ -1,6 +1,6 @@
 {
   "ignore": [
-    "sessions/*",
+    "keys/*",
     "swagger_full.json",
     "postman_collection.json"
   ]

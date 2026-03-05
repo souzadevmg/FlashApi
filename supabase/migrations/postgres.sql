@@ -1,7 +1,5 @@
--- Compatível com MySQL 8+ e PostgreSQL 15+
-
 CREATE TABLE IF NOT EXISTS chats (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   sessao_id VARCHAR(255) NOT NULL,
   jid VARCHAR(255) NOT NULL,
   nome VARCHAR(255),
@@ -13,13 +11,16 @@ CREATE TABLE IF NOT EXISTS chats (
   silenciado_ate BIGINT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_chat (sessao_id, jid),
-  INDEX idx_sessao_id_chats (sessao_id),
-  INDEX idx_ultima_mensagem (ultima_mensagem)
+  UNIQUE (sessao_id, jid)
 );
 
+DROP INDEX IF EXISTS idx_sessao_id_chats;
+DROP INDEX IF EXISTS idx_ultima_mensagem;
+CREATE INDEX idx_sessao_id_chats ON chats (sessao_id);
+CREATE INDEX idx_ultima_mensagem ON chats (ultima_mensagem);
+
 CREATE TABLE IF NOT EXISTS contatos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   sessao_id VARCHAR(255) NOT NULL,
   jid VARCHAR(255) NOT NULL,
   nome VARCHAR(255),
@@ -29,12 +30,14 @@ CREATE TABLE IF NOT EXISTS contatos (
   status_contato TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_contact (sessao_id, jid),
-  INDEX idx_sessao_id_contatos (sessao_id)
+  UNIQUE (sessao_id, jid)
 );
 
+DROP INDEX IF EXISTS idx_sessao_id_contatos;
+CREATE INDEX idx_sessao_id_contatos ON contatos (sessao_id);
+
 CREATE TABLE IF NOT EXISTS grupos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   sessao_id VARCHAR(255) NOT NULL,
   jid VARCHAR(255) NOT NULL,
   assunto VARCHAR(255),
@@ -51,12 +54,14 @@ CREATE TABLE IF NOT EXISTS grupos (
   participantes JSON,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_group (sessao_id, jid),
-  INDEX idx_sessao_id_grupos (sessao_id)
+  UNIQUE (sessao_id, jid)
 );
 
+DROP INDEX IF EXISTS idx_sessao_id_grupos;
+CREATE INDEX idx_sessao_id_grupos ON grupos (sessao_id);
+
 CREATE TABLE IF NOT EXISTS mensagens (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   sessao_id VARCHAR(255) NOT NULL,
   mensagem_id VARCHAR(255) NOT NULL,
   remoteJid VARCHAR(255) NOT NULL,
@@ -69,15 +74,19 @@ CREATE TABLE IF NOT EXISTS mensagens (
   status VARCHAR(10) DEFAULT 'received',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT status_enum CHECK (status IN ('received','sent','delivered','read')),
-  UNIQUE KEY unique_message (sessao_id, mensagem_id),
-  INDEX idx_sessao_id_mensagens (sessao_id),
-  INDEX idx_remote_jid (remoteJid),
-  INDEX idx_timestamp (timestamp)
+  UNIQUE (sessao_id, mensagem_id)
 );
 
+DROP INDEX IF EXISTS idx_sessao_id_mensagens;
+DROP INDEX IF EXISTS idx_remote_jid;
+DROP INDEX IF EXISTS idx_timestamp;
+
+CREATE INDEX idx_sessao_id_mensagens ON mensagens (sessao_id);
+CREATE INDEX idx_remote_jid ON mensagens (remoteJid);
+CREATE INDEX idx_timestamp ON mensagens (timestamp);
 
 CREATE TABLE IF NOT EXISTS sessao (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   apikey VARCHAR(255) NOT NULL UNIQUE,
   numero VARCHAR(20),
   nome_sessao VARCHAR(100) NOT NULL,
@@ -99,7 +108,7 @@ CREATE TABLE IF NOT EXISTS sessao (
 );
 
 CREATE TABLE IF NOT EXISTS proxy (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   mainid INT NOT NULL,
   host VARCHAR(255) NOT NULL,
   port INT NOT NULL,
@@ -111,5 +120,5 @@ CREATE TABLE IF NOT EXISTS proxy (
 CREATE TABLE IF NOT EXISTS baileys_sessions (
   id VARCHAR(255) PRIMARY KEY,
   auth JSON NOT NULL,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

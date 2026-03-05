@@ -1,8 +1,10 @@
-const express = require('express');
-const { authenticateApiKey } = require('../middleware/auth');
-const BaileysService = require('../services/BaileysService');
-const Store = require('../models/Store');
-const logger = require('../utils/logger');
+import express from 'express';
+import authenticateApiKey from '../middleware/auth.js';
+import BaileysService from '../services/BaileysService.js';
+import Store from '../models/Store.js';
+import logger from '../utils/logger.js';
+import fs from 'fs';
+import util from 'util';
 
 const router = express.Router();
 
@@ -17,44 +19,11 @@ router.get('/list', authenticateApiKey, async (req, res) => {
         message: 'Sessão não está conectada'
       });
     }
+    let contacts = []
+    const getcontato = await Store.getContacts(sessionId);
 
-    const contacts = await Store.getContacts(sessionId);
-
-    res.json({
-      success: true,
-      data: {
-        contacts,
-        total: contacts.length
-      }
-    });
-
-  } catch (error) {
-    logger.error('Erro ao listar contatos:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
-  }
-});
-
-router.get('/ProfilePicture', authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers['apikey'];
-
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Sessão não está conectada'
-      });
-    }
-
-     try {
-        // Baileys retorna a URL da foto, ou lança erro se não houver
-        const url = await sock.profilePictureUrl(jid, 'image'); // 'image' ou 'preview'
-        return url; // pode ser null se não tiver foto
-    } catch (e) {
-        // Se não tiver foto, ou erro de privacidade, retorna null
-        return null;
+    if (getcontato && getcontato.length > 0) {
+      contacts = getcontato
     }
 
     res.json({
@@ -149,14 +118,13 @@ router.post('/profile', authenticateApiKey, async (req, res) => {
     const sessionId = req.headers['apikey'];
     const { jid } = req.body;
 
-
     if (!jid) {
       return res.status(400).json({
         success: false,
         message: 'JID é obrigatório'
       });
     }
-       const to = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
+
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
@@ -164,7 +132,7 @@ router.post('/profile', authenticateApiKey, async (req, res) => {
       });
     }
 
-    const profile = await BaileysService.getContactProfile(sessionId, to);
+    const profile = await BaileysService.getContactProfile(sessionId, jid);
 
     res.json({
       success: true,
@@ -287,4 +255,4 @@ router.post('/unblock', authenticateApiKey, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

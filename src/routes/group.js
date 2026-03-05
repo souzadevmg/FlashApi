@@ -1,8 +1,8 @@
-const express = require('express');
-const { authenticateApiKey } = require('../middleware/auth');
-const BaileysService = require('../services/BaileysService');
-const Store = require('../models/Store');
-const logger = require('../utils/logger');
+import express from 'express';
+import authenticateApiKey from '../middleware/auth.js';
+import BaileysService from '../services/BaileysService.js';
+import Store from '../models/Store.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -16,10 +16,13 @@ router.get('/list', authenticateApiKey, async (req, res) => {
         message: 'Sessão não está conectada'
       });
     }
+    let groups = [];
+    const gruporedis = await Store.getGroups(sessionId);
+    if (gruporedis && gruporedis.length > 0) {
+      groups = gruporedis
+    } 
 
-    const groups = await Store.getGroups(sessionId);
-
-    res.json({
+    return res.json({
       success: true,
       data: {
         groups,
@@ -323,6 +326,43 @@ router.post('/update-subject', authenticateApiKey, async (req, res) => {
   }
 });
 
+router.post('/up-setting', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId = req.headers['apikey'];
+    const { groupJid, subject } = req.body;
+
+    if (!groupJid || !subject) {
+      return res.status(400).json({
+        success: false,
+        message: 'groupJid e subject são obrigatórios'
+      });
+    }
+
+    if (!BaileysService.isSessionConnected(sessionId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sessão não está conectada'
+      });
+    }
+
+    await BaileysService.groupSettingUpdate(sessionId, groupJid, subject);
+
+    res.json({
+      success: true,
+      message: 'Grupo foi fechado com sucesso',
+      data: { groupJid, subject }
+    });
+
+  } catch (error) {
+    logger.error('Erro ao Frecar grupos:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+
 router.post('/update-description', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
@@ -359,4 +399,4 @@ router.post('/update-description', authenticateApiKey, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

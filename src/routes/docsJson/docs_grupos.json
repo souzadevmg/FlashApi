@@ -318,6 +318,43 @@
         }
       }
     },
+    "/group/up-setting": {
+      "post": {
+        "summary": "Fechar/Abrir grupo",
+        "tags": ["Grupos"],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["groupJid", "subject"],
+                "properties": {
+                  "groupJid": {
+                    "type": "string",
+                    "description": "JID do grupo"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "announcement/not_announcement"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grupo aberto/fechado com sucesso"
+          }
+        }
+      }
+    },
     "/group/update-description": {
       "post": {
         "summary": "Atualizar descrição do grupo",

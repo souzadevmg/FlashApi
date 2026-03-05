@@ -29,20 +29,6 @@
                   "type": "string",
                   "description": "Apikey (ex: 83725a47-fc7a-404a-bbac-206d590bae8f) opcional",
                   "default": "83725a47-fc7a-404a-bbac-206d590bae8f"
-                },
-                "numero": {
-                  "type": "string",
-                  "description": "Numero para contato"
-                },
-                "criar_sessao": {
-                  "type": "boolean",
-                  "description": "Se true, Criar a conexão com whatsapp",
-                  "default": true
-                },
-                "gerar_qrcode": {
-                  "type": "boolean",
-                  "description": "Se true, Gerar qrcode Base64",
-                  "default": true
                 }
               }
             }
@@ -67,6 +53,26 @@
           "ApiKeyAuth": []
         }
       ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "sessionId"
+              ],
+              "properties": {
+                "numero": {
+                  "type": "string",
+                  "description": "NUmero de whatsapp para conectar com via codigo",
+                  "default": "5521999999999"
+                }
+              }
+            }
+          }
+        }
+      },
       "responses": {
         "200": {
           "description": "Você recebe um base64 com qrcode"
