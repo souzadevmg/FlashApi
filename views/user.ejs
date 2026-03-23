@@ -1,650 +1,453 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard | Flash API</title>
+    <title>User Control Center | Flash API</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Boostrap CSS 5.3 -->
     <link href="/css/bootstrap.min.css" rel="stylesheet" />
-
-    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 
-    <!-- Boostrap JS 5.3 -->
     <script src="/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Jquery -->
     <script src="/js/jquery.min.js"></script>
-
-    <!-- Axios -->
     <script src="/js/axios.js"></script>
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            --bs-primary: #ff6600;
-            --bs-secondary: #ffc107;
-            --bs-dark: #000000;
-            --bs-light: #ffffff;
-            --orange-gradient: linear-gradient(135deg, #ff6600 0%, #ff8533 100%);
-            --yellow-gradient: linear-gradient(135deg, #ffc107 0%, #ffd54f 100%);
-            --shadow-primary: 0 8px 32px rgba(255, 102, 0, 0.15);
-            --shadow-secondary: 0 4px 16px rgba(255, 193, 7, 0.1);
-            --border-radius: 16px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        * {
-            transition: var(--transition);
-        }
-
-        body {
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at 20% 80%, rgba(255, 102, 0, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(255, 193, 7, 0.08) 0%, transparent 50%),
-                linear-gradient(-45deg, #0a0a0a, #1a1a1a, #0f0f0f, #1e1e1e);
-            background-size: 400% 400%;
-            animation: gradientMove 15s ease infinite;
-            color: var(--bs-light);
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            padding: 20px;
-            position: relative;
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grain)"/></svg>');
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .container {
-            position: relative;
-            z-index: 2;
-        }
-
-        @keyframes gradientMove {
-
-            0%,
-            100% {
-                background-position: 0% 50%;
-            }
-
-            25% {
-                background-position: 100% 50%;
-            }
-
-            50% {
-                background-position: 100% 100%;
-            }
-
-            75% {
-                background-position: 0% 100%;
-            }
-        }
-
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translateY(0px);
-            }
-
-            50% {
-                transform: translateY(-10px);
-            }
-        }
-
-        @keyframes pulse-glow {
-
-            0%,
-            100% {
-                box-shadow: 0 0 20px rgba(255, 102, 0, 0.3);
-            }
-
-            50% {
-                box-shadow: 0 0 40px rgba(255, 102, 0, 0.6);
-            }
-        }
-
-        /* Navbar Improvements */
-        .navbar {
-            background: rgba(0, 0, 0, 0.95) !important;
-            backdrop-filter: blur(20px);
-            border-bottom: 2px solid transparent;
-            border-image: var(--orange-gradient) 1;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-        }
-
-        .navbar-brand {
-            font-weight: 700 !important;
-            font-size: 1.5rem !important;
-            background: var(--orange-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: 0 0 30px rgba(255, 102, 0, 0.5);
-        }
-
-        /* Card Improvements */
-        .card-instance {
-            background: linear-gradient(145deg, #111111, #1a1a1a);
-            border: 2px solid rgba(255, 102, 0, 0.06);
-            border-radius: var(--border-radius);
-            box-shadow:
-                var(--shadow-primary),
-                inset 0 1px 0 rgba(255, 255, 255, 0.02);
-            transition: var(--transition);
-            padding: 20px;
-            position: relative;
-            overflow: hidden;
-            animation: float 6s ease-in-out infinite;
-        }
-
-        .card-instance .top-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .card-instance .meta {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .card-instance:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow:
-                0 20px 60px rgba(255, 102, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            animation-play-state: paused;
-        }
-
-        .status-connected-badge {
-            background: rgba(16, 185, 129, 0.12);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.18);
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-disconnected-badge {
-            background: rgba(239, 68, 68, 0.08);
-            color: #ef4444;
-            border: 1px solid rgba(239, 68, 68, 0.12);
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Copy button */
-        .copiar-btn {
-            font-size: 14px;
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.03);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .copiar-btn.copied {
-            background: rgba(16, 185, 129, 0.12);
-            color: #10b981;
-            border-color: rgba(16, 185, 129, 0.2);
-            transform: scale(1.05);
-        }
-
-        .card-actions .btn i {
-            vertical-align: -2px;
-        }
-
-        .spinner-border {
-            width: 1rem;
-            height: 1rem;
-        }
-
-        .small-muted {
-            font-size: 0.85rem;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        /* Button Improvements */
-        .btn {
-            border-radius: 12px;
-            font-weight: 500;
-            padding: 8px 16px;
-            border: none;
-            position: relative;
-            overflow: hidden;
-            transition: var(--transition);
-        }
-
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        .btn:hover::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .btn-primary {
-            background: var(--orange-gradient) !important;
-            box-shadow: var(--shadow-primary);
-            font-weight: 600;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #e65c00 0%, #ff6600 100%) !important;
-            box-shadow: 0 12px 40px rgba(255, 102, 0, 0.6);
-            transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
-        }
-
-        .btn-success:hover {
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
-            transform: translateY(-2px);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
-        }
-
-        .btn-danger:hover {
-            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
-            box-shadow: 0 4px 16px rgba(107, 114, 128, 0.3);
-        }
-
-        .btn-secondary:hover {
-            box-shadow: 0 8px 25px rgba(107, 114, 128, 0.5);
-            transform: translateY(-2px);
-        }
-
-        .btn-outline-light {
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-        }
-
-        .btn-outline-light:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.5);
-            transform: scale(1.1);
-        }
-
-
-
-        /* Typography */
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        h6 {
-            font-weight: 600;
-            letter-spacing: -0.025em;
-        }
-
-        .text-primary {
-            background: var(--orange-gradient) !important;
-            -webkit-background-clip: text !important;
-            -webkit-text-fill-color: transparent !important;
-            background-clip: text !important;
-        }
-
-        .text-secondary {
-            color: var(--bs-secondary) !important;
-            font-weight: 500;
-        }
-
-        /* Modal Improvements */
-        .modal-content {
-            background: linear-gradient(145deg, #111111, #1a1a1a) !important;
-            border: 2px solid transparent !important;
-            border-radius: var(--border-radius) !important;
-            box-shadow:
-                0 25px 80px rgba(0, 0, 0, 0.8),
-                var(--shadow-primary) !important;
-            backdrop-filter: blur(20px);
-        }
-
-        .modal-header {
-            border-bottom: 1px solid rgba(255, 102, 0, 0.3) !important;
-            background: rgba(255, 102, 0, 0.05);
-        }
-
-        .modal-footer {
-            border-top: 1px solid rgba(255, 102, 0, 0.3) !important;
-            background: rgba(255, 102, 0, 0.05);
-        }
-
-        .modal-title {
-            font-weight: 600;
-            background: var(--orange-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        /* Form Improvements */
-        .form-control {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 2px solid rgba(255, 102, 0, 0.3) !important;
-            border-radius: 12px !important;
-            color: white !important;
-            transition: var(--transition);
-        }
-
-        .form-control:focus {
-            background: rgba(255, 255, 255, 0.1) !important;
-            border-color: var(--bs-primary) !important;
-            box-shadow: 0 0 20px rgba(255, 102, 0, 0.3) !important;
-            transform: translateY(-2px);
-        }
-
-        .form-select {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 2px solid rgba(255, 102, 0, 0.3) !important;
-            border-radius: 12px !important;
-            color: white !important;
-        }
-
-        .input-group-text {
-            background: var(--orange-gradient) !important;
-            border: 2px solid var(--bs-primary) !important;
-            color: white !important;
-            font-weight: 500;
-        }
-
-        .form-check-input:checked {
-            background-color: var(--bs-primary) !important;
-            border-color: var(--bs-primary) !important;
-        }
-
-        /* Alert Improvements */
-        .alert {
-            border-radius: var(--border-radius);
-            border: none;
-            box-shadow: var(--shadow-primary);
-        }
-
-        .alert-danger {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%);
-            color: #fca5a5;
-            border-left: 4px solid #ef4444;
-        }
-
-        @media (max-width: 768px) {
-            .card-instance {
-                padding: 16px;
-            }
-
-            .navbar-brand {
-                font-size: 1.25rem !important;
-            }
-
-            body {
-                padding: 10px;
-            }
-        }
-
-        /* Additional Visual Enhancements */
-        .top-bar h2 {
-            font-size: 2rem;
-            font-weight: 700;
-            background: var(--orange-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 0;
-        }
-
-        .card-actions .row {
-            gap: 8px;
-        }
-
-        .spinner-border {
-            width: 1rem;
-            height: 1rem;
-        }
-
-        /* QR Code Image Styling */
-        #qr-code-img {
-            border-radius: var(--border-radius) !important;
-            box-shadow: var(--shadow-primary) !important;
-            transition: var(--transition);
-        }
-
-        #qr-code-img:hover {
-            transform: scale(1.05);
-            box-shadow: 0 20px 60px rgba(255, 102, 0, 0.4) !important;
-        }
-
-        /* Loading States */
-        .btn:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        .btn .spinner-border {
-            margin-left: 8px;
-        }
-
-        /* Hover Effects for Cards */
-        .card-instance h5 {
-            transition: var(--transition);
-        }
-
-        .card-instance:hover h5 {
-            color: #fbbf24 !important;
-        }
-
-        /* Border Animation */
-        @keyframes borderRotate {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .card-instance:hover::before {
-            animation: borderRotate 3s linear infinite;
-        }
-    </style>
+    <link href="/css/futuristic-theme.css" rel="stylesheet" />
 </head>
 
-<body>
+<body class="panel-page user-page">
 
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-primary">
         <div class="container-fluid">
-            <a class="navbar-brand text-primary fw-bold" href="#">Flash API</a>
-
+            <a class="navbar-brand text-primary fw-bold" href="#">Flash API User Center</a>
             <div class="d-flex align-items-center">
-                <span class="me-3 text-light small-muted">APIKEY: <strong class="text-secondary">
-                        <%= userId %>
-                    </strong></span>
-
+                <span class="me-3 text-light small-muted">APIKEY: <strong class="text-secondary"><%= userId %></strong></span>
+                <a href="/manager/logout" class="btn btn-sm btn-danger">
+                    <i class="bi bi-box-arrow-right me-1"></i> Sair
+                </a>
             </div>
         </div>
     </nav>
 
-    <!-- Conteúdo do painel -->
     <div class="container mt-4">
-        <div class="row">
-            <div class="col-12">
-                <h2 class="text-primary">Painel de Instâncias Flash API</h2>
+        <div class="row align-items-center mb-3 g-3">
+            <div class="col-lg-8">
+                <h2 class="text-primary user-main-title mb-1">Central Operacional da Sessao</h2>
+                <p class="small-muted mb-0">Envie qualquer tipo de mensagem, gerencie grupos e opere webhook/websocket sem sair do painel.</p>
+            </div>
+            <div class="col-lg-4">
+                <div class="glass-note">
+                    <div class="small-muted">Modo</div>
+                    <strong>Usuario autenticado</strong>
+                </div>
             </div>
         </div>
 
         <% if (error) { %>
-            <div class="alert alert-danger">
-                <%= error %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <div id="userInfo" data-instance="<%= JSON.stringify(instances) %>" data-apikey="<%= userId %>"></div>
+
+        <section class="user-instance-section mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                <h3 class="panel-title mb-0">Instancias</h3>
+                <button class="btn btn-sm btn-primary" id="btnRefreshRecipients" type="button">
+                    <i class="bi bi-arrow-repeat me-1"></i> Atualizar contatos e grupos
+                </button>
             </div>
-            <% } %>
-
-                <div class="row g-4 mb-3">
-                    <div class="col-12">
-                        <a href="/manager/logout" class="btn btn-sm btn-danger">
-                            <i class="bi bi-box-arrow-right me-1"></i> 🚪 Sair
-                        </a>
-                    </div>
-                </div>
-                <div id="userInfo" data-instance="<%= JSON.stringify(instances) %>" data-apikey="<%= userId %>"></div>
-                <div class="row g-4">
-                    <% instances.forEach(instance=> { %>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="card-instance" data-nome="<%= instance.nome_sessao %>"
-                                data-apikey="<%= instance.apikey %>">
-                                <div class="top-row mb-2">
-                                    <div>
-                                        <h5 class="text-primary mb-1">📱 <%= instance.nome_sessao %>
-                                        </h5>
-                                        <div class="small-muted">🔑 <%= instance.apikey %>
-                                        </div>
-                                        <% if (instance.numero) { %>
-                                            <div class="small-muted">📞 <strong>
-                                                    <%= instance.numero %>
-                                                </strong></div>
-                                            <% } %>
-                                    </div>
-
-                                    <div class="meta">
-                                        <button class="btn copiar-btn" data-bs-toggle="tooltip" data-bs-placement="top"
-                                            data-copy="<%= instance.nome_sessao %>" title="Copiar nome"
-                                            aria-label="Copiar nome">
-                                            <i class="bi bi-clipboard"></i>
-                                        </button>
-
-                                        <button class="btn copiar-btn" data-bs-toggle="tooltip" data-bs-placement="top"
-                                            data-copy="<%= instance.apikey %>" title="Copiar APIKey"
-                                            aria-label="Copiar apikey">
-                                            <i class="bi bi-clipboard-data"></i>
-                                        </button>
-                                    </div>
+            <div class="row g-4">
+                <% instances.forEach(instance => { %>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card-instance" data-nome="<%= instance.nome_sessao %>" data-apikey="<%= instance.apikey %>">
+                            <div class="top-row mb-2">
+                                <div>
+                                    <h5 class="text-primary mb-1"><%= instance.nome_sessao %></h5>
+                                    <div class="small-muted">Token: <%= instance.apikey %></div>
+                                    <% if (instance.numero) { %>
+                                        <div class="small-muted">Numero: <strong><%= instance.numero %></strong></div>
+                                    <% } %>
                                 </div>
+                                <div class="meta">
+                                    <button class="btn copiar-btn" data-copy="<%= instance.nome_sessao %>" title="Copiar nome" aria-label="Copiar nome">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                    <button class="btn copiar-btn" data-copy="<%= instance.apikey %>" title="Copiar token" aria-label="Copiar token">
+                                        <i class="bi bi-clipboard-data"></i>
+                                    </button>
+                                </div>
+                            </div>
 
-                                <p class="mb-2">📊 Status:
-                                    <% if (instance.status==='connected' ) { %>
-                                        <span class="status-connected-badge"><i class="bi bi-check-circle-fill"></i>
-                                            Conectado</span>
-                                        <% } else { %>
-                                            <span class="status-disconnected-badge"><i class="bi bi-x-circle-fill"></i>
-                                                Desconectado</span>
-                                            <% } %>
-                                </p>
+                            <p class="mb-2">Status:
+                                <% if (instance.status==='connected') { %>
+                                    <span class="status-connected-badge"><i class="bi bi-check-circle-fill"></i> Conectado</span>
+                                <% } else { %>
+                                    <span class="status-disconnected-badge"><i class="bi bi-x-circle-fill"></i> Desconectado</span>
+                                <% } %>
+                            </p>
 
-                                <div class="card-actions mt-3">
-                                    <div class="row row-cols-2 g-2">
-                                        <% if (instance.status !=='connected' ) { %>
-                                            <div class="col">
-                                                <button class="btn-generate btn btn-sm btn-success w-100"
-                                                    data-id="<%= instance.id %>">
-                                                    <i class="bi bi-plug-fill me-1"></i><span
-                                                        class="btn-text">Conectar</span>
-                                                    <span class="spinner-border spinner-border-sm d-none" role="status"
-                                                        aria-hidden="true"></span>
-                                                </button>
-                                            </div>
+                            <div class="card-actions mt-3">
+                                <div class="row row-cols-2 g-2">
+                                    <% if (instance.status !=='connected') { %>
+                                        <div class="col">
+                                            <button class="btn-generate btn btn-sm btn-success w-100" data-id="<%= instance.id %>">
+                                                <i class="bi bi-plug-fill me-1"></i><span class="btn-text">Conectar</span>
+                                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                            </button>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="col">
+                                            <button class="btn-restart btn btn-sm btn-success w-100" data-id="<%= instance.id %>">
+                                                <i class="bi bi-arrow-repeat me-1"></i><span class="btn-text">Reiniciar</span>
+                                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                            </button>
+                                        </div>
+                                    <% } %>
 
-                                            <% } else { %>
-                                                <div class="col">
-                                                    <button class="btn-restart btn btn-sm btn-success w-100"
-                                                        data-id="<%= instance.id %>">
-                                                        <i class="bi bi-arrow-repeat me-1"></i><span
-                                                            class="btn-text">Reniciar</span>
-                                                        <span class="spinner-border spinner-border-sm d-none"
-                                                            role="status" aria-hidden="true"></span>
-                                                    </button>
-                                                </div>
-                                                <% } %>
+                                    <div class="col">
+                                        <button class="btn-disconnect btn btn-sm btn-danger w-100" data-id="<%= instance.id %>">
+                                            <i class="bi bi-power me-1"></i><span class="btn-text">Desconectar</span>
+                                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                        </button>
+                                    </div>
 
-                                                    <div class="col">
-                                                        <button class="btn-disconnect btn btn-sm btn-danger w-100"
-                                                            data-id="<%= instance.id %>">
-                                                            <i class="bi bi-power me-1"></i><span
-                                                                class="btn-text">Desconectar</span>
-                                                            <span class="spinner-border spinner-border-sm d-none"
-                                                                role="status" aria-hidden="true"></span>
-                                                        </button>
-                                                    </div>
-
-                                                    <div class="col">
-                                                        <button class="btn-config btn btn-sm btn-secondary w-100"
-                                                            data-id="<%= instance.id %>">
-                                                            <i class="bi bi-gear me-1"></i><span
-                                                                class="btn-text">Configuração</span>
-                                                        </button>
-                                                    </div>
+                                    <div class="col">
+                                        <button class="btn-config btn btn-sm btn-secondary w-100" data-id="<%= instance.id %>">
+                                            <i class="bi bi-gear me-1"></i><span class="btn-text">Configuracao</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <% }) %>
+                    </div>
+                <% }) %>
+            </div>
+        </section>
+
+        <section class="user-lab-section mb-4">
+            <div class="row g-4">
+                <div class="col-xl-8">
+                    <article class="ops-panel h-100">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <h3 class="panel-title mb-0">Studio de Mensagens</h3>
+                            <span class="small-muted">Suporte a todos os tipos principais da API</span>
+                        </div>
+
+                        <form id="messageStudioForm" class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Instancia</label>
+                                <select id="msgInstanceSelect" class="form-select" required></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo de mensagem</label>
+                                <select id="messageType" class="form-select" required>
+                                    <option value="text">Texto</option>
+                                    <option value="image">Imagem</option>
+                                    <option value="video">Video</option>
+                                    <option value="audio">Audio</option>
+                                    <option value="document">Documento</option>
+                                    <option value="location">Localizacao</option>
+                                    <option value="contact">Contato (vCard)</option>
+                                    <option value="sticker">Sticker</option>
+                                    <option value="poll">Enquete</option>
+                                    <option value="reaction">Reacao</option>
+                                    <option value="typing">Status de digitacao</option>
+                                    <option value="mark-read">Marcar como lida</option>
+                                    <option value="list">Lista interativa</option>
+                                    <option value="buttons">Botoes</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Destino</label>
+                                <select id="targetMode" class="form-select">
+                                    <option value="selected">Contatos e grupos selecionados</option>
+                                    <option value="manual">JIDs manuais</option>
+                                    <option value="mixed">Selecionados + manuais</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Contatos e grupos</label>
+                                <select id="targetMultiSelect" class="form-select" multiple size="8"></select>
+                                <div class="form-text">Selecione um ou mais destinos para disparo em lote.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">JIDs manuais</label>
+                                <textarea id="manualTargets" class="form-control" rows="2" placeholder="5511999999999@s.whatsapp.net, 1203630xxxx@g.us"></textarea>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Delay (ms)</label>
+                                <input type="number" id="messageDelay" class="form-control" min="0" value="1200" />
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input type="checkbox" id="messageUseQueue" class="form-check-input">
+                                    <label class="form-check-label" for="messageUseQueue">Usar fila</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input type="checkbox" id="messageMarkAll" class="form-check-input">
+                                    <label class="form-check-label" for="messageMarkAll">MarkAll em grupos (texto/imagem)</label>
+                                </div>
+                            </div>
+
+                            <div id="messageTypeFields" class="col-12">
+                                <div class="message-type-fields" data-type="text">
+                                    <label class="form-label">Texto</label>
+                                    <textarea id="fieldText" class="form-control" rows="3" placeholder="Digite sua mensagem"></textarea>
+                                    <div class="form-check mt-2">
+                                        <input type="checkbox" id="fieldLinkPreview" class="form-check-input">
+                                        <label class="form-check-label" for="fieldLinkPreview">Ativar linkPreview</label>
+                                    </div>
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="image">
+                                    <label class="form-label">URL/Base64 da imagem</label>
+                                    <input id="fieldImage" class="form-control" placeholder="https://site/imagem.png" />
+                                    <label class="form-label mt-2">Legenda</label>
+                                    <input id="fieldImageCaption" class="form-control" placeholder="Legenda opcional" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="video">
+                                    <label class="form-label">URL/Base64 do video</label>
+                                    <input id="fieldVideo" class="form-control" placeholder="https://site/video.mp4" />
+                                    <label class="form-label mt-2">Legenda</label>
+                                    <input id="fieldVideoCaption" class="form-control" placeholder="Legenda opcional" />
+                                    <div class="form-check mt-2">
+                                        <input type="checkbox" id="fieldGifPlayback" class="form-check-input">
+                                        <label class="form-check-label" for="fieldGifPlayback">Enviar como GIF</label>
+                                    </div>
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="audio">
+                                    <label class="form-label">URL/Base64 do audio</label>
+                                    <input id="fieldAudio" class="form-control" placeholder="https://site/audio.mp3" />
+                                    <div class="form-check mt-2">
+                                        <input type="checkbox" id="fieldPtt" class="form-check-input">
+                                        <label class="form-check-label" for="fieldPtt">Enviar como nota de voz (PTT)</label>
+                                    </div>
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="document">
+                                    <label class="form-label">URL/Base64 do documento</label>
+                                    <input id="fieldDocument" class="form-control" placeholder="https://site/arquivo.pdf" />
+                                    <label class="form-label mt-2">Nome do arquivo</label>
+                                    <input id="fieldFileName" class="form-control" placeholder="arquivo.pdf" />
+                                    <label class="form-label mt-2">Mimetype</label>
+                                    <input id="fieldMimeType" class="form-control" placeholder="application/pdf" />
+                                    <label class="form-label mt-2">Legenda</label>
+                                    <input id="fieldDocumentCaption" class="form-control" placeholder="Opcional" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="location">
+                                    <div class="row g-2">
+                                        <div class="col-md-6"><input id="fieldLatitude" class="form-control" placeholder="Latitude" /></div>
+                                        <div class="col-md-6"><input id="fieldLongitude" class="form-control" placeholder="Longitude" /></div>
+                                    </div>
+                                    <input id="fieldLocationName" class="form-control mt-2" placeholder="Nome do local" />
+                                    <input id="fieldLocationAddress" class="form-control mt-2" placeholder="Endereco" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="contact">
+                                    <input id="fieldContactName" class="form-control" placeholder="Nome do contato" />
+                                    <textarea id="fieldContactVcard" class="form-control mt-2" rows="3" placeholder="BEGIN:VCARD\nVERSION:3.0\nFN:Fulano\nTEL:+5511999999999\nEND:VCARD"></textarea>
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="sticker">
+                                    <input id="fieldSticker" class="form-control" placeholder="URL/Base64 do sticker" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="poll">
+                                    <input id="fieldPollName" class="form-control" placeholder="Pergunta da enquete" />
+                                    <textarea id="fieldPollOptions" class="form-control mt-2" rows="3" placeholder="Opcao 1\nOpcao 2\nOpcao 3"></textarea>
+                                    <input type="number" id="fieldPollSelectableCount" class="form-control mt-2" min="1" value="1" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="reaction">
+                                    <input id="fieldReactionMessageId" class="form-control" placeholder="ID da mensagem" />
+                                    <input id="fieldReactionEmoji" class="form-control mt-2" placeholder="Emoji (ex: ❤️)" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="typing">
+                                    <select id="fieldTyping" class="form-select">
+                                        <option value="true">Iniciar digitacao</option>
+                                        <option value="false">Parar digitacao</option>
+                                    </select>
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="mark-read">
+                                    <input id="fieldMarkReadMessageId" class="form-control" placeholder="ID da mensagem (opcional)" />
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="list">
+                                    <textarea id="fieldListJson" class="form-control" rows="6" placeholder='{"title":"Menu","buttonText":"Abrir","sections":[{"title":"Opcoes","rows":[{"title":"Item 1","rowId":"id1"}]}]}'></textarea>
+                                </div>
+
+                                <div class="message-type-fields d-none" data-type="buttons">
+                                    <input id="fieldButtonsText" class="form-control" placeholder="Texto da mensagem" />
+                                    <input id="fieldButtonsFooter" class="form-control mt-2" placeholder="Rodape" />
+                                    <textarea id="fieldButtonsJson" class="form-control mt-2" rows="4" placeholder='[{"buttonId":"id1","buttonText":{"displayText":"Comprar"}}]'></textarea>
+                                </div>
+                            </div>
+
+                            <div class="col-12 d-flex flex-wrap gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-send me-1"></i> Enviar
+                                </button>
+                                <button type="button" id="btnClearMessageForm" class="btn btn-secondary">Limpar</button>
+                            </div>
+                        </form>
+
+                        <div id="messageStudioResult" class="result-console mt-3">Aguardando envio...</div>
+                    </article>
                 </div>
+
+                <div class="col-xl-4">
+                    <article class="ops-panel h-100">
+                        <h3 class="panel-title mb-3">Session Lab</h3>
+                        <label class="form-label">Instancia para recriar sessao</label>
+                        <select id="sessionRecreateSelect" class="form-select mb-3"></select>
+                        <button id="btnRecreateSession" class="btn btn-warning w-100 mb-2" type="button">
+                            <i class="bi bi-bootstrap-reboot me-1"></i> Recriar sessao (mesmo token e nome)
+                        </button>
+                        <p class="small-muted mb-2">Executa restart e solicita nova conexao QR usando o mesmo token.</p>
+                        <div id="sessionLabResult" class="result-console">Pronto.</div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="user-group-section mb-4">
+            <article class="ops-panel">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h3 class="panel-title mb-0">Gerenciador de Grupos</h3>
+                    <span class="small-muted">Criar, atualizar, promover, rebaixar, adicionar/remover e sair de grupos</span>
+                </div>
+
+                <form id="groupManagerForm" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Instancia</label>
+                        <select id="groupInstanceSelect" class="form-select" required></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Acao</label>
+                        <select id="groupAction" class="form-select" required>
+                            <option value="info">Info</option>
+                            <option value="create">Criar grupo</option>
+                            <option value="add-participant">Adicionar participante</option>
+                            <option value="remove-participant">Remover participante</option>
+                            <option value="promote">Promover participante</option>
+                            <option value="demote">Rebaixar participante</option>
+                            <option value="update-subject">Atualizar assunto</option>
+                            <option value="update-description">Atualizar descricao</option>
+                            <option value="up-setting">Configurar grupo (aberto/fechado)</option>
+                            <option value="leave">Sair do grupo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" type="submit">
+                            <i class="bi bi-diagram-3 me-1"></i> Executar acao
+                        </button>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Group JID</label>
+                        <input id="groupJid" class="form-control" placeholder="1203630xxxx@g.us" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Assunto</label>
+                        <input id="groupSubject" class="form-control" placeholder="Nome do grupo ou configuracao (announcement/not_announcement)" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Descricao</label>
+                        <textarea id="groupDescription" class="form-control" rows="2" placeholder="Descricao para update-description"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Participantes (um por linha ou separados por virgula)</label>
+                        <textarea id="groupParticipants" class="form-control" rows="2" placeholder="5511999999999@s.whatsapp.net"></textarea>
+                    </div>
+                </form>
+
+                <div id="groupManagerResult" class="result-console mt-3">Aguardando acao de grupo...</div>
+            </article>
+        </section>
+
+        <section class="user-docs-section mb-4">
+            <article class="ops-panel">
+                <h3 class="panel-title mb-3">Documentacao de Uso: Webhook e WebSocket</h3>
+                <div class="accordion" id="docsAccordion">
+                    <div class="accordion-item bg-transparent text-light border-secondary">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#docWebhook">
+                                Webhook: configuracao e eventos
+                            </button>
+                        </h2>
+                        <div id="docWebhook" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <p>1. Defina URL no modal de configuracao da sessao.</p>
+                                <p>2. Ative os eventos desejados (message_received, qr_updated, connection_update, etc.).</p>
+                                <p>3. Seu endpoint deve aceitar POST JSON.</p>
+<pre class="doc-code">{
+  "event": "message_received",
+  "sessionId": "minha-sessao",
+  "data": { "id": "abc", "from": "5511...@s.whatsapp.net" }
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item bg-transparent text-light border-secondary">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#docWebsocket">
+                                WebSocket: autenticacao e consumo de eventos
+                            </button>
+                        </h2>
+                        <div id="docWebsocket" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <p>Conecte em <strong>ws://host/ws</strong> com headers apikey, modo e events.</p>
+<pre class="doc-code">const ws = new WebSocket('ws://localhost:3000/ws', {
+  headers: {
+    apikey: 'SUA_KEY_OU_SECRET',
+    modo: 'client',
+    events: JSON.stringify(['message_received','connection_update'])
+  }
+});</pre>
+                                <p>Eventos chegam no formato: <code>{ type: 'event', event: 'message_received', data: {...} }</code>.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item bg-transparent text-light border-secondary">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#docLinks">
+                                Links oficiais
+                            </button>
+                        </h2>
+                        <div id="docLinks" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <p><a href="https://github.com/clsshbr2/FlashApi" target="_blank" rel="noopener noreferrer">Repositorio no GitHub</a></p>
+                                <p><a href="/api-docs" target="_blank" rel="noopener noreferrer">Swagger local (/api-docs)</a></p>
+                                <p><a href="/postman_collection.json" target="_blank" rel="noopener noreferrer">Postman Collection local</a></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
     </div>
 
-    <!-- Modal qrcode -->
-    <div class="modal fade" id="modalQR" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
-        aria-labelledby="staticBackdropLabel" aria-hidden="true">
+    <div class="modal fade" id="modalQR" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="staticBackdropLabel">📱 Conectar WhatsApp</h1>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                        aria-label="Close"></button>
+                    <h1 class="modal-title fs-5" id="staticBackdropLabel">Conectar WhatsApp</h1>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
                     <div id="qr-code-info"></div>
-                    <img id="qr-code-img" class="img-fluid mt-3 border border-light rounded shadow"
-                        style="max-width: 300px;" />
+                    <img id="qr-code-img" class="img-fluid mt-3 border border-light rounded shadow" style="max-width: 300px;" />
                     <div id="info-detalhes"></div>
                 </div>
                 <div class="modal-footer">
@@ -654,88 +457,30 @@
         </div>
     </div>
 
-    <!-- Modal criar sessao -->
-    <div class="modal fade" id="modalcreateSessao" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
-        aria-labelledby="staticBackdropLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="staticBackdropLabel">➕ Criar Nova Sessão</h1>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                        aria-label="Close"></button>
-                </div>
-                <form id="form-Criar-Instance">
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="row-12 mb-3">
-                                <div class="input-group">
-                                    <span class="input-group-text border-primary border-2">📱 Nome Sessão</span>
-                                    <input type="text" id="nome-sessao" class="form-control border-primary border-2">
-                                </div>
-                                <div class="form-text text-white">Deixar vazio para gerar automaticamente</div>
-                            </div>
-                            <div class="row-12 mb-3">
-                                <div class="input-group">
-                                    <span class="input-group-text border-primary border-2">🔑 APIKey</span>
-                                    <input type="text" id="apikey-sessao" class="form-control border-primary border-2">
-                                </div>
-                                <div class="form-text text-white">Deixar vazio para gerar automaticamente<br>Formato:
-                                    <span class="text-danger">(ex: 83725a47-fc7a-404a-bbac-206d590bae8f)</span></div>
-                            </div>
-                            <div class="row-12 mb-3">
-                                <div class="input-group">
-                                    <span class="input-group-text border-primary border-2" id="basic-addon3">📞
-                                        Número</span>
-                                    <input type="number" id="numero-sessao" class="form-control border-primary border-2"
-                                        placeholder="5521999999999" aria-describedby="basic-addon3 basic-addon4">
-                                </div>
-                                <div class="form-text text-white" id="basic-addon4">Caso queira conectar via código
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                        <button type="submit" class="btn btn-primary">➕ Adicionar</button>
-                    </div>
-                </form>
-
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Configuração de Sessão -->
-    <div class="modal fade" id="configSessao" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
-        aria-labelledby="configSessaoLabel" aria-hidden="true">
+    <div class="modal fade" id="configSessao" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="configSessaoLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-white border border-primary">
                 <div class="modal-header">
-                    <h5 class="modal-title text-primary" id="configSessaoLabel">⚙️ Configuração da Sessão</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                        aria-label="Fechar"></button>
+                    <h5 class="modal-title text-primary" id="configSessaoLabel">Configuracao da Sessao</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>
 
                 <form id="form-config-Instance">
                     <div class="modal-body">
-
-                        <!-- URL Webhook -->
                         <div class="mb-3">
-                            <label for="webhook-url" class="form-label text-secondary">🔗 URL Webhook</label>
+                            <label for="webhook-url" class="form-label text-secondary">URL Webhook</label>
                             <div class="input-group">
                                 <span class="input-group-text border-primary border-2">URL:</span>
-                                <input type="text" id="webhook-url" class="form-control border-primary border-2"
-                                    placeholder="ex: https://meuwebhook.com/api/receber">
+                                <input type="text" id="webhook-url" class="form-control border-primary border-2" placeholder="https://meuwebhook.com/api/receber">
                             </div>
                             <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" id="webhook-status">
-                                <label class="form-check-label" for="webhook-status">✅ Ativar webhook</label>
+                                <label class="form-check-label" for="webhook-status">Ativar webhook</label>
                             </div>
                         </div>
 
-                        <!-- Eventos webhook  -->
                         <div class="mb-3">
-                            <label for="webhook-url" class="form-label text-secondary">📋 Escolha os eventos</label>
+                            <label class="form-label text-secondary">Eventos do webhook</label>
                             <div class="input-group">
                                 <span class="input-group-text border-primary border-2">Eventos:</span>
                                 <select class="form-select" name="events[]" id="events[]" multiple>
@@ -756,48 +501,41 @@
                             </div>
                         </div>
 
-                        <!-- Mensagem de Rejeição -->
                         <div class="mb-3">
-                            <label for="mensagem-rejeicao" class="form-label text-secondary">🚫 Mensagem de
-                                Rejeição</label>
+                            <label for="mensagem-rejeicao" class="form-label text-secondary">Mensagem de rejeicao</label>
                             <div class="input-group">
                                 <span class="input-group-text border-primary border-2">Msg:</span>
-                                <input type="text" id="mensagem-rejeicao" class="form-control border-primary border-2"
-                                    placeholder="ex: Chamada recusada.">
+                                <input type="text" id="mensagem-rejeicao" class="form-control border-primary border-2" placeholder="Chamada recusada.">
                             </div>
                             <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" id="rejeitar-chamada">
-                                <label class="form-check-label" for="rejeitar-chamada">📞 Rejeitar chamadas</label>
+                                <label class="form-check-label" for="rejeitar-chamada">Rejeitar chamadas</label>
                             </div>
                         </div>
 
-                        <!-- Opções Avançadas -->
                         <div class="row mb-3">
                             <div class="col">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="ignorar-grupos">
-                                    <label class="form-check-label" for="ignorar-grupos">👥 Ignorar grupos</label>
+                                    <label class="form-check-label" for="ignorar-grupos">Ignorar grupos</label>
                                 </div>
                             </div>
-
                             <div class="col">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="sempre-online">
-                                    <label class="form-check-label" for="sempre-online">🟢 Sempre online</label>
+                                    <label class="form-check-label" for="sempre-online">Sempre online</label>
                                 </div>
                             </div>
                         </div>
 
                         <div id="id_sessao" data-id=""></div>
-
                     </div>
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                         <button type="submit" class="btn btn-primary">
-                            <span class="btn-text">💾 Salvar</span>
-                            <span class="spinner-border spinner-border-sm d-none" role="status"
-                                aria-hidden="true"></span>
+                            <span class="btn-text">Salvar</span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                         </button>
                     </div>
                 </form>
@@ -806,26 +544,6 @@
     </div>
 
     <script src="/js/user.js"></script>
-
-    <!-- Footer -->
-    <!-- <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark">
-        <div class="container">
-            <p class="mb-2">🔗 Links úteis:</p>
-            <div class="d-flex justify-content-center flex-wrap gap-3 mb-3">
-                <a href="https://www.postman.com/winter-star-5220/flash-api/collection/3w62mm8/flash-api-v1-0-0"
-                    target="_blank" class="text-secondary text-decoration-none">📦
-                    Postman</a>
-                <a href="https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI" target="_blank"
-                    class="text-secondary text-decoration-none">💬 WhatsApp</a>
-                <a href="/api-docs" target="_blank" class="text-secondary text-decoration-none">📄 API Docs</a>
-                <a href="https://github.com/clsshbr2/FlashApi" target="_blank"
-                    class="text-secondary text-decoration-none">🐙 GitHub</a>
-                <a href="https://hub.docker.com/r/flashconect/flash-api" target="_blank"
-                    class="text-secondary text-decoration-none">🐳 Docker Hub</a>
-            </div>
-            <small class="text-muted">© <%= new Date().getFullYear() %> Flash API. Todos os direitos reservados.</small>
-        </div>
-    </footer> -->
 </body>
 
 </html>
