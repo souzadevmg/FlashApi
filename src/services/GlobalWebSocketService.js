@@ -28,10 +28,15 @@ class GlobalWebSocketService {
       return;
     }
 
-    const { apikey = null, modo = null, events = [] } = req.headers
+    const url = new URL(req.url || '/', 'http://localhost');
+    const query = url.searchParams;
+
+    const apikey = req.headers?.apikey || query.get('apikey') || null;
+    const modo = req.headers?.modo || query.get('modo') || null;
+    const rawEvents = req.headers?.events || query.get('events') || '[]';
 
     if (!apikey || !modo) {
-      ws.close(1000, 'Dados faltando no headers ex: {apikey: <sua apikey>, modo: <global ou client>, events: []}');
+      ws.close(1000, 'Dados faltando. Envie via headers ou query params: apikey, modo e events.');
       return;
     }
 
@@ -42,7 +47,19 @@ class GlobalWebSocketService {
 
     let eventos = []
     try {
-      eventos = JSON.parse(events)
+      if (Array.isArray(rawEvents)) {
+        eventos = rawEvents;
+      } else if (typeof rawEvents === 'string') {
+        const normalized = rawEvents.trim();
+
+        if (!normalized) {
+          eventos = [];
+        } else if (normalized.startsWith('[')) {
+          eventos = JSON.parse(normalized);
+        } else {
+          eventos = normalized.split(',').map((eventName) => eventName.trim()).filter(Boolean);
+        }
+      }
     } catch (error) {
       ws.close(1000, 'paramentro events deve ser um array valido');
       return;
@@ -74,7 +91,7 @@ class GlobalWebSocketService {
       type: 'welcome',
       message: 'Autenticado com sucesso no WebSocket',
       clientId,
-      events: events
+      events: eventos
     }));
     logger.info('Nova conexão WebSocket global recebida');
 
