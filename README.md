@@ -418,6 +418,89 @@ Os webhooks são enviados como requisições **POST** com conteúdo em **JSON**,
 ### 💬 Chat
 
 | Método | Endpoint                         | Descrição           |
+
+---
+
+## 🧠 User Control Center (Painel Avancado)
+
+O painel de usuario em `views/user.ejs` agora possui uma central completa para operacao diaria:
+
+- Envio de mensagens em lote para **contatos e grupos selecionados**
+- Suporte de envio para tipos principais da API:
+  - texto, imagem, video, audio, documento, localizacao
+  - contato (vCard), sticker, enquete, reacao
+  - typing, mark-read, lista interativa e botoes
+- Gerenciador de grupos integrado:
+  - criar grupo
+  - adicionar/remover participantes
+  - promover/rebaixar
+  - atualizar assunto/descricao
+  - sair do grupo
+- Session Lab:
+  - recriar sessao com **mesmo token e nome** (restart + reconnect)
+
+### Fluxo de envio em lote
+
+1. Selecione a instancia
+2. Escolha o tipo de mensagem
+3. Escolha o modo de destino:
+   - selecionados
+   - manual
+   - misto
+4. Preencha os campos do tipo selecionado
+5. Clique em **Enviar**
+
+---
+
+## 📡 Webhook e 🌐 WebSocket (Guia Rapido)
+
+### Webhook
+
+1. Abra o modal de configuracao da sessao
+2. Defina `webhookUrl`
+3. Ative `webhook_status`
+4. Selecione os eventos (`message_received`, `connection_update`, etc.)
+
+Exemplo de payload enviado para seu endpoint:
+
+```json
+{
+  "event": "message_received",
+  "sessionId": "minha-sessao",
+  "data": {
+    "id": "ABCD1234",
+    "from": "5511999999999@s.whatsapp.net"
+  }
+}
+```
+
+### WebSocket
+
+Conecte em `/ws` com headers:
+
+- `apikey`: segredo global ou apikey da instancia (modo client)
+- `modo`: `global` ou `client`
+- `events`: JSON array de eventos
+
+Exemplo:
+
+```javascript
+const ws = new WebSocket('ws://localhost:3000/ws', {
+  headers: {
+    apikey: 'SUA_KEY',
+    modo: 'client',
+    events: JSON.stringify(['message_received', 'connection_update'])
+  }
+});
+```
+
+---
+
+## 🔗 Documentacao oficial
+
+- GitHub: https://github.com/clsshbr2/FlashApi
+- Swagger local: `/api-docs`
+- Postman local: `/postman_collection.json`
 |--------|----------------------------------|---------------------|
 | POST   | `/api/chat/send-text`           | Enviar mensagem de texto    |
 | POST   | `/api/chat/send-image`          | Enviar imagem       |
