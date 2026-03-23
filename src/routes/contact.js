@@ -21,7 +21,7 @@ router.get('/list', authenticateApiKey, async (req, res) => {
     }
     let contacts = []
     const getcontato = await Store.getContacts(sessionId);
-
+    const sock = BaileysService.getSocket(sessionId);
     if (getcontato && getcontato.length > 0) {
       contacts = getcontato
     }
