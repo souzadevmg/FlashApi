@@ -107,6 +107,11 @@
                       "type": "string"
                     }
                   },
+                  "markAll": {
+                    "type": "boolean",
+                    "description": "Marcar conversa como lida após envio",
+                    "default": "false"
+                  },
                   "delay": {
                     "type": "number",
                     "description": "Delay de mensagem",
@@ -194,6 +199,11 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "markAll": {
+                    "type": "boolean",
+                    "description": "Marcar conversa como lida após envio",
+                    "default": false
                   },
                   "delay": {
                     "type": "number",
