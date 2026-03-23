@@ -12,7 +12,7 @@ const router = express.Router();
 router.post('/send-text', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
-    const { to, text, linkPreview = true, mentions, delay = 0, useQueue = false } = req.body;
+    const { to, text, linkPreview = true, mentions = [], delay = 0, useQueue = false, MarkAll = false } = req.body;
 
     if (!to || !text) {
       return res.status(400).json({
@@ -26,6 +26,14 @@ router.post('/send-text', authenticateApiKey, async (req, res) => {
         success: false,
         message: 'Sessão não está conectada'
       });
+    }
+
+    //Função para marcar todos do grupo como mencionados, caso MarkAll seja true e seja um grupo
+    if(MarkAll && to.endsWith('@g.us')){
+      const sock = BaileysService.getSocket(sessionId);
+      const grupos = await sock.groupMetadata(to);
+      mentions.push(...grupos.participants.map(p => p.id))
+      
     }
 
     const message = {
@@ -83,7 +91,7 @@ router.post('/send-text', authenticateApiKey, async (req, res) => {
 router.post('/send-image', authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['apikey'];
-    const { to, image, caption, mentions, delay = 0, useQueue = false } = req.body;
+    const { to, image, caption, mentions = [], delay = 0, useQueue = false, MarkAll = false } = req.body;
 
     if (!to || !image) {
       return res.status(400).json({
@@ -91,6 +99,7 @@ router.post('/send-image', authenticateApiKey, async (req, res) => {
         message: 'to e image são obrigatórios'
       });
     }
+    
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
@@ -99,6 +108,13 @@ router.post('/send-image', authenticateApiKey, async (req, res) => {
       });
     }
 
+        //Função para marcar todos do grupo como mencionados, caso MarkAll seja true e seja um grupo
+    if(MarkAll && to.endsWith('@g.us')){
+      const sock = BaileysService.getSocket(sessionId);
+      const grupos = await sock.groupMetadata(to);
+      mentions.push(...grupos.participants.map(p => p.id))
+      
+    }
     const message = {
       image: { url: image },
       caption: caption || ''
