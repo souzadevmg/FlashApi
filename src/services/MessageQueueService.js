@@ -41,7 +41,8 @@ class MessageQueueService {
     const queue = this.queues.get(sessionId);
 
     if (!queue || queue.length === 0) {
-      this.processing.set(sessionId, false);
+      this.processing.delete(sessionId);
+      this.queues.delete(sessionId);
       return;
     }
 
@@ -67,7 +68,10 @@ class MessageQueueService {
       }
     }
 
-    this.processing.set(sessionId, false);
+    this.processing.delete(sessionId);
+    if (!queue || queue.length === 0) {
+      this.queues.delete(sessionId);
+    }
     logger.info(`✅ Fila da sessão ${sessionId} processada completamente`);
   }
 
@@ -88,8 +92,8 @@ class MessageQueueService {
   }
 
   clearQueue(sessionId) {
-    this.queues.set(sessionId, []);
-    this.processing.set(sessionId, false);
+    this.queues.delete(sessionId);
+    this.processing.delete(sessionId);
     logger.info(`🗑️ Fila da sessão ${sessionId} limpa`);
   }
 
