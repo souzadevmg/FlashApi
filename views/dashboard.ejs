@@ -21,235 +21,10 @@
     <!-- Axios -->
     <script src="/js/axios.js"></script>
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            --bs-primary: #ff6600;
-            --bs-secondary: #ffc107;
-            --bs-dark: #000000;
-            --bs-light: #ffffff;
-            --orange-gradient: linear-gradient(135deg, #ff6600 0%, #ff8533 100%);
-            --yellow-gradient: linear-gradient(135deg, #ffc107 0%, #ffd54f 100%);
-            --shadow-primary: 0 8px 32px rgba(255, 102, 0, 0.15);
-            --shadow-secondary: 0 4px 16px rgba(255, 193, 7, 0.1);
-            --border-radius: 16px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        * {
-            transition: var(--transition);
-        }
-
-        body {
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at 20% 80%, rgba(255, 102, 0, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(255, 193, 7, 0.08) 0%, transparent 50%),
-                linear-gradient(-45deg, #0a0a0a, #1a1a1a, #0f0f0f, #1e1e1e);
-            background-size: 400% 400%;
-            animation: gradientMove 15s ease infinite;
-            color: var(--bs-light);
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            padding: 20px;
-            position: relative;
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grain)"/></svg>');
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .container {
-            position: relative;
-            z-index: 2;
-        }
-
-        @keyframes gradientMove {
-
-            0%,
-            100% {
-                background-position: 0% 50%;
-            }
-
-            25% {
-                background-position: 100% 50%;
-            }
-
-            50% {
-                background-position: 100% 100%;
-            }
-
-            75% {
-                background-position: 0% 100%;
-            }
-        }
-
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translateY(0px);
-            }
-
-            50% {
-                transform: translateY(-10px);
-            }
-        }
-
-        @keyframes pulse-glow {
-
-            0%,
-            100% {
-                box-shadow: 0 0 20px rgba(255, 102, 0, 0.3);
-            }
-
-            50% {
-                box-shadow: 0 0 40px rgba(255, 102, 0, 0.6);
-            }
-        }
-
-        /* Navbar Improvements */
-        .navbar {
-            background: rgba(0, 0, 0, 0.95) !important;
-            backdrop-filter: blur(20px);
-            border-bottom: 2px solid transparent;
-            border-image: var(--orange-gradient) 1;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-        }
-
-        .navbar-brand {
-            font-weight: 700 !important;
-            font-size: 1.5rem !important;
-            background: var(--orange-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: 0 0 30px rgba(255, 102, 0, 0.5);
-        }
-
-        /* Card Improvements */
-        .card-instance {
-            background: linear-gradient(145deg, #111111, #1a1a1a);
-            border: 2px solid rgba(255, 102, 0, 0.06);
-            border-radius: var(--border-radius);
-            box-shadow:
-                var(--shadow-primary),
-                inset 0 1px 0 rgba(255, 255, 255, 0.02);
-            transition: var(--transition);
-            padding: 20px;
-            position: relative;
-            overflow: hidden;
-            animation: float 6s ease-in-out infinite;
-        }
-
-        .card-instance .top-row {
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:12px;
-        }
-
-        .card-instance .meta {
-            display:flex;
-            gap:8px;
-            align-items:center;
-            flex-wrap:wrap;
-        }
-
-        .card-instance:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow:
-                0 20px 60px rgba(255, 102, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            animation-play-state: paused;
-        }
-
-        .status-connected-badge {
-            background: rgba(16,185,129,0.12);
-            color: #10b981;
-            border: 1px solid rgba(16,185,129,0.18);
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-weight:600;
-            display:inline-flex;
-            align-items:center;
-            gap:8px;
-        }
-
-        .status-disconnected-badge {
-            background: rgba(239,68,68,0.08);
-            color: #ef4444;
-            border: 1px solid rgba(239,68,68,0.12);
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-weight:600;
-            display:inline-flex;
-            align-items:center;
-            gap:8px;
-        }
-
-        /* Copy button */
-        .copiar-btn {
-            font-size: 14px;
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.03);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .copiar-btn.copied {
-            background: rgba(16,185,129,0.12);
-            color: #10b981;
-            border-color: rgba(16,185,129,0.2);
-            transform: scale(1.05);
-        }
-
-        .card-actions .btn i {
-            vertical-align: -2px;
-        }
-
-        .spinner-border {
-            width: 1rem;
-            height: 1rem;
-        }
-
-        .small-muted {
-            font-size: 0.85rem;
-            color: rgba(255,255,255,0.6);
-        }
-
-        @media (max-width: 768px) {
-            .card-instance {
-                padding: 16px;
-            }
-
-            .navbar-brand {
-                font-size: 1.25rem !important;
-            }
-
-            body {
-                padding: 10px;
-            }
-        }
-    </style>
+    <link href="/css/futuristic-theme.css" rel="stylesheet" />
 </head>
 
-<body>
+<body class="panel-page dashboard-page">
 
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-primary">
@@ -269,7 +44,7 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <h2 class="text-primary">Painel de Instâncias Flash API</h2>
+                <h2 class="text-primary dashboard-title">Painel de Instâncias Flash API</h2>
             </div>
         </div>
 
@@ -278,6 +53,223 @@
                 <%= error %>
             </div>
         <% } %>
+
+        <section class="analytics-section mb-4" id="analyticsSection">
+            <div class="analytics-header d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                <div>
+                    <h3 class="analytics-heading mb-1">Visão Geral da Operação</h3>
+                    <p class="small-muted mb-0" id="dashboardStatusText">Carregando métricas da API...</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <select id="instanceAnalyticsSelect" class="form-select form-select-sm">
+                        <option value="">Selecionar instância</option>
+                    </select>
+                    <button id="btnRefreshAnalytics" class="btn btn-sm btn-primary" type="button">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+                    </button>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-md-4 col-xl-2">
+                    <article class="metric-card">
+                        <span class="metric-label">Instâncias</span>
+                        <strong class="metric-value" id="metricTotalInstances">0</strong>
+                    </article>
+                </div>
+                <div class="col-6 col-md-4 col-xl-2">
+                    <article class="metric-card">
+                        <span class="metric-label">Conectadas</span>
+                        <strong class="metric-value" id="metricConnectedInstances">0</strong>
+                    </article>
+                </div>
+                <div class="col-6 col-md-4 col-xl-2">
+                    <article class="metric-card">
+                        <span class="metric-label">Chats</span>
+                        <strong class="metric-value" id="metricChats">0</strong>
+                    </article>
+                </div>
+                <div class="col-6 col-md-4 col-xl-2">
+                    <article class="metric-card">
+                        <span class="metric-label">Contatos</span>
+                        <strong class="metric-value" id="metricContacts">0</strong>
+                    </article>
+                </div>
+                <div class="col-6 col-md-4 col-xl-2">
+                    <article class="metric-card">
+                        <span class="metric-label">Grupos</span>
+                        <strong class="metric-value" id="metricGroups">0</strong>
+                    </article>
+                </div>
+                <div class="col-6 col-md-4 col-xl-2">
+                    <article class="metric-card">
+                        <span class="metric-label">Mensagens</span>
+                        <strong class="metric-value" id="metricMessages">0</strong>
+                    </article>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-lg-4">
+                    <article class="metric-card metric-card-inline">
+                        <span class="metric-label">Fila pendente</span>
+                        <strong class="metric-value" id="metricQueue">0</strong>
+                    </article>
+                </div>
+                <div class="col-lg-8">
+                    <article class="metric-card metric-card-inline">
+                        <span class="metric-label">Saúde do sistema</span>
+                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                            <span class="badge rounded-pill text-bg-secondary" id="systemHealthState">-</span>
+                            <span class="small-muted">Sessões: <strong id="systemSessionsTotal">0</strong></span>
+                            <span class="small-muted">Conectadas: <strong id="systemSessionsConnected">0</strong></span>
+                            <span class="small-muted">Conectando: <strong id="systemSessionsConnecting">0</strong></span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-xl-4">
+                    <article class="data-panel h-100 system-panel">
+                        <h4>Host</h4>
+                        <div class="system-grid">
+                            <div><span class="small-muted">Hostname</span><strong id="systemHostname">-</strong></div>
+                            <div><span class="small-muted">SO</span><strong id="systemOs">-</strong></div>
+                            <div><span class="small-muted">Uptime</span><strong id="systemUptime">-</strong></div>
+                            <div><span class="small-muted">Load Avg</span><strong id="systemLoadAvg">-</strong></div>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-12 col-xl-4">
+                    <article class="data-panel h-100 system-panel">
+                        <h4>CPU</h4>
+                        <div class="system-grid">
+                            <div><span class="small-muted">Modelo</span><strong id="systemCpuModel">-</strong></div>
+                            <div><span class="small-muted">Cores</span><strong id="systemCpuCores">-</strong></div>
+                            <div><span class="small-muted">Uso total</span><strong id="systemCpuLoad">-</strong></div>
+                            <div><span class="small-muted">Idle</span><strong id="systemCpuIdle">-</strong></div>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-12 col-xl-4">
+                    <article class="data-panel h-100 system-panel">
+                        <h4>Memória</h4>
+                        <div class="system-grid">
+                            <div><span class="small-muted">RAM total</span><strong id="systemRamTotal">-</strong></div>
+                            <div><span class="small-muted">RAM usada</span><strong id="systemRamUsed">-</strong></div>
+                            <div><span class="small-muted">RAM livre</span><strong id="systemRamFree">-</strong></div>
+                            <div><span class="small-muted">Heap Node</span><strong id="systemNodeHeap">-</strong></div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-xl-6">
+                    <article class="data-panel h-100 system-panel">
+                        <h4>Disco</h4>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0 dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mount</th>
+                                        <th>Total</th>
+                                        <th>Usado</th>
+                                        <th>Uso</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableSystemDisks">
+                                    <tr><td colspan="4" class="small-muted">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-12 col-xl-6">
+                    <article class="data-panel h-100 system-panel">
+                        <h4>Rede</h4>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0 dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Interface</th>
+                                        <th>Estado</th>
+                                        <th>RX</th>
+                                        <th>TX</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableSystemNetwork">
+                                    <tr><td colspan="4" class="small-muted">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12 col-xl-4">
+                    <article class="data-panel h-100">
+                        <h4>Chats Recentes</h4>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0 dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>JID</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableRecentChats">
+                                    <tr><td colspan="2" class="small-muted">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-12 col-xl-4">
+                    <article class="data-panel h-100">
+                        <h4>Contatos</h4>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0 dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Número</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableRecentContacts">
+                                    <tr><td colspan="2" class="small-muted">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-12 col-xl-4">
+                    <article class="data-panel h-100">
+                        <h4>Grupos</h4>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0 dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Grupo</th>
+                                        <th>ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableRecentGroups">
+                                    <tr><td colspan="2" class="small-muted">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="small-muted mt-2 d-flex flex-wrap align-items-center gap-3">
+                <span>Última atualização: <span id="analyticsUpdatedAt">-</span></span>
+                <span>Tempo real: <span id="realtimeStatus" class="badge rounded-pill text-bg-success">Ativo (5s)</span></span>
+            </div>
+        </section>
 
         <div class="row g-4 mb-3">
             <div class="col-6">
@@ -550,7 +542,7 @@
     <script src="/js/dashboard.js"></script>
 
     <!-- Footer -->
-    <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark">
+    <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark dashboard-footer">
         <div class="container">
             <p class="mb-2">🔗 Links úteis:</p>
             <div class="d-flex justify-content-center flex-wrap gap-3 mb-3">
