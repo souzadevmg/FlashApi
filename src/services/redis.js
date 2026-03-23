@@ -51,6 +51,27 @@ class RedisClient {
         return RedisClient.instance;
     }
 
+    // Busca chaves por padrão de forma incremental para evitar bloqueio com KEYS
+    async scanKeys(pattern, count = 200) {
+        try {
+            let cursor = "0";
+            const foundKeys = [];
+
+            do {
+                const [nextCursor, batch] = await this.client.scan(cursor, "MATCH", pattern, "COUNT", count);
+                cursor = nextCursor;
+                if (Array.isArray(batch) && batch.length > 0) {
+                    foundKeys.push(...batch);
+                }
+            } while (cursor !== "0");
+
+            return foundKeys;
+        } catch (err) {
+            console.error(`Erro ao varrer chaves com padrão ${pattern}:`, err);
+            return [];
+        }
+    }
+
     // Define valor com tempo de expiração
     async set(key, value, ttl = null) {
         try {
@@ -71,7 +92,7 @@ class RedisClient {
     // Retorna todas as sessões salvas no Redis
     async getAllSessions() {
         try {
-            const keys = await this.client.keys("sessao:*");
+            const keys = await this.scanKeys("sessao:*");
             const sessions = [];
 
             for (const key of keys) {
@@ -92,7 +113,7 @@ class RedisClient {
       // Retorna todas as sessões salvas no Redis
     async getAllGrups(sessionId) {
         try {
-            const keys = await this.client.keys(`grupo:*`);
+            const keys = await this.scanKeys("grupo:*");
             const grupos = [];
 
             for (const key of keys) {
@@ -140,7 +161,7 @@ class RedisClient {
     // Busca chaves por padrão
     async keys(pattern) {
         try {
-            return await this.client.keys(pattern);
+            return await this.scanKeys(pattern);
         } catch (err) {
             console.error(`Erro ao buscar chaves com padrão ${pattern}:`, err);
             return [];
