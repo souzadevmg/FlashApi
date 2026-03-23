@@ -116,9 +116,18 @@ export const clearAuth = async (sessionId, redis) => {
         // Apaga credenciais
         await redis.del(credsKey);
 
-        // Busca TODAS as keys relacionadas
+        // Busca TODAS as keys relacionadas de forma incremental
         const pattern = `${baseKey}:*`;
-        const keys = await redis.keys(pattern);
+        let cursor = "0";
+        const keys = [];
+
+        do {
+            const [nextCursor, batch] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 200);
+            cursor = nextCursor;
+            if (Array.isArray(batch) && batch.length > 0) {
+                keys.push(...batch);
+            }
+        } while (cursor !== "0");
 
         if (keys.length > 0) {
             await redis.del(...keys);
