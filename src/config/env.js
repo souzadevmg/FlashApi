@@ -12,6 +12,7 @@ const config = {
   hostapi: process.env.HOST || 'http://localhost:3000',
   nodeEnv: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
+  baileysLogLevel: process.env.BAILEYS_LOG_LEVEL || process.env.LOG_LEVEL || 'info',
   protocol: process.env.PROTOCOLO || 'http',
 
   origins: process.env.CORS_ORIGINS || '*',
