@@ -7,6 +7,7 @@ import makeWASocket, {
   initAuthCreds,
   BufferJSON,
   useMultiFileAuthState,
+  generateWAMessageFromContent,
 } from "@whiskeysockets/baileys";
 
 import fs from "fs";
@@ -24,13 +25,18 @@ import moment from "moment-timezone";
 import { release } from "os";
 import qrTerminal from "qrcode-terminal";
 import NodeCache from "node-cache";
-import { ProxyAgent } from "undici";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import redis from "./redis.js";
 import { fileURLToPath } from "url";
-import { clearAuth, useRedisAuthState } from "./redisSessao.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import Redis from "ioredis";
+import Database from "../config/database.js";
+import {
+  deleteSession,
+  listSessions,
+  makePostgresAuthState,
+} from "./postgresSessao.js";
 
 class BaileysService {
   constructor() {
@@ -38,9 +44,37 @@ class BaileysService {
     this.healthCheckInterval = null;
     this.keepAliveInterval = null;
     this.sessionMonitors = new Map();
+
+    this.BIZ_NATIVE_FLOW_NODE = [
+      {
+        tag: "biz",
+        attrs: {},
+        content: [
+          {
+            tag: "interactive",
+            attrs: { type: "native_flow", v: "1" },
+            content: [{ tag: "native_flow", attrs: { v: "9", name: "mixed" } }],
+          },
+        ],
+      },
+    ];
+
+    this.BIZ_NATIVE_LIST = [
+      {
+        tag: "biz",
+        attrs: {},
+        content: [
+          {
+            tag: "list",
+            attrs: { type: "product_list", v: "2" },
+          },
+        ],
+      },
+    ];
   }
 
   static redis = redis;
+  static db = new Database();
   static sockets = new Map();
   static msgRetryCounterCache = new NodeCache({
     stdTTL: 5 * 60,
@@ -63,7 +97,6 @@ class BaileysService {
 
     // Iniciar health check
     this.startHealthCheck();
-    await Session.limparBinlogs();
 
     logger.info("✅ BaileysService inicializado");
   }
@@ -103,13 +136,11 @@ class BaileysService {
           return { success: false, message: "Sessão já conectada" };
         }
       }
-
-      // Usar a instância singleton do Redis ao invés de criar uma nova
-      const { state, saveCreds } = await useRedisAuthState(
+      const state = await makePostgresAuthState(
+        BaileysService.db.pool,
         sessionId,
-        this.redis.client,
       );
-      // const version = await getversion();
+
       const { version, isLatest } = await fetchLatestBaileysVersion();
       logger.info(`using WA v${version.join(".")}, isLatest: ${isLatest}`);
 
@@ -145,8 +176,11 @@ class BaileysService {
         logger: pino({ level: configenv.baileysLogLevel || "info" }),
         printQRInTerminal: false,
         ...browserOptions,
-        auth: state,
-        generateHighQualityLinkPreview: false,
+        auth: {
+          creds: state.creds,
+          keys: state.keys,
+        },
+        generateHighQualityLinkPreview: true,
         syncFullHistory: configenv.sync_full_history === "true",
         markOnlineOnConnect: true,
         fireInitQueries: true,
@@ -165,48 +199,47 @@ class BaileysService {
         getMessage,
         shouldIgnoreJid: (jid) => {
           if (!jid) return true;
-          if (jid.includes("@broadcast") || jid.includes("@newsletter"))
+          if (jid.includes("@broadcast") || jid.includes("@newsletter")) {
             return true;
+          }
           return false;
-        },
-        patchMessageBeforeSending(message) {
-          // Corrige lista de produtos para lista normal (exemplo original)
-          if (
-            message.deviceSentMessage?.message?.listMessage?.listType ===
-            proto.Message.ListMessage.ListType.PRODUCT_LIST
-          ) {
-            message = JSON.parse(JSON.stringify(message));
-
-            message.deviceSentMessage.message.listMessage.listType =
-              proto.Message.ListMessage.ListType.SINGLE_SELECT;
-          }
-
-          if (
-            message.listMessage?.listType ==
-            proto.Message.ListMessage.ListType.PRODUCT_LIST
-          ) {
-            message = JSON.parse(JSON.stringify(message));
-
-            message.listMessage.listType =
-              proto.Message.ListMessage.ListType.SINGLE_SELECT;
-          }
-
-          return message;
         },
       };
 
-      if (configenv.proxy_state === "true") {
-        const proxyUrl = `${configenv.proxy_protocol}://${configenv.proxy_usename}:${configenv.proxy_password}@${configenv.proxy_host}:${configenv.proxy_port}`;
-        logger.info(`Instacia ${sessionId} 🛰️ Usando proxy: ${proxyUrl}`);
-
+      // Configurações de proxy individuais por sessão (sobrescreve configurações globais)
+      const exists = await Session.getProxy(sessionId);
+      if (exists?.active && exists.active) {
         try {
-          configs.fetchAgent = new ProxyAgent(proxyUrl);
+          const agent = new HttpsProxyAgent(
+            `http://${exists.username}:${exists.password}@${exists.host}:${exists.port}`,
+          );
+          configs.agent = agent;
+          logger.info(`Instacia ${sessionId} 🛰️ Usando proxy`);
         } catch (err) {
           logger.error("❌ Erro ao criar ProxyAgent:", err);
-          configs.fetchAgent = undefined; // fallback sem proxy
+          configs.agent = undefined; // fallback sem proxy
         }
       }
+
+      // Configurações de proxy globais (aplicadas apenas se a sessão não tiver proxy individual ativo)
+      if (
+        configenv.proxy_state === "true" &&
+        (!exists?.active || exists.active !== true)
+      ) {
+        try {
+          const agent = new HttpsProxyAgent(
+            `${configenv.proxy_protocol}://${configenv.proxy_usename}:${configenv.proxy_password}@${configenv.proxy_host}:${configenv.proxy_port}`,
+          );
+          logger.info(`Instacia ${sessionId} 🛰️ Usando proxy`);
+          configs.agent = agent;
+        } catch (err) {
+          logger.error("❌ Erro ao criar ProxyAgent:", err);
+          configs.agent = undefined; // fallback sem proxy
+        }
+      }
+
       const sock = makeWASocket(configs);
+
       this.sockets.set(sessionId, sock);
 
       const sessionData = {
@@ -227,11 +260,10 @@ class BaileysService {
       await this.redis.set(`sessao:${sessionId}`, sessionData);
 
       // Event handlers
-      this.EventsGet(sock, sessionId, saveCreds);
+      this.EventsGet(sock, sessionId, state.saveCreds);
 
       return { success: true, message: sessionData };
     } catch (error) {
-      console.log(error);
       logger.error(`❌ Erro ao criar sessão ${sessionId}:`, error);
       throw error;
     }
@@ -240,27 +272,6 @@ class BaileysService {
   //Buscar sockets
   static getSocket(sessionId) {
     return this.sockets.get(sessionId);
-  }
-
-  //Carregar sessões do banco de dados
-  static async loadStateFromDb(sessionId) {
-    const authRecord = await Session.getCreds(sessionId);
-    if (!authRecord || !authRecord.auth) {
-      return { creds: initAuthCreds() };
-    }
-
-    const dados = authRecord.auth;
-
-    return {
-      creds: JSON.parse(dados.creds, BufferJSON.reviver),
-    };
-  }
-
-  static async saveStateToDb(sessionId, authState) {
-    const credsJson = JSON.stringify(authState.creds, BufferJSON.replacer);
-
-    const authJson = JSON.stringify({ creds: credsJson });
-    await Session.saveCreds(sessionId, authJson);
   }
 
   //Eventos
@@ -445,13 +456,6 @@ class BaileysService {
         await this.emitEvent(sessionId, "groups_update", updates);
       });
 
-      // // const originalEmit = sock.ev.emit;
-      // sock.ev.emit = function (event, ...args) {
-      //     console.log(`📡 Evento recebido: ${event}`);
-      //     console.dir(args, { depth: null });
-      //     // return originalEmit.call(this, event, ...args);
-      // };
-
       sock.ev.on("group-participants.update", async (event) => {
         const getsessao = await this.redis.get(`sessao:${sessionId}`);
         if (!getsessao || getsessao.ignorar_grupos) return;
@@ -614,7 +618,7 @@ class BaileysService {
         });
         logger.info(`🚪 Sessão ${sessionId} foi desconectada (logout)`);
         try {
-          await clearAuth(sessionId, this.redis.client);
+          await deleteSession(BaileysService.db.pool, sessionId);
         } catch (err) {
           console.error("Erro ao remover sessão:", err);
         }
@@ -790,6 +794,28 @@ class BaileysService {
   // Função pública para sincronização manual
   static async syncContactsManually(sessionId) {
     await this.forceSyncContatos(sessionId);
+  }
+
+  static async relayInteractiveMessage(sock, jid, quoted, interactiveMessage) {
+    const userJid = sock?.user?.id;
+    if (!userJid) {
+      throw new Error("Socket ainda sem user.id; aguarde a conexao abrir.");
+    }
+
+    const payload = {
+      viewOnceMessage: {
+        message: {
+          interactiveMessage:
+            proto.Message.InteractiveMessage.create(interactiveMessage),
+        },
+      },
+    };
+
+    const msg = generateWAMessageFromContent(jid, payload, { userJid, quoted });
+    await sock.relayMessage(jid, msg.message, {
+      messageId: msg.key.id,
+      additionalNodes: this.BIZ_NATIVE_FLOW_NODE,
+    });
   }
 
   // ✅ SALVAMENTO DIRETO POSTGRESQL - PROCESSAMENTO EM TEMPO REAL
@@ -971,7 +997,7 @@ class BaileysService {
         });
         continue;
       }
-     
+
       try {
         const remoteJid = message.key.remoteJid;
         if (
@@ -1077,7 +1103,7 @@ class BaileysService {
         if (!message?.key?.id) continue;
         const key = `message:${sessionId}_${message.key.id}`;
         const getmessage = await this.redis.exists(key);
-     
+
         if (!getmessage) {
           let temp_delete = null;
           if (configenv.delete_message) {
@@ -1120,7 +1146,6 @@ class BaileysService {
         });
 
         try {
-       
           message.id = message.key.remoteJid;
           message.name = message.pushName || "";
           message.notify = message.pushName || "";
@@ -1133,7 +1158,7 @@ class BaileysService {
             await Store.saveContact(sessionId, message);
           }
         } catch (error) {
-          console.log(error)
+          logger.error(`Erro ao processar mensagem:`, error);
         }
       } catch (error) {
         logger.error(`Erro ao processar mensagem:`, error);
@@ -1285,7 +1310,6 @@ class BaileysService {
       if (!sessiondata || !sock) return;
 
       for (const call of calls) {
-
         if (sessiondata?.rejeitar_ligacoes && call.status === "offer") {
           await sock.rejectCall(call.id, call.from);
           if (
@@ -1461,7 +1485,6 @@ class BaileysService {
       return result;
     } catch (error) {
       logger.error(`Erro ao enviar mensagem:`, error);
-      console.log("Erro ao enviar mensagem de texto:", error);
       throw error;
     }
   }
@@ -1847,7 +1870,7 @@ class BaileysService {
       }
 
       try {
-        await clearAuth(sessionId, this.redis.client);
+        await deleteSession(BaileysService.db.pool, sessionId);
       } catch (err) {
         console.error("Erro ao remover sessão:", err);
       }

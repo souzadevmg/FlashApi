@@ -726,6 +726,26 @@ $('#form-config-Instance').on('submit', async function (e) {
         headers
     );
 
+    const proxyAtivo = $('#proxy-ativo').prop('checked');
+    const proxyProtocol = $('#proxy-protocol').val();
+    const proxyUsername = $('#proxy-username').val();
+    const proxyPassword = $('#proxy-password').val();
+    const proxyPort = $('#proxy-port').val();
+    const proxyHost = $('#proxy-host').val();
+
+    await att_proxy(
+        {
+            proxyAtivo: proxyAtivo === true,
+            proxyProtocol,
+            proxyUsername,
+            proxyPassword,
+            proxyPort,
+            proxyHost
+        },
+        headers
+    );
+
+
     alert('Configuracoes atualizadas');
     window.location.reload();
 });
@@ -744,6 +764,13 @@ async function att_webhook(data, headers) {
 async function att_config(data, headers) {
     try {
         await axios.put(`${apiurl}/api/config/config`, data, { headers });
+    } catch (error) {
+    }
+}
+
+async function att_proxy(data, headers) {
+    try {
+        await axios.put(`${apiurl}/api/config/proxy`, data, { headers });
     } catch (error) {
     }
 }
@@ -799,3 +826,14 @@ document.addEventListener('click', function (e) {
     await refreshAnalytics();
     startRealtimeConsumptionUpdates();
 })();
+
+//Botão proxy
+
+document.getElementById('proxy-ativo').addEventListener('change', function () {
+    const configProxy = document.getElementById('config-proxy');
+    if (this.checked) {
+        configProxy.classList.remove('d-none');
+    } else {
+        configProxy.classList.add('d-none');
+    }
+});

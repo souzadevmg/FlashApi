@@ -109,16 +109,29 @@ CREATE TABLE IF NOT EXISTS sessao (
 
 CREATE TABLE IF NOT EXISTS proxy (
   id SERIAL PRIMARY KEY,
-  mainid INT NOT NULL,
   host VARCHAR(255) NOT NULL,
   port INT NOT NULL,
   protocol VARCHAR(20) NOT NULL,
   username VARCHAR(255) NOT NULL,
-  password VARCHAR(255) NOT NULL
+  password VARCHAR(255) NOT NULL,
+  sessao_id VARCHAR(255) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS baileys_sessions (
-  id VARCHAR(255) PRIMARY KEY,
-  auth JSON NOT NULL,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS wa_sessions (
+  session_id TEXT PRIMARY KEY,
+  creds_json JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS wa_session_keys (
+  session_id TEXT NOT NULL,
+  key_type TEXT NOT NULL,
+  key_id TEXT NOT NULL,
+  value_json JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (session_id, key_type, key_id)
+);
+
+CREATE INDEX IF NOT EXISTS wa_session_keys_session_type_idx
+  ON wa_session_keys (session_id, key_type);

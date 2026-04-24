@@ -131,7 +131,6 @@ async function startServer() {
     logger.info('✅ Iniciando Flash API - WhatsApp Multi-Session');
     // Initialize BaileysService and restore sessions
     
-    await Session.limparBinlogs();
     BaileysService.initialize();
 
     server.listen(PORT, '0.0.0.0', () => {
@@ -191,13 +190,6 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-setInterval(async () => {
-  try {
-    await Session.limparBinlogs();
-  } catch (error) {
-    logger.error('Erro no health check:', error);
-  }
-}, 1800000); // 30 minutos
 
 startServer();
 
