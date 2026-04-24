@@ -54,5 +54,5 @@ build/
 
 postman_collection.json
 swagger_full.json
-
+package-lock.json
 examples/
