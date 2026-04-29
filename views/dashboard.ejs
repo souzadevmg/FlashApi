@@ -305,12 +305,15 @@
       <div class="col-md-6 col-lg-4">
         <div class="card-instance" data-nome="<%= instance.nome_sessao %>" data-apikey="<%= instance.apikey %>">
           <div class="top-row mb-2">
-            <div>
-              <h5 class="text-primary mb-1">📱 <%= instance.nome_sessao %></h5>
-              <div class="small-muted">🔑 <%= instance.apikey %></div>
-              <% if (instance.numero) { %>
-              <div class="small-muted">📞 <strong><%= instance.numero %></strong></div>
-              <% } %>
+            <div class="d-flex align-items-center gap-3">
+              <img src="/api/session/avatar/<%= instance.apikey %>?t=<%= Date.now() %>" alt="Foto" class="instance-avatar" onerror="this.src='';this.style.display='none';this.nextElementSibling.style.display='flex';">
+              <div>
+                <h5 class="text-primary mb-1">📱 <%= instance.nome_sessao %></h5>
+                <div class="small-muted">🔑 <%= instance.apikey %></div>
+                <% if (instance.numero) { %>
+                <div class="small-muted">📞 <strong><%= instance.numero %></strong></div>
+                <% } %>
+              </div>
             </div>
 
             <div class="meta">
@@ -569,18 +572,17 @@
 
           <div id="id_sessao" data-id=""></div>
 
-      </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-        <button type="submit" class="btn btn-primary">
-          <span class="btn-text">💾 Salvar</span>
-          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-        </button>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            <button type="submit" class="btn btn-primary">
+              <span class="btn-text">💾 Salvar</span>
+              <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
       </div>
-      </form>
     </div>
-  </div>
   </div>
 
   <script src="/js/dashboard.js"></script>
