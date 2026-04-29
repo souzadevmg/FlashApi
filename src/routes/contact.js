@@ -13,20 +13,7 @@ router.get("/list", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
 
-    let contacts = await getAllContacts(sessionId);
-
-    const SoJids = contacts
-      .map((c) => {
-        if (!c?.id) return null;
-
-        return {
-          ...c,
-          id: c.id.replace(/"/g, ""), // remove todas aspas
-          name: c.name ? c.name.replace(/"/g, "") : "", // remove todas aspas
-          notify: c.notify ? c.notify.replace(/"/g, "") : "", // remove todas aspas
-        };
-      })
-      .filter((c) => c && c.id.includes("@s.whatsapp.net"));
+    const SoJids = await Store.getContacts(sessionId);
     res.json({
       success: true,
       total: SoJids.length,
@@ -41,45 +28,6 @@ router.get("/list", authenticateApiKey, async (req, res) => {
     });
   }
 });
-
-async function getAllContacts(sessionId) {
-  const redis = BaileysService.redis.client;
-
-  let cursor = "0";
-  const allKeys = [];
-
-  do {
-    const [nextCursor, keys] = await redis.scan(
-      cursor,
-      "MATCH",
-      `contatos:${sessionId}:*`,
-      "COUNT",
-      500,
-    );
-
-    cursor = nextCursor;
-    allKeys.push(...keys);
-  } while (cursor !== "0");
-
-  if (!allKeys.length) return [];
-
-  // ⚡ pega TODOS os valores de uma vez
-  const values = await redis.mget(allKeys);
-
-  const contacts = [];
-
-  for (const v of values) {
-    if (!v) continue;
-
-    try {
-      contacts.push(JSON.parse(v));
-    } catch {
-      // ignora inválido
-    }
-  }
-
-  return contacts;
-}
 
 router.post("/profile", authenticateApiKey, async (req, res) => {
   try {
