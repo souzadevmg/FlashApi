@@ -296,8 +296,7 @@ class BaileysService {
           this.emitEvent(sessionId, "chats_update", updates).catch((err) =>
             logger.error("Erro emitEvent:", err),
           );
-
-          const pipeline = BaileysService.redis.client.pipeline();
+          let chatsProcessados = [];
           for (const update of updates) {
             if (!update.id) continue;
 
@@ -314,106 +313,100 @@ class BaileysService {
                 update.id = msg.message.key.remoteJid;
               }
             }
-            const tempDelete = configenv.delete_message
-              ? configenv.temp_delet_message
-              : null;
-            if (tempDelete) {
-              pipeline.set(
-                `chat:${sessionId}:${update.id}`,
-                JSON.stringify(update),
-                "EX",
-                tempDelete,
-              );
-            } else {
-              pipeline.set(
-                `chat:${sessionId}:${update.id}`,
-                JSON.stringify(update),
-              );
-            }
+            chatsProcessados.push(update);
           }
-          await pipeline.exec();
+          await Store.saveChatsBatch(sessionId, chatsProcessados);
         } catch (error) {
           logger.error("Erro ao atualizar chats:", error);
         }
       });
 
+      const BATCH_SIZE = 20;
+
       sock.ev.on("contacts.update", async (updates) => {
         await this.emitEvent(sessionId, "contacts_update", updates);
-        let getctt = [];
 
         try {
-          const pipeline = BaileysService.redis.client.pipeline();
-          for (const update of updates) {
-            if (!update?.id) continue;
+          for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+            const lote = updates.slice(i, i + BATCH_SIZE);
 
-            update.name = update.notify || "";
-            update.url_imagem = null;
-            const key = `contatos:${sessionId}:${update.id}`;
-
-            // Verificar se é um contato com lid e atualizar mapeamento
-            if (update.id.includes("@lid")) {
-              const id = update.id.split("@")[0];
-              const getreverse = await this.redis.get(
-                `lid-mapping:${sessionId}:${id}`,
-              );
-
-              if (getreverse) {
-                let numero = getreverse;
-                numero = numero.replace(/"/g, "").trim();
-                update.id = `${numero}@s.whatsapp.net`;
-
+            // 🔹 processa tudo primeiro
+            const contatosProcessados = await Promise.all(
+              lote.map(async (update) => {
                 try {
-                  const url = await sock.profilePictureUrl(update.id);
-                  update.url_imagem = url;
-                } catch (error) {}
-                pipeline.set(
-                  `contatos:${sessionId}:${update.id}`,
-                  JSON.stringify(update),
-                );
-              }
+                  if (!update?.id) return null;
+
+                  update.name = update.notify || "";
+                  update.url_imagem = null;
+
+                  // 🔹 LID → número
+                  if (update.id.includes("@lid")) {
+                    const id = update.id.split("@")[0];
+
+                    const getreverse = await this.redis.get(
+                      `lid-mapping:${sessionId}:${id}`,
+                    );
+
+                    if (getreverse) {
+                      let numero = getreverse.replace(/"/g, "").trim();
+                      update.id = `${numero}@s.whatsapp.net`;
+                    }
+                  }
+
+                  // 🔹 Buscar foto
+                  if (update.id.includes("@s.whatsapp.net")) {
+                    try {
+                      update.url_imagem = await sock.profilePictureUrl(
+                        update.id,
+                      );
+                    } catch {
+                      update.url_imagem = null;
+                    }
+
+                    return update;
+                  }
+
+                  return null;
+                } catch (err) {
+                  logger.error("Erro ao processar contato:", err);
+                  return null;
+                }
+              }),
+            );
+
+            // 🔹 remove inválidos
+            const validos = contatosProcessados.filter(Boolean);
+
+            // 🔹 salva tudo de uma vez (AGORA SIM batch de verdade)
+            if (validos.length) {
+              await Store.saveContactsBatch(sessionId, validos);
             }
 
-            // Atualizar contato normalmente
-            if (update.id.includes("@s.whatsapp.net")) {
-              try {
-                const url = await sock.profilePictureUrl(update.id);
-                update.url_imagem = url;
-              } catch (error) {}
-              pipeline.set(
-                `contatos:${sessionId}:${update.id}`,
-                JSON.stringify(update),
-              );
-            }
+            // 🔹 delay entre lotes (melhor lugar)
+            await this.delay(100);
           }
-          pipeline
-            .exec()
-            .catch((err) =>
-              logger.error("Erro ao atualizar contatos no Redis:", err),
-            );
-        } catch (error) {}
+        } catch (error) {
+          logger.error("Erro geral no contacts.update:", error);
+        }
       });
 
       sock.ev.on("contacts.upsert", async (contacts) => {
         logger.info(
           `👥 Atualizando ${contacts.length} contatos para sessão ${sessionId}`,
         );
-        const pipeline = BaileysService.redis.client.pipeline();
+        let contactsProcessados = [];
         for (const contact of contacts) {
           if (!contact?.id) continue;
           contact.name = contact.notify || "";
-          const key = `contatos:${sessionId}:${contact.id}`;
-          pipeline.set(key, JSON.stringify(contact));
-          const getctt = await this.redis.get(key);
-          if (!getctt) {
-            try {
-              const url = await sock.profilePictureUrl(contact.id);
-              contact.url_imagem = url;
-            } catch (error) {}
-            if (contact.id.endsWith("@s.whatsapp.net")) {
-              await this.redis.set(key, contact);
-            }
+          try {
+            const url = await sock.profilePictureUrl(contact.id);
+            contact.url_imagem = url;
+          } catch (error) {}
+          if (contact.id.endsWith("@s.whatsapp.net")) {
+            contactsProcessados.push(contact);
           }
         }
+        await Store.saveContactsBatch(sessionId, contactsProcessados);
       });
 
       // Eventos de grupo update
@@ -451,108 +444,99 @@ class BaileysService {
           const batchSize = 100;
           const getsessao = await this.redis.get(`sessao:${sessionId}`);
 
-          // ✅ Processar mensagens em lotes
           if (data.messages?.length > 0) {
             logger.info(
-              `📥 messaging-history.set: ${data.messages.length} mensagens para processar da sessão ${sessionId}`,
+              `📥 messaging-history.set: ${data.messages.length} mensagens sessão ${sessionId}`,
             );
-            const pipeline = this.redis.client.pipeline();
-            for (let i = 0; i < data.messages.length; i += batchSize) {
-              const batch = data.messages.slice(i, i + batchSize);
 
-              for (const msg of batch) {
-                try {
-                  if (!msg?.key?.id) continue;
+            const BATCH_SIZE = 50;
 
-                  if (
-                    msg?.messageStubType &&
-                    (msg.messageStubType ==
-                      proto.WebMessageInfo.StubType.E2E_ENCRYPTED ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType
-                          .BIZ_COEX_PRIVACY_TRANSITION ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.E2E_ENCRYPTED_NOW ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType
-                          .GROUP_PARTICIPANT_INVITE ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.GROUP_CREATE ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.GROUP_CHANGE_ICON ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType
-                          .GROUP_PARTICIPANT_REMOVE ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType
-                          .GROUP_CHANGE_DESCRIPTION ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.GROUP_PARTICIPANT_ADD ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.GROUP_PARTICIPANT_LEAVE ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.CIPHERTEXT ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType
-                          .INDIVIDUAL_CHANGE_NUMBER ||
-                      msg.messageStubType ==
-                        proto.WebMessageInfo.StubType.GROUP_CHANGE_SUBJECT)
-                  ) {
-                    continue;
-                  }
+            try {
+              for (let i = 0; i < data.messages.length; i += BATCH_SIZE) {
+                const batch = data.messages.slice(i, i + BATCH_SIZE);
 
-                  let remoteJid = msg.key.remoteJid || "unknown";
-                  if (
-                    remoteJid.endsWith("@g.us") &&
-                    getsessao &&
-                    getsessao.ignorar_grupos
-                  ) {
-                    continue;
-                  }
-                  if (remoteJid.endsWith("@lid")) {
-                    const id = remoteJid.split("@")[0];
-                    const existingMapping = await this.redis.get(
-                      `lid-mapping:${sessionId}:${id}`,
-                    );
-                    if (existingMapping) {
-                      let numero = existingMapping;
-                      if (numero) {
-                        try {
-                          remoteJid = JSON.parse(numero) + "@s.whatsapp.net";
-                        } catch {
-                          remoteJid =
-                            numero.replace(/"/g, "").trim() + "@s.whatsapp.net";
+                const pipeline = this.redis.client.pipeline();
+                const messagesProcessados = [];
+
+                // 🔹 processa em paralelo
+                await Promise.all(
+                  batch.map(async (msg) => {
+                    try {
+                      if (!msg?.key?.id) return;
+
+                      let remoteJid = msg.key.remoteJid || "unknown";
+
+                      // 🔹 ignorar grupos
+                      if (
+                        remoteJid.endsWith("@g.us") &&
+                        getsessao?.ignorar_grupos
+                      )
+                        return;
+
+                      // 🔹 resolver LID
+                      if (remoteJid.endsWith("@lid")) {
+                        const id = remoteJid.split("@")[0];
+
+                        const mapping = await this.redis.get(
+                          `lid-mapping:${sessionId}:${id}`,
+                        );
+
+                        if (mapping) {
+                          try {
+                            remoteJid = JSON.parse(mapping) + "@s.whatsapp.net";
+                          } catch {
+                            remoteJid =
+                              mapping.replace(/"/g, "").trim() +
+                              "@s.whatsapp.net";
+                          }
                         }
                       }
+
+                      msg.key.remoteJid = remoteJid;
+
+                      const msgKey = `message:${sessionId}:${msg.key.id}`;
+
+                      // 🔹 ADD direto (sem exists → mais rápido)
+                      const tempDelete = configenv.delete_message
+                        ? configenv.temp_delet_message
+                        : null;
+
+                      if (tempDelete) {
+                        pipeline.set(
+                          msgKey,
+                          JSON.stringify(msg),
+                          "EX",
+                          tempDelete,
+                        );
+                      } else {
+                        pipeline.set(msgKey, JSON.stringify(msg));
+                      }
+
+                      messagesProcessados.push(msg);
+                    } catch (err) {
+                      logger.error(`Erro msg ${msg?.key?.id}`, err);
                     }
-                  }
-                  msg.key.remoteJid = remoteJid;
-                  const msgKey = `message:${sessionId}:${msg.key.id}`;
-                  const alreadyExists = await this.redis.exists(msgKey);
-                  if (alreadyExists) continue;
+                  }),
+                );
 
-                  const tempDelete = configenv.delete_message
-                    ? configenv.temp_delet_message
-                    : null;
+                // 🔹 executa Redis
+                await pipeline.exec();
 
-                  if (tempDelete) {
-                    pipeline.set(msgKey, JSON.stringify(msg), "EX", tempDelete);
-                  } else {
-                    pipeline.set(msgKey, JSON.stringify(msg));
-                  }
-                } catch (error) {
-                  logger.error(
-                    `Erro ao processar mensagem ${msg?.key?.id}:`,
-                    error,
-                  );
+                // 🔹 salva no banco
+                if (messagesProcessados.length) {
+                  await Store.saveMessagesBatch(sessionId, messagesProcessados);
                 }
-              }
-            }
-            await pipeline.exec();
 
-            logger.info(
-              `💾 ${data.messages.length} mensagens sincronizadas para sessão ${sessionId}`,
-            );
+                // 🔹 pequeno respiro
+                await this.delay(50);
+              }
+
+              logger.info(
+                `💾 ${data.messages.length} mensagens sincronizadas sessão ${sessionId}`,
+              );
+            } catch (error) {
+              logger.error("Erro geral messaging-history.set:", error);
+            }
           }
 
           // ✅ Processar chats em lotes
@@ -561,7 +545,7 @@ class BaileysService {
               `📥 messaging-history.set: ${data.chats.length} chats para processar da sessão ${sessionId}`,
             );
 
-            const pipeline = this.redis.client.pipeline();
+            let chatsProcessados = [];
             for (let i = 0; i < data.chats.length; i += batchSize) {
               const batch = data.chats.slice(i, i + batchSize);
 
@@ -574,75 +558,30 @@ class BaileysService {
                     continue;
                   }
 
-                  const validMessages = chat.messages.filter((msg) => {
-                    return !(
-                      msg?.message?.messageStubType &&
-                      (msg.message.messageStubType ==
-                        proto.WebMessageInfo.StubType.E2E_ENCRYPTED ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .BIZ_COEX_PRIVACY_TRANSITION ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.E2E_ENCRYPTED_NOW ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .GROUP_PARTICIPANT_INVITE ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.GROUP_CREATE ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.GROUP_CHANGE_ICON ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .GROUP_PARTICIPANT_REMOVE ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .GROUP_CHANGE_DESCRIPTION ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.GROUP_PARTICIPANT_ADD ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .GROUP_PARTICIPANT_LEAVE ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.CIPHERTEXT ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .INDIVIDUAL_CHANGE_NUMBER ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.GROUP_CHANGE_SUBJECT ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType
-                            .BIZ_PRIVACY_MODE_TO_FB ||
-                        msg.message.messageStubType ==
-                          proto.WebMessageInfo.StubType.BIZ_COEX_PRIVACY_INIT)
-                    );
-                  });
-
-                  if (validMessages.length === 0) continue;
-
                   if (!chat?.id) continue;
-                  const tempDelete = configenv.delete_message
-                    ? configenv.temp_delet_message
-                    : null;
-                  if (tempDelete) {
-                    pipeline.set(
-                      `chat:${sessionId}:${chat.id}`,
-                      JSON.stringify(chat),
-                      "EX",
-                      tempDelete,
-                    );
-                  } else {
-                    pipeline.set(
-                      `chat:${sessionId}:${chat.id}`,
-                      JSON.stringify(chat),
-                    );
+                  if (chat.id.endsWith("@g.us") && getsessao?.ignorar_grupos) {
+                    continue;
                   }
+                  if (chat.id.endsWith("@lid")) {
+                    const id = chat.id.split("@")[0];
+                    const existingMapping = await this.redis.get(
+                      `lid-mapping:${sessionId}:${id}`,
+                    );
+                    if (existingMapping) {
+                      chat.id =
+                        JSON.stringify(existingMapping) + "@s.whatsapp.net";
+                    } else {
+                      continue;
+                    }
+                  }
+                  chatsProcessados.push(chat);
                 } catch (error) {
                   logger.error(`Erro ao processar chat ${chat?.id}:`, error);
                 }
               }
             }
+            await Store.saveChatsBatch(sessionId, chatsProcessados);
 
-            await pipeline.exec();
             logger.info(
               `💾 ${data.chats.length} chats sincronizados para sessão ${sessionId}`,
             );
@@ -653,8 +592,7 @@ class BaileysService {
             logger.info(
               `📥 messaging-history.set: ${data.contacts.length} contatos para processar da sessão ${sessionId}`,
             );
-
-            const pipeline = this.redis.client.pipeline();
+            let contactsProcessados = [];
             for (let i = 0; i < data.contacts.length; i += batchSize) {
               const batch = data.contacts.slice(i, i + batchSize);
 
@@ -675,7 +613,6 @@ class BaileysService {
                       continue;
                     }
                   }
-                  const key = `contatos:${sessionId}:${contact.id}`;
                   contact.url_imagem = null;
                   try {
                     const url = await this.getSocket(
@@ -684,7 +621,7 @@ class BaileysService {
                     contact.url_imagem = url;
                   } catch (error) {}
                   contact.name = contact.notify || "";
-                  pipeline.set(key, JSON.stringify(contact));
+                  contactsProcessados.push(contact);
                 } catch (error) {
                   logger.error(
                     `Erro ao processar contato ${contact?.id}:`,
@@ -692,10 +629,8 @@ class BaileysService {
                   );
                 }
               }
-
-              await pipeline.exec();
-              await this.delay(50);
             }
+            await Store.saveContactsBatch(sessionId, contactsProcessados);
 
             logger.info(
               `💾 ${data.contacts.length} contatos sincronizados para sessão ${sessionId}`,
@@ -718,7 +653,6 @@ class BaileysService {
           );
         }
       });
-      
     } catch (error) {
       logger.error("Erro ao processar eventos:", error);
     }
@@ -752,15 +686,6 @@ class BaileysService {
     const id2s = await BaileysService.redis.client.keys(
       `lid-mapping:${sessionId}:*`,
     );
-    id2s.forEach((key) => {
-      BaileysService.redis.del(key);
-    });
-  }
-
-  // Deletar chats armazenados no Redis para uma sessão
-  static async deleteChats(sessionId) {
-    const id2s = await BaileysService.redis.client.keys(`chat:${sessionId}:*`);
-
     id2s.forEach((key) => {
       BaileysService.redis.del(key);
     });
@@ -929,6 +854,16 @@ class BaileysService {
       if (!message || !message.key) {
         continue;
       }
+      if (message.key.remoteJid.endsWith("@g.us") && getsessao?.ignorar_grupos){
+        continue; // Ignorar mensagens de grupos se a configuração estiver ativada
+      }
+        
+      if (
+        message?.key?.remoteJid &&
+        message.key.remoteJid.endsWith("status@broadcast")
+      ) {
+        continue; // Ignorar mensagens de status
+      }
 
       // Verificar se a mensagem é de um contato com LID e criar mapeamento se necessário
       if (
@@ -1006,7 +941,7 @@ class BaileysService {
 
       try {
         // Salvar mensagem no Redis
-        if (!message?.key?.id) continue;
+
         const key = `message:${sessionId}:${message.key.id}`;
         const tempDelete = configenv.delete_message
           ? configenv.temp_delet_message
@@ -1017,6 +952,12 @@ class BaileysService {
         } else {
           await pipeline.set(key, JSON.stringify(message));
         }
+        Store.saveMessagesBatch(sessionId, [message]).catch((error) => {
+          logger.error(
+            `Erro ao salvar chat no banco para sessão ${sessionId}:`,
+            error,
+          );
+        });
 
         // Verificar configurações da sessão
         const config = await this.redis.get(`sessao:${sessionId}`);
@@ -1449,6 +1390,7 @@ class BaileysService {
       }
     }
   }
+
 
   static async checkNumbers(sessionId, numbers) {
     try {
