@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 import { resolve } from 'path';
-import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
 import { Client } from 'pg';
@@ -11,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: resolve('.env')});
-const dbType = process.env.DB_TYPE || 'mysql';
+const dbType = process.env.DB_TYPE || 'postgres';
 
 async function checkAndInitDatabase() {
   const {
@@ -28,34 +27,11 @@ async function checkAndInitDatabase() {
   }
 
   let connection;
+  let client;
   try {
-    if (dbType === 'mysql') {
-      // MySQL
-      connection = await mysql.createConnection({
-        host: DB_HOST,
-        port: DB_PORT || 3306,
-        user: DB_USER,
-        password: DB_PASSWORD,
-        multipleStatements: true
-      });
-
-      // Verifica se o database existe
-      const [rows] = await connection.query('SHOW DATABASES LIKE ?', [DB_DATABASE]);
-      if (rows.length === 0) {
-        await connection.query(`CREATE DATABASE \`${DB_DATABASE}\``);
-      }
-
-      await connection.changeUser({ database: DB_DATABASE });
-
-      // Lê e executa arquivo SQL
-      const sqlFilePath = path.resolve(__dirname, 'supabase/migrations/database.sql');
-      const sql = fs.readFileSync(sqlFilePath, 'utf8');
-      await connection.query(sql);
-
-    } else if (dbType === 'postgres') {
-      // PostgreSQL
+    // PostgreSQL
       // Conecta ao banco padrão
-      let client = new Client({
+      client = new Client({
         host: DB_HOST,
         port: DB_PORT || 5432,
         user: DB_USER,
@@ -90,17 +66,11 @@ async function checkAndInitDatabase() {
       const sql = fs.readFileSync(sqlFilePath, 'utf8');
       await client.query(sql);
 
-      await client.end();
-    } else {
-      throw new Error('DB_TYPE não suportado! Use "mysql" ou "postgres".');
-    }
-
     logger.info('Script SQL executado com sucesso! Banco pronto para uso.');
   } catch (error) {
-    console.log(error)
     logger.error('Erro ao preparar o banco:');
   } finally {
-    if (connection && dbType === 'mysql') await connection.end();
+    if (client) await client.end();
   }
 }
 

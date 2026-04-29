@@ -33,9 +33,6 @@ const config = {
   enableGlobalWebsocket: process.env.ENABLE_WEBSOCKET === 'true',
   globalWebsocketSecret: process.env.GLOBAL_WEBSOCKET_SECRET || '123',
 
-  // Database
-  databasePath: process.env.DATABASE_PATH || './database.sqlite',
-
   // Validation
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: process.env.NODE_ENV === 'development',
@@ -52,13 +49,13 @@ const config = {
 
   //Banco de dados
   host: process.env.DB_HOST || 'localhost',
-  porta: process.env.DB_PORT || 3306,
+  porta: process.env.DB_PORT || 5432,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'FlashApi',
   connectionLimit: process.env.DB_CONNECTION_LIMIT || 50,
   queuelimit: process.env.QUEUELIMIT || 0,
-  db_client: process.env.DB_TYPE || 'mysql', 
+  db_client: process.env.DB_TYPE || 'postgres', 
 
   //Redis
   redis_host: process.env.REDIS_HOST || '127.0.0.1', 
@@ -83,10 +80,10 @@ const config = {
   qrcode_limite: process.env.LIMITE_QRCODE || 10,
 
   //Temp message
-  delete_message: process.env.DELETE_TEMP_MENSAGE === "true",
+  delete_message: process.env.DELETE_TEMP_MENSAGE == "true",
   temp_delet_message: process.env.TEMP_MENSAGE || 3600,
   apiversao: process.env.VERSAO || '1.0.4',
-  sync_sessions: process.env.SYNC_SESSIONS === 'false' ? false : true,
+  sync_sessions: process.env.SYNC_SESSIONS == 'false' ? false : true,
 };
 
 

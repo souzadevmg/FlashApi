@@ -28,7 +28,6 @@
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
     "moment-timezone": "^0.6.0",
-    "mysql2": "^3.6.5",
     "node-cache": "^5.1.2",
     "pg": "^8.16.3",
     "pino": "^8.16.2",
@@ -55,7 +54,6 @@
     "websocket",
     "global-config",
     "env",
-    "mysql",
     "high-performance"
   ],
   "author": "Bolt",

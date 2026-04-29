@@ -1,4 +1,5 @@
 import { initAuthCreds, BufferJSON, proto } from "@whiskeysockets/baileys";
+import redis from "./redis.js";
 
 function parseStoredJson(raw) {
   if (raw == null) return null;
@@ -29,14 +30,65 @@ function parseStoredJson(raw) {
   return null;
 }
 
+function isByteLikeObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const keys = Object.keys(value);
+  if (!keys.length) return false;
+
+  for (const key of keys) {
+    if (!/^\d+$/.test(key)) return false;
+    const byte = value[key];
+    if (!Number.isInteger(byte) || byte < 0 || byte > 255) return false;
+  }
+
+  return true;
+}
+
+function normalizeBuffers(value) {
+  if (value == null) return value;
+  if (Buffer.isBuffer(value)) return value;
+
+  if (
+    typeof value === "object" &&
+    value.type === "Buffer" &&
+    Array.isArray(value.data)
+  ) {
+    return Buffer.from(value.data);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeBuffers(item));
+  }
+
+  if (isByteLikeObject(value)) {
+    const ordered = Object.keys(value)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => value[k]);
+    return Buffer.from(ordered);
+  }
+
+  if (typeof value === "object") {
+    const out = {};
+    for (const [key, innerValue] of Object.entries(value)) {
+      out[key] = normalizeBuffers(innerValue);
+    }
+    return out;
+  }
+
+  return value;
+}
+
 export async function makePostgresAuthState(pool, sessionId) {
   const state = {
-    creds: initAuthCreds(), // 🔥 NUNCA null
+    creds: initAuthCreds(),
 
     keys: {
       async get(type, ids) {
         if (!ids?.length) return {};
-        
+
         const res = await pool.query(
           `SELECT key_id, value_json
            FROM wa_session_keys
@@ -50,7 +102,13 @@ export async function makePostgresAuthState(pool, sessionId) {
           let parsed = parseStoredJson(row.value_json);
           if (parsed == null) continue;
 
-          if (type === "app-state-sync-key" && parsed && typeof parsed === "object") {
+          parsed = normalizeBuffers(parsed);
+
+          if (
+            type === "app-state-sync-key" &&
+            parsed &&
+            typeof parsed === "object"
+          ) {
             parsed = proto.Message.AppStateSyncKeyData.fromObject(parsed);
           }
 
@@ -73,7 +131,9 @@ export async function makePostgresAuthState(pool, sessionId) {
             } else {
               if (!upserts[type]) upserts[type] = { ids: [], values: [] };
               upserts[type].ids.push(id);
-              upserts[type].values.push(JSON.stringify(value, BufferJSON.replacer));
+              upserts[type].values.push(
+                JSON.stringify(value, BufferJSON.replacer),
+              );
             }
           }
         }
@@ -91,6 +151,22 @@ export async function makePostgresAuthState(pool, sessionId) {
                DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = now()`,
               [sessionId, type, ids, values],
             );
+            if (type == "lid-mapping") {
+              try {
+                const getLids = await client.query("SELECT * FROM wa_session_keys WHERE key_type = 'lid-mapping';");
+                for (const element of getLids.rows) {
+                   if (element.key_id && element.key_id.endsWith("_reverse")){
+                    const lid = element.key_id.split("_")[0];
+                    await redis.set(`lid-mapping:${sessionId}:${lid}`, element.value_json);
+                   };
+                }
+          
+              } catch (error) {
+                console.error("Erro ao processar lid-mapping:", error);
+              }
+            }
+            
+            
           }
 
           // Um DELETE por tipo usando ANY().
@@ -113,7 +189,7 @@ export async function makePostgresAuthState(pool, sessionId) {
     },
 
     async saveCreds() {
-    //   console.log("Salvando credenciais para sessão:", state.creds);
+      //   console.log("Salvando credenciais para sessão:", state.creds);
       try {
         await pool.query(
           `INSERT INTO wa_sessions (session_id, creds_json)
@@ -131,7 +207,6 @@ export async function makePostgresAuthState(pool, sessionId) {
     },
   };
 
-  // 🔥 CARREGA DO BANCO
   const res = await pool.query(
     `SELECT creds_json FROM wa_sessions WHERE session_id=$1`,
     [sessionId],

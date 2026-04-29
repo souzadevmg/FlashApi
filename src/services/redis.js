@@ -33,6 +33,7 @@ class RedisClient {
             this.client.on("ready", () => logger.info('✅ Redis pronto para uso'));
             
             this.client.on("error", (err) => {
+                console.log(err)
                 logger.error("❌ Erro no Redis:", err.message);
                 // Não encerra o processo, deixa o retryStrategy lidar com reconexão
             });
@@ -77,9 +78,10 @@ class RedisClient {
         try {
             const data = JSON.stringify(value);
 
-            if (ttl) {
-                // se tiver TTL, define com expiração
-                await this.client.set(key, data, "EX", ttl);
+            const parsedTtl = ttl != null ? parseInt(ttl, 10) : null;
+            if (parsedTtl && !isNaN(parsedTtl) && parsedTtl > 0) {
+                // se tiver TTL válido, define com expiração
+                await this.client.set(key, data, "EX", parsedTtl);
             } else {
                 // se não tiver TTL, define permanente
                 await this.client.set(key, data);

@@ -1,25 +1,24 @@
 version: "3.8"
 
 services:
-  mysql:
-    image: mysql:5.7
-    container_name: flash-mysql
+  postgres:
+    image: postgres:16
+    container_name: flash-postgres
     environment:
-      MYSQL_ROOT_PASSWORD: ASDASDSA55WQ8R563DG9Y6T2QW5E5Q
-      DB_DATABASE: flashapi
-      DB_USER: root
-      DB_PASSWORD: ASDASDSA55WQ8R563DG9Y6T2QW5E5Q
+      POSTGRES_USER: flashuser
+      POSTGRES_PASSWORD: ASDASDSA55WQ8R563DG9Y6T2QW5E5Q
+      POSTGRES_DB: flashapi
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     restart: always
 
   flash-api:
     image: flashconect/flash-api
     container_name: flash-api
     depends_on:
-      - mysql
+      - postgres
     environment:
       PORT: 3000
       NODE_ENV: development
@@ -34,9 +33,9 @@ services:
       ENABLE_WEBSOCKET: "false"
       GLOBAL_WEBSOCKET_SECRET: "ASDASDSA55WQ8R563DG9Y6T2QW5E5Q"
 
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: root
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: flashuser
       DB_PASSWORD: ASDASDSA55WQ8R563DG9Y6T2QW5E5Q
       DB_DATABASE: flashapi
       DB_CONNECTION_LIMIT: 1000
@@ -59,4 +58,4 @@ services:
     restart: always
 
 volumes:
-  mysql_data:
+  postgres_data:

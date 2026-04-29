@@ -51,7 +51,7 @@ router.post("/send-text", authenticateApiKey, async (req, res) => {
     const message = {
       text,
       linkPreview: linkPreview,
-       footer: "Rodapé"
+      footer: "Rodapé",
     };
 
     if (mentions && mentions.length > 0) {
@@ -904,7 +904,18 @@ router.post("/send-list", authenticateApiKey, async (req, res) => {
         buttonText: buttonText,
         footerText: footerText,
         listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
-        sections: sections,
+        sections: sections.map((sec) =>
+          proto.Message.ListMessage.Section.fromObject({
+            title: sec.title,
+            rows: sec.rows.map((row) =>
+              proto.Message.ListMessage.Row.fromObject({
+                title: row.title,
+                rowId: row.rowId,
+                description: row.description || "",
+              })
+            ),
+          })
+        ),
       }),
     };
     const jid = to.includes("@") ? to : `${to}@s.whatsapp.net`;
@@ -917,19 +928,19 @@ router.post("/send-list", authenticateApiKey, async (req, res) => {
     }
 
     const sendFunction = async () => {
-      await BaileysService.sendTyping(sessionId, to, true);
+      await BaileysService.sendTyping(sessionId, jid, true);
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
       const msg = generateWAMessageFromContent(jid, payloadList, {
         userJid: sock.user.id,
       });
-
+      console.log(msg);
       const send = await sock.relayMessage(jid, msg.message, {
         messageId: msg.key.id,
         additionalNodes: BaileysService.BIZ_NATIVE_LIST,
       });
-      await BaileysService.sendTyping(sessionId, to, false);
+      await BaileysService.sendTyping(sessionId, jid, false);
       return send;
     };
 
@@ -1014,6 +1025,24 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
       }
     }
     if (erro) return;
+
+    if (imageMessage && videoMessage) {
+      return res.status(400).json({
+        success: false,
+        message: "imageMessage e videoMessage não podem ser usados ao mesmo tempo",
+      });
+    }
+
+    for (let index = 0; index < buttons.length; index++) {
+      const displayText = buttons[index]?.buttonText?.displayText;
+      if (!displayText || !displayText.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: `O botão ${index + 1} precisa de buttonText.displayText preenchido.`,
+        });
+      }
+    }
+
     const sock = BaileysService.getSocket(sessionId);
     if (!sock) {
       return res.status(400).json({
@@ -1022,21 +1051,35 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
       });
     }
 
-    // return
-    const botoes = buttons.map((btn) => ({
-      buttonId: btn.buttonId,
-      buttonText: { displayText: btn.buttonText.displayText },
-      type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
-    }));
-    const payloadButtons = {
+     const payloadButtons = {
       buttonsMessage: proto.Message.ButtonsMessage.fromObject({
         contentText: text,
         footerText: footer,
         headerType: proto.Message.ButtonsMessage.HeaderType.EMPTY,
-        buttons: botoes,
+        buttons: buttons.map((btn) =>
+          proto.Message.ButtonsMessage.Button.fromObject({
+            buttonId: btn.buttonId,
+            buttonText: { displayText: btn.buttonText.displayText },
+            type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
+          }),
+        ),
       }),
     };
+
+    const isValidMediaInput = (value) =>
+      Buffer.isBuffer(value) ||
+      (typeof value === "string" &&
+        (value.startsWith("data:") || value.startsWith("http")));
+
     if (imageMessage) {
+      if (!isValidMediaInput(imageMessage)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "imageMessage deve ser URL http(s), base64 data URI ou Buffer",
+        });
+      }
+
       let image;
 
       if (Buffer.isBuffer(imageMessage)) {
@@ -1061,6 +1104,14 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
     }
 
     if (videoMessage) {
+      if (!isValidMediaInput(videoMessage)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "videoMessage deve ser URL http(s), base64 data URI ou Buffer",
+        });
+      }
+
       let video;
 
       if (Buffer.isBuffer(videoMessage)) {
@@ -1093,8 +1144,10 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
       const msg = generateWAMessageFromContent(jid, payloadButtons, {
         userJid: sock.user.id,
       });
+
       const send = await sock.relayMessage(jid, msg.message, {
         messageId: msg.key.id,
+        additionalNodes: BaileysService.BIZ_NATIVE_FLOW_NODE,
       });
       await BaileysService.sendTyping(sessionId, jid, false);
       return send;
@@ -1124,6 +1177,7 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
       data: result,
     });
   } catch (error) {
+    console.log(error);
     logger.error("Erro ao enviar botões:", error);
     res.status(500).json({
       success: false,
@@ -1230,8 +1284,14 @@ router.post(
               nativeFlowMessage:
                 WAProto.Message.InteractiveMessage.NativeFlowMessage.create({
                   buttons: buttons.map((button) => ({
-                    name: button.name,
-                    buttonParamsJson: JSON.stringify(button.buttonParamsJson),
+                    name:
+                      typeof button.name === "string"
+                        ? button.name
+                        : JSON.stringify(button.name),
+                    buttonParamsJson:
+                      typeof button.buttonParamsJson === "string"
+                        ? button.buttonParamsJson
+                        : JSON.stringify(button.buttonParamsJson),
                   })),
                 }),
             }),
@@ -1254,6 +1314,7 @@ router.post(
           messageId: msg.key.id,
           additionalNodes: BaileysService.BIZ_NATIVE_FLOW_NODE,
         });
+        console.log(send);
         await BaileysService.sendTyping(sessionId, jid, false);
         return send;
       };
@@ -1294,7 +1355,14 @@ router.post(
 router.post("/send-carouselMessage", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
-    const { to, items, useQueue = false, delay = 1200, text, footer = '' } = req.body;
+    const {
+      to,
+      items,
+      useQueue = false,
+      delay = 1200,
+      text,
+      footer = "",
+    } = req.body;
     const requiredFields = ["to", "items", "text"];
     for (const field of requiredFields) {
       if (!req.body[field]) {
@@ -1543,59 +1611,110 @@ router.get("/messages", authenticateApiKey, async (req, res) => {
 router.get("/chats", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
+    await BaileysService.deleteMessageRedis(sessionId);
+    const rawLimit = parseInt(req.query.limit, 10);
+    const count = Number.isInteger(rawLimit)
+      ? Math.min(Math.max(rawLimit, 1), 500)
+      : 100;
+    const cursor =
+      typeof req.query.cursor === "string" && /^\d+$/.test(req.query.cursor)
+        ? req.query.cursor
+        : "0";
 
-    const chats = await Store.getChats(sessionId);
+    const remoteJid =
+      typeof req.query.remoteJid === "string" ? req.query.remoteJid : null;
+
+    let nextCursor = "0";
+    let ids = [];
+    let source = "set-index";
+
+    // Se remoteJid for fornecido, buscamos mensagens daquele chat específico usando ZSET
+    if (remoteJid) {
+      // 🔥 buscar mensagens de um chat específico (ZSET)
+      const start = parseInt(cursor, 10) || 0;
+      const end = start + count - 1;
+
+      ids = await BaileysService.redis.client.zrevrange(
+        `chat:${sessionId}:${remoteJid}:messages`,
+        start,
+        end,
+      );
+
+      nextCursor = ids.length === count ? String(end + 1) : "0";
+      source = "chat-zset";
+    } else {
+      const indexKey = `messages:${sessionId}`;
+      const hasIndex =
+        (await BaileysService.redis.client.exists(indexKey)) === 1;
+
+      if (hasIndex) {
+        const [newCursor, members] = await BaileysService.redis.client.sscan(
+          indexKey,
+          cursor,
+          "COUNT",
+          count,
+        );
+        nextCursor = newCursor;
+        ids = Array.isArray(members) ? members : [];
+      } else {
+        // Fallback legado sem índice: scan incremental por padrão de chave
+        const [newCursor, keys] = await BaileysService.redis.client.scan(
+          cursor,
+          "MATCH",
+          `message:${sessionId}*`,
+          "COUNT",
+          count,
+        );
+
+        nextCursor = newCursor;
+        source = "key-scan";
+        ids = (Array.isArray(keys) ? keys : [])
+          .map((key) => {
+            if (key.startsWith(`message:${sessionId}_`)) {
+              return key.replace(`message:${sessionId}_`, "");
+            }
+            if (key.startsWith(`message:${sessionId}:`)) {
+              return key.replace(`message:${sessionId}:`, "");
+            }
+            return "";
+          })
+          .filter(Boolean);
+      }
+    }
+
+    ids = [...new Set(ids)];
+
+    const messages = await Promise.all(
+      ids.map((id) => BaileysService.redis.get(`message:${sessionId}_${id}`)),
+    );
+
+    const validMessages = [];
+
+    for (const m of messages) {
+      if (!m) continue;
+
+      try {
+        validMessages.push(m);
+      } catch (e) {
+        console.error("Erro ao parsear mensagem:", e);
+      }
+    }
 
     res.json({
       success: true,
-      data: {
-        chats,
-        total: chats.length,
-      },
+      cursor,
+      nextCursor,
+      hasMore: nextCursor !== "0",
+      source,
+      total: ids.length,
+      messages: validMessages,
     });
   } catch (error) {
     logger.error("Erro ao obter chats:", error);
     res.status(500).json({
       success: false,
       message: "Erro interno do servidor",
-    });
-  }
-});
-
-router.get("/queue/status", authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers["apikey"];
-
-    const queueStatus = MessageQueueService.getQueueStatus(sessionId);
-
-    res.json({
-      success: true,
-      data: queueStatus,
-    });
-  } catch (error) {
-    logger.error("Erro ao obter status da fila:", error);
-    res.status(500).json({
-      success: false,
-      message: "Erro interno do servidor",
-    });
-  }
-});
-
-router.post("/queue/clear", authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers["apikey"];
-
-    MessageQueueService.clearQueue(sessionId);
-
-    res.json({
-      success: true,
-      message: "Fila de mensagens limpa com sucesso",
-    });
-  } catch (error) {
-    logger.error("Erro ao limpar fila:", error);
-    res.status(500).json({
-      success: false,
-      message: "Erro interno do servidor",
+      error: error.message,
     });
   }
 });

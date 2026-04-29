@@ -1,8 +1,13 @@
-import axios from 'axios';
-import logger from '../utils/logger.js';
+import axios from 'axios'
+import logger from '../utils/logger.js'
 
 class WebhookService {
   async sendWebhook(url, data, retries = 3) {
+    if (!url) {
+      logger.error('URL do webhook inválida')
+      return false
+    }
+
     for (let i = 0; i < retries; i++) {
       try {
         const response = await axios.post(url, data, {
@@ -10,28 +15,47 @@ class WebhookService {
           headers: {
             'Content-Type': 'application/json',
             'User-Agent': 'flash-Multi-Session-Webhook/1.0'
-          }
-        });
+          },
+          validateStatus: () => true // 🔥 evita throw automático
+        })
 
         if (response.status >= 200 && response.status < 300) {
-          logger.info(`Webhook enviado com sucesso para ${url}`);
-          return true;
+          logger.info(`✅ Webhook enviado: ${url}`)
+          return true
         }
+
+        // ❌ NÃO tentar retry em erro do cliente
+        if (response.status >= 400 && response.status < 500) {
+          logger.error(`❌ Erro cliente ${response.status} - ${url}`)
+          return false
+        }
+
+        logger.warn(`⚠️ Tentativa ${i + 1} falhou (${response.status})`)
+
       } catch (error) {
-        logger.error(`Tentativa ${i + 1} - Erro ao enviar webhook para ${url}:`, error.message);
-        
-        if (i === retries - 1) {
-          logger.error(`Falha ao enviar webhook após ${retries} tentativas`);
-          return false;
+        const status = error.response?.status
+
+        logger.error(`❌ Tentativa ${i + 1} - erro webhook:`, {
+          url,
+          status,
+          message: error.message
+        })
+
+        // ❌ erro 4xx não deve retry
+        if (status >= 400 && status < 500) {
+          return false
         }
-        
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+
+        // timeout ou rede → pode tentar de novo
       }
+
+      // ⏱ backoff progressivo
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)))
     }
-    
-    return false;
+
+    logger.error(`💥 Falha total ao enviar webhook: ${url}`)
+    return false
   }
 }
 
-export default WebhookService;
+export default WebhookService

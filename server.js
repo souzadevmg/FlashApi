@@ -163,10 +163,6 @@ async function startServer() {
       logger.info('   💾 Store persistente MySQL para mensagens, contatos, chats e grupos');
       logger.info('   🔄 Reconexão automática e health check');
 
-      // Cleanup sessions periodically
-      setInterval(() => {
-        BaileysService.cleanupSessions();
-      }, 5 * 60 * 1000); // Every 5 minutes
     });
   } catch (error) {
     logger.error(error);
@@ -178,7 +174,6 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM recebido, encerrando servidor...');
-  BaileysService.stopHealthCheck();
   server.close(() => {
     logger.info('Servidor encerrado');
     process.exit(0);

@@ -72,8 +72,22 @@ async function modifyTable() {
       await db.execute("ALTER TABLE proxy ADD COLUMN active BOOLEAN");
     }
   } catch (error) {}
+
+  try {
+    await db.execute("DROP TABLE IF EXISTS baileys_sessions;");
+  } catch (error) {}
 }
 
-modifyTable();
+let initialized = false;
+
+export async function initDatabase() {
+  if (initialized) return;
+
+  initialized = true;
+
+  await modifyTable();
+}
+
+initDatabase()
 
 export default modifyTable;

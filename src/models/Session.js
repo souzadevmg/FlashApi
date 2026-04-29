@@ -86,20 +86,15 @@ class Session {
     if (sessaodelete) {
       await db.execute(`DELETE FROM sessao WHERE apikey = ?`, [id]);
     }
-    try {
-      const dir = path.join(__dirname, "..", "..", "sessions", id);
-      await fs.rm(dir, {
-        recursive: true,
-        force: true,
-      });
-    } catch (err) {
-      console.error("Erro ao remover sessão:", err);
-    }
 
     await db.execute(`DELETE FROM chats WHERE sessao_id = ?`, [id]);
     await db.execute(`DELETE FROM contatos WHERE sessao_id = ?`, [id]);
     await db.execute(`DELETE FROM grupos WHERE sessao_id = ?`, [id]);
     await db.execute(`DELETE FROM mensagens WHERE sessao_id = ?`, [id]);
+    await db.execute(`DELETE FROM proxy WHERE sessao_id = ?`, [id]);
+    await db.execute(`DELETE FROM proxy WHERE sessao_id = ?`, [id]);
+    await db.execute(`DELETE FROM wa_sessions WHERE sessao_id = ?`, [id]);
+    await db.execute(`DELETE FROM wa_session_keys WHERE sessao_id = ?`, [id]);
     return true;
   }
 

@@ -1,60 +1,55 @@
-import express from 'express';
-import authenticateApiKey from '../middleware/auth.js';
-import BaileysService from '../services/BaileysService.js';
-import Store from '../models/Store.js';
-import logger from '../utils/logger.js';
+import express from "express";
+import authenticateApiKey from "../middleware/auth.js";
+import BaileysService from "../services/BaileysService.js";
+import Store from "../models/Store.js";
+import logger from "../utils/logger.js";
 
 const router = express.Router();
 
-router.get('/list', authenticateApiKey, async (req, res) => {
+router.get("/list", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
-    let groups = [];
-    const gruporedis = await Store.getGroups(sessionId);
-    if (gruporedis && gruporedis.length > 0) {
-      groups = gruporedis
-    } 
+    const sock = BaileysService.getSocket(sessionId);
+    const groups = await sock.groupFetchAllParticipating();
+    const arr = Object.values(groups);
 
     return res.json({
       success: true,
-      data: {
-        groups,
-        total: groups.length
-      }
+      total: arr.length,
+      groups: arr,
     });
-
   } catch (error) {
-    logger.error('Erro ao listar grupos:', error);
+    logger.error("Erro ao listar grupos:", error);
     res.status(500).json({
       success: false,
-      message: 'Erro interno do servidor'
+      message: "Erro interno do servidor",
     });
   }
 });
 
-router.post('/info', authenticateApiKey, async (req, res) => {
+router.post("/info", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid } = req.body;
 
     if (!groupJid) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid é obrigatório'
+        message: "groupJid é obrigatório",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -62,214 +57,228 @@ router.post('/info', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      data: groupInfo
+      data: groupInfo,
     });
-
   } catch (error) {
-    logger.error('Erro ao obter informações do grupo:', error);
+    logger.error("Erro ao obter informações do grupo:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/create', authenticateApiKey, async (req, res) => {
+router.post("/create", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { subject, participants } = req.body;
 
     if (!subject || !participants || !Array.isArray(participants)) {
       return res.status(400).json({
         success: false,
-        message: 'subject e participants são obrigatórios'
+        message: "subject e participants são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
-    const result = await BaileysService.createGroup(sessionId, subject, participants);
+    const result = await BaileysService.createGroup(
+      sessionId,
+      subject,
+      participants,
+    );
 
     res.json({
       success: true,
-      message: 'Grupo criado com sucesso',
-      data: result
+      message: "Grupo criado com sucesso",
+      data: result,
     });
-
   } catch (error) {
-    logger.error('Erro ao criar grupo:', error);
+    logger.error("Erro ao criar grupo:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/add-participant', authenticateApiKey, async (req, res) => {
+router.post("/add-participant", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
 
     if (!groupJid || !participants || !Array.isArray(participants)) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e participants são obrigatórios'
+        message: "groupJid e participants são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
-    const result = await BaileysService.addParticipants(sessionId, groupJid, participants);
+    const result = await BaileysService.addParticipants(
+      sessionId,
+      groupJid,
+      participants,
+    );
 
     res.json({
       success: true,
-      message: 'Participantes adicionados com sucesso',
-      data: result
+      message: "Participantes adicionados com sucesso",
+      data: result,
     });
-
   } catch (error) {
-    logger.error('Erro ao adicionar participantes:', error);
+    logger.error("Erro ao adicionar participantes:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/remove-participant', authenticateApiKey, async (req, res) => {
+router.post("/remove-participant", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
 
     if (!groupJid || !participants || !Array.isArray(participants)) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e participants são obrigatórios'
+        message: "groupJid e participants são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
-    const result = await BaileysService.removeParticipants(sessionId, groupJid, participants);
+    const result = await BaileysService.removeParticipants(
+      sessionId,
+      groupJid,
+      participants,
+    );
 
     res.json({
       success: true,
-      message: 'Participantes removidos com sucesso',
-      data: result
+      message: "Participantes removidos com sucesso",
+      data: result,
     });
-
   } catch (error) {
-    logger.error('Erro ao remover participantes:', error);
+    logger.error("Erro ao remover participantes:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/promote', authenticateApiKey, async (req, res) => {
+router.post("/promote", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
 
     if (!groupJid || !participants || !Array.isArray(participants)) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e participants são obrigatórios'
+        message: "groupJid e participants são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
-    const result = await BaileysService.promoteParticipants(sessionId, groupJid, participants);
+    const result = await BaileysService.promoteParticipants(
+      sessionId,
+      groupJid,
+      participants,
+    );
 
     res.json({
       success: true,
-      message: 'Participantes promovidos com sucesso',
-      data: result
+      message: "Participantes promovidos com sucesso",
+      data: result,
     });
-
   } catch (error) {
-    logger.error('Erro ao promover participantes:', error);
+    logger.error("Erro ao promover participantes:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/demote', authenticateApiKey, async (req, res) => {
+router.post("/demote", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
 
     if (!groupJid || !participants || !Array.isArray(participants)) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e participants são obrigatórios'
+        message: "groupJid e participants são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
-    const result = await BaileysService.demoteParticipants(sessionId, groupJid, participants);
+    const result = await BaileysService.demoteParticipants(
+      sessionId,
+      groupJid,
+      participants,
+    );
 
     res.json({
       success: true,
-      message: 'Participantes rebaixados com sucesso',
-      data: result
+      message: "Participantes rebaixados com sucesso",
+      data: result,
     });
-
   } catch (error) {
-    logger.error('Erro ao rebaixar participantes:', error);
+    logger.error("Erro ao rebaixar participantes:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/leave', authenticateApiKey, async (req, res) => {
+router.post("/leave", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid } = req.body;
 
     if (!groupJid) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid é obrigatório'
+        message: "groupJid é obrigatório",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -277,35 +286,34 @@ router.post('/leave', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Saiu do grupo com sucesso',
-      data: { groupJid }
+      message: "Saiu do grupo com sucesso",
+      data: { groupJid },
     });
-
   } catch (error) {
-    logger.error('Erro ao sair do grupo:', error);
+    logger.error("Erro ao sair do grupo:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/update-subject', authenticateApiKey, async (req, res) => {
+router.post("/update-subject", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, subject } = req.body;
 
     if (!groupJid || !subject) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e subject são obrigatórios'
+        message: "groupJid e subject são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -313,35 +321,34 @@ router.post('/update-subject', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Nome do grupo atualizado com sucesso',
-      data: { groupJid, subject }
+      message: "Nome do grupo atualizado com sucesso",
+      data: { groupJid, subject },
     });
-
   } catch (error) {
-    logger.error('Erro ao atualizar nome do grupo:', error);
+    logger.error("Erro ao atualizar nome do grupo:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/up-setting', authenticateApiKey, async (req, res) => {
+router.post("/up-setting", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, subject } = req.body;
 
     if (!groupJid || !subject) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e subject são obrigatórios'
+        message: "groupJid e subject são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -349,52 +356,53 @@ router.post('/up-setting', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Grupo foi fechado com sucesso',
-      data: { groupJid, subject }
+      message: "Grupo foi fechado com sucesso",
+      data: { groupJid, subject },
     });
-
   } catch (error) {
-    logger.error('Erro ao Frecar grupos:', error);
+    logger.error("Erro ao Frecar grupos:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-
-router.post('/update-description', authenticateApiKey, async (req, res) => {
+router.post("/update-description", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { groupJid, description } = req.body;
 
     if (!groupJid || !description) {
       return res.status(400).json({
         success: false,
-        message: 'groupJid e description são obrigatórios'
+        message: "groupJid e description são obrigatórios",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
-    await BaileysService.updateGroupDescription(sessionId, groupJid, description);
+    await BaileysService.updateGroupDescription(
+      sessionId,
+      groupJid,
+      description,
+    );
 
     res.json({
       success: true,
-      message: 'Descrição do grupo atualizada com sucesso',
-      data: { groupJid, description }
+      message: "Descrição do grupo atualizada com sucesso",
+      data: { groupJid, description },
     });
-
   } catch (error) {
-    logger.error('Erro ao atualizar descrição do grupo:', error);
+    logger.error("Erro ao atualizar descrição do grupo:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });

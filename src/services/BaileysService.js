@@ -37,6 +37,7 @@ import {
   listSessions,
   makePostgresAuthState,
 } from "./postgresSessao.js";
+import { pipeline } from "stream";
 
 class BaileysService {
   constructor() {
@@ -44,36 +45,34 @@ class BaileysService {
     this.healthCheckInterval = null;
     this.keepAliveInterval = null;
     this.sessionMonitors = new Map();
-
-    this.BIZ_NATIVE_FLOW_NODE = [
-      {
-        tag: "biz",
-        attrs: {},
-        content: [
-          {
-            tag: "interactive",
-            attrs: { type: "native_flow", v: "1" },
-            content: [{ tag: "native_flow", attrs: { v: "9", name: "mixed" } }],
-          },
-        ],
-      },
-    ];
-
-    this.BIZ_NATIVE_LIST = [
-      {
-        tag: "biz",
-        attrs: {},
-        content: [
-          {
-            tag: "list",
-            attrs: { type: "product_list", v: "2" },
-          },
-        ],
-      },
-    ];
   }
 
   static redis = redis;
+  static BIZ_NATIVE_LIST = [
+    {
+      tag: "biz",
+      attrs: {},
+      content: [
+        {
+          tag: "list",
+          attrs: { type: "product_list", v: "2" },
+        },
+      ],
+    },
+  ];
+  static BIZ_NATIVE_FLOW_NODE = [
+    {
+      tag: "biz",
+      attrs: {},
+      content: [
+        {
+          tag: "interactive",
+          attrs: { type: "native_flow", v: "1" },
+          content: [{ tag: "native_flow", attrs: { v: "9", name: "mixed" } }],
+        },
+      ],
+    },
+  ];
   static db = new Database();
   static sockets = new Map();
   static msgRetryCounterCache = new NodeCache({
@@ -94,9 +93,6 @@ class BaileysService {
 
     // Restaurar sessões ativas do banco
     await this.restoreActiveSessions();
-
-    // Iniciar health check
-    this.startHealthCheck();
 
     logger.info("✅ BaileysService inicializado");
   }
@@ -123,11 +119,14 @@ class BaileysService {
   static async createSession(sessionId, phoneNumber = null, type = "qrcode") {
     try {
       const getsessao = await Session.findById(sessionId);
-      if (!getsessao)
+      if (!getsessao) {
         return {
           success: false,
           message: "Sessão não encontrada no banco de dados",
         };
+      }
+
+      this.redis.set(`sessao:${sessionId}`, getsessao);
       if (getsessao) {
         if (getsessao.status == "connected") {
           logger.warn(
@@ -181,28 +180,34 @@ class BaileysService {
           keys: state.keys,
         },
         generateHighQualityLinkPreview: true,
-        syncFullHistory: configenv.sync_full_history === "true",
-        markOnlineOnConnect: true,
+        syncFullHistory: configenv.sync_sessions,
+        markOnlineOnConnect: false,
         fireInitQueries: true,
         emitOwnEvents: true,
         msgRetryCounterCache: this.msgRetryCounterCache,
-        defaultQueryTimeoutMs: 60000,
-        retryRequestDelayMs: 500,
+        defaultQueryTimeoutMs: 90000,
+        retryRequestDelayMs: 1000,
         maxMsgRetryCount: 3,
-        fireInitQueries: true,
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 15000,
+        keepAliveIntervalMs: 10000,
         qrTimeout: 45000,
+        //  patchMessageBeforeSending(message) {
+        //   console.log("Mensagem antes de enviar:", message);
+        //  },
         // cachedGroupMetadata: async (jid) => {
         //   return this.groupCache.get(`${sessionId}_${jid}`)
         // },
         getMessage,
         shouldIgnoreJid: (jid) => {
           if (!jid) return true;
-          if (jid.includes("@broadcast") || jid.includes("@newsletter")) {
+          if (jid.endsWith("@g.us") && getsessao && getsessao.ignorar_grupos) {
             return true;
           }
-          return false;
+          return (
+            jid.endsWith("@broadcast") ||
+            jid.endsWith("@newsletter") ||
+            jid === "status@broadcast"
+          );
         },
       };
 
@@ -214,7 +219,9 @@ class BaileysService {
             `http://${exists.username}:${exists.password}@${exists.host}:${exists.port}`,
           );
           configs.agent = agent;
-          logger.info(`Instacia ${sessionId} 🛰️ Usando proxy`);
+          logger.info(
+            `Instacia ${sessionId} 🛰️ Usando proxy ${exists.host}:${exists.port}`,
+          );
         } catch (err) {
           logger.error("❌ Erro ao criar ProxyAgent:", err);
           configs.agent = undefined; // fallback sem proxy
@@ -230,7 +237,9 @@ class BaileysService {
           const agent = new HttpsProxyAgent(
             `${configenv.proxy_protocol}://${configenv.proxy_usename}:${configenv.proxy_password}@${configenv.proxy_host}:${configenv.proxy_port}`,
           );
-          logger.info(`Instacia ${sessionId} 🛰️ Usando proxy`);
+          logger.info(
+            `Instacia ${sessionId} 🛰️ Usando proxy ${configenv.proxy_host}:${configenv.proxy_port}`,
+          );
           configs.agent = agent;
         } catch (err) {
           logger.error("❌ Erro ao criar ProxyAgent:", err);
@@ -239,30 +248,12 @@ class BaileysService {
       }
 
       const sock = makeWASocket(configs);
-
       this.sockets.set(sessionId, sock);
-
-      const sessionData = {
-        status: "connecting",
-        phoneNumber: number,
-        lastConnected: null,
-        ignorar_grupos: getsessao.ignorar_grupos,
-        msg_rejectcalls: getsessao.msg_rejectcalls,
-        autoRead: getsessao.leitura_automatica,
-        rejeitar_ligacoes: getsessao.rejeitar_ligacoes,
-        webhook_status: getsessao.webhook_status === 1,
-        webhook_url: getsessao.webhook_url,
-        events: getsessao.events,
-        url_imagem: null,
-        reconect: true,
-      };
-
-      await this.redis.set(`sessao:${sessionId}`, sessionData);
 
       // Event handlers
       this.EventsGet(sock, sessionId, state.saveCreds);
 
-      return { success: true, message: sessionData };
+      return { success: true, message: getsessao };
     } catch (error) {
       logger.error(`❌ Erro ao criar sessão ${sessionId}:`, error);
       throw error;
@@ -300,150 +291,126 @@ class BaileysService {
         await this.update_mensagem(sessionId, updates);
       });
 
-      // Chats - com throttling
-      sock.ev.on("chats.set", async ({ chats }) => {
-        await this.emitEvent(sessionId, "chats_set", chats);
-        await this.chats_set(async () => {
-          try {
-            logger.info(
-              `📂 Evento chats.set: ${chats.length} chats recebidos para sessão ${sessionId}`,
-            );
-
-            // Processar em lotes para evitar sobrecarga
-            const batchSize = 50;
-            for (let i = 0; i < chats.length; i += batchSize) {
-              const batch = chats.slice(i, i + batchSize);
-              for (const chat of batch) {
-                if (!chat.id) continue;
-                await Store.saveChat(sessionId, chat);
-              }
-              // Pequena pausa entre lotes
-              await this.delay(100);
-            }
-
-            logger.info(
-              `💾 ${chats.length} chats salvos no MySQL para sessão ${sessionId}`,
-            );
-          } catch (error) {
-            logger.error(`Erro ao salvar chats no MySQL:`, error);
-          }
-        });
-      });
-
       sock.ev.on("chats.update", async (updates) => {
-        await this.emitEvent(sessionId, "chats_update", updates);
-        await this.chats_set(async () => {
-          try {
-            for (const update of updates) {
-              if (!update.id) continue;
-              const key = `chats:${sessionId}_${update.id}`;
-              const getchat = await this.redis.exists(key);
-              if (!getchat) {
-                logger.info(
-                  `📂 Atualizando ${updates.length} chats para sessão ${sessionId}`,
-                );
-                await this.redis.set(key, update);
-                await Store.saveChat(sessionId, update);
-                if (update.id.endsWith("@s.whatsapp.net")) {
-                  const message = update.messages[0].message;
-                  update.id = message.key.id;
-                  update.name = message.pushName || "";
-                  update.notify = message.pushName || "";
-                  update.verifiedName = message.pushName || "";
-                  try {
-                    const perfil = await sock.profilePictureUrl(update.id);
-                    update.url_imagem = perfil;
-                  } catch (error) {}
-                  await Store.saveContact(sessionId, update);
-                }
+        try {
+          this.emitEvent(sessionId, "chats_update", updates).catch((err) =>
+            logger.error("Erro emitEvent:", err),
+          );
+
+          const pipeline = BaileysService.redis.client.pipeline();
+          for (const update of updates) {
+            if (!update.id) continue;
+
+            for (const msg of update.messages || []) {
+              if (
+                msg?.message?.key?.addressingMode &&
+                msg.message.key.addressingMode === "lid" &&
+                msg.message.key.remoteJidAlt
+              ) {
+                const jid = msg.message.key.remoteJidAlt;
+                const lid = msg.message.key.remoteJid;
+                msg.message.key.remoteJidAlt = lid;
+                msg.message.key.remoteJid = jid;
+                update.id = msg.message.key.remoteJid;
               }
             }
-          } catch (error) {
-            logger.error(`Erro ao atualizar chats:`, error);
-          }
-        });
-      });
-
-      // Contacts - com throttling
-      sock.ev.on("contacts.set", async ({ contacts = [] } = {}) => {
-        await this.emitEvent(sessionId, "contacts_set", contacts);
-        await this.chats_set(async () => {
-          try {
-            logger.info(
-              `👥 Evento contacts.set: ${contacts.length} contatos recebidos para sessão ${sessionId}`,
-            );
-
-            // Processar em lotes
-            const batchSize = 100;
-            for (let i = 0; i < contacts.length; i += batchSize) {
-              const batch = contacts.slice(i, i + batchSize);
-              for (const contact of batch) {
-                if (!contact.id) continue;
-                const key = `contatos:${sessionId}_${contact.id}`;
-                const contatoExiste = this.redis.exists(key);
-                if (!contatoExiste) {
-                  this.redis.set(key, contact);
-                  const result = await sock.profilePictureUrl(contact.id);
-                  contact.url_imagem = result;
-                  if (!contact.id.endsWith("@s.whatsapp.net")) continue;
-                  await Store.saveContact(sessionId, contact);
-                }
-              }
-              await this.delay(50);
+            const tempDelete = configenv.delete_message
+              ? configenv.temp_delet_message
+              : null;
+            if (tempDelete) {
+              pipeline.set(
+                `chat:${sessionId}:${update.id}`,
+                JSON.stringify(update),
+                "EX",
+                tempDelete,
+              );
+            } else {
+              pipeline.set(
+                `chat:${sessionId}:${update.id}`,
+                JSON.stringify(update),
+              );
             }
-
-            logger.info(
-              `💾 ${contacts.length} contatos salvos no MySQL para sessão ${sessionId}`,
-            );
-          } catch (error) {
-            logger.error(`Erro ao salvar contatos no MySQL:`, error);
           }
-        });
+          await pipeline.exec();
+        } catch (error) {
+          logger.error("Erro ao atualizar chats:", error);
+        }
       });
 
       sock.ev.on("contacts.update", async (updates) => {
         await this.emitEvent(sessionId, "contacts_update", updates);
-        await this.chats_set(async () => {
-          try {
-            for (const update of updates) {
-              if (!update?.id || update.id.includes("@lid")) continue;
-              const key = `contatos:${sessionId}_${update.id}`;
-              const getctt = await this.redis.exists(key);
-              if (!getctt) {
-                logger.info(
-                  `👥 Atualizando ${updates.length} contatos para sessão ${sessionId}`,
-                );
-                await this.redis.set(key, update);
+        let getctt = [];
+
+        try {
+          const pipeline = BaileysService.redis.client.pipeline();
+          for (const update of updates) {
+            if (!update?.id) continue;
+
+            update.name = update.notify || "";
+            update.url_imagem = null;
+            const key = `contatos:${sessionId}:${update.id}`;
+
+            // Verificar se é um contato com lid e atualizar mapeamento
+            if (update.id.includes("@lid")) {
+              const id = update.id.split("@")[0];
+              const getreverse = await this.redis.get(
+                `lid-mapping:${sessionId}:${id}`,
+              );
+
+              if (getreverse) {
+                let numero = getreverse;
+                numero = numero.replace(/"/g, "").trim();
+                update.id = `${numero}@s.whatsapp.net`;
+
                 try {
                   const url = await sock.profilePictureUrl(update.id);
                   update.url_imagem = url;
                 } catch (error) {}
-                if (update.id.endsWith("@s.whatsapp.net")) {
-                  await Store.saveContact(sessionId, update);
-                }
+                pipeline.set(
+                  `contatos:${sessionId}:${update.id}`,
+                  JSON.stringify(update),
+                );
               }
             }
-          } catch (error) {
-            logger.error(`Erro ao atualizar contatos:`, error);
+
+            // Atualizar contato normalmente
+            if (update.id.includes("@s.whatsapp.net")) {
+              try {
+                const url = await sock.profilePictureUrl(update.id);
+                update.url_imagem = url;
+              } catch (error) {}
+              pipeline.set(
+                `contatos:${sessionId}:${update.id}`,
+                JSON.stringify(update),
+              );
+            }
           }
-        });
+          pipeline
+            .exec()
+            .catch((err) =>
+              logger.error("Erro ao atualizar contatos no Redis:", err),
+            );
+        } catch (error) {}
       });
 
       sock.ev.on("contacts.upsert", async (contacts) => {
+        logger.info(
+          `👥 Atualizando ${contacts.length} contatos para sessão ${sessionId}`,
+        );
+        const pipeline = BaileysService.redis.client.pipeline();
         for (const contact of contacts) {
-          const key = `contatos:${sessionId}_${contact.id}`;
-          const getctt = await this.redis.exists(key);
+          if (!contact?.id) continue;
+          contact.name = contact.notify || "";
+          const key = `contatos:${sessionId}:${contact.id}`;
+          pipeline.set(key, JSON.stringify(contact));
+          const getctt = await this.redis.get(key);
           if (!getctt) {
-            logger.info(
-              `👥 Atualizando ${contacts.length} contatos para sessão ${sessionId}`,
-            );
-            await this.redis.set(key, contact);
             try {
               const url = await sock.profilePictureUrl(contact.id);
               contact.url_imagem = url;
             } catch (error) {}
             if (contact.id.endsWith("@s.whatsapp.net")) {
-              await Store.saveContact(sessionId, contact);
+              await this.redis.set(key, contact);
             }
           }
         }
@@ -464,7 +431,12 @@ class BaileysService {
 
       // Presence updates
       sock.ev.on("presence.update", async ({ id, presences }) => {
-        await this.handlePresenceUpdate(sessionId, id, presences);
+        try {
+          await this.emitEvent(sessionId, "presence_update", {
+            jid: id,
+            presences,
+          });
+        } catch (error) {}
       });
 
       // Call events
@@ -474,59 +446,334 @@ class BaileysService {
       });
 
       // Histórico - SALVAMENTO DIRETO POSTGRESQL (otimizado para grandes volumes)
-      sock.ev.on("messaging-history.set", async (dados) => {
+      sock.ev.on("messaging-history.set", async (data) => {
         try {
-          this.processHistoryBatchDirectly(sessionId, dados);
+          const batchSize = 100;
+          const getsessao = await this.redis.get(`sessao:${sessionId}`);
+
+          // ✅ Processar mensagens em lotes
+          if (data.messages?.length > 0) {
+            logger.info(
+              `📥 messaging-history.set: ${data.messages.length} mensagens para processar da sessão ${sessionId}`,
+            );
+            const pipeline = this.redis.client.pipeline();
+            for (let i = 0; i < data.messages.length; i += batchSize) {
+              const batch = data.messages.slice(i, i + batchSize);
+
+              for (const msg of batch) {
+                try {
+                  if (!msg?.key?.id) continue;
+
+                  if (
+                    msg?.messageStubType &&
+                    (msg.messageStubType ==
+                      proto.WebMessageInfo.StubType.E2E_ENCRYPTED ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType
+                          .BIZ_COEX_PRIVACY_TRANSITION ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.E2E_ENCRYPTED_NOW ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType
+                          .GROUP_PARTICIPANT_INVITE ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.GROUP_CREATE ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.GROUP_CHANGE_ICON ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType
+                          .GROUP_PARTICIPANT_REMOVE ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType
+                          .GROUP_CHANGE_DESCRIPTION ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.GROUP_PARTICIPANT_ADD ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.GROUP_PARTICIPANT_LEAVE ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.CIPHERTEXT ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType
+                          .INDIVIDUAL_CHANGE_NUMBER ||
+                      msg.messageStubType ==
+                        proto.WebMessageInfo.StubType.GROUP_CHANGE_SUBJECT)
+                  ) {
+                    continue;
+                  }
+
+                  let remoteJid = msg.key.remoteJid || "unknown";
+                  if (
+                    remoteJid.endsWith("@g.us") &&
+                    getsessao &&
+                    getsessao.ignorar_grupos
+                  ) {
+                    continue;
+                  }
+                  if (remoteJid.endsWith("@lid")) {
+                    const id = remoteJid.split("@")[0];
+                    const existingMapping = await this.redis.get(
+                      `lid-mapping:${sessionId}:${id}`,
+                    );
+                    if (existingMapping) {
+                      let numero = existingMapping;
+                      if (numero) {
+                        try {
+                          remoteJid = JSON.parse(numero) + "@s.whatsapp.net";
+                        } catch {
+                          remoteJid =
+                            numero.replace(/"/g, "").trim() + "@s.whatsapp.net";
+                        }
+                      }
+                    }
+                  }
+                  msg.key.remoteJid = remoteJid;
+                  const msgKey = `message:${sessionId}:${msg.key.id}`;
+                  const alreadyExists = await this.redis.exists(msgKey);
+                  if (alreadyExists) continue;
+
+                  const tempDelete = configenv.delete_message
+                    ? configenv.temp_delet_message
+                    : null;
+
+                  if (tempDelete) {
+                    pipeline.set(msgKey, JSON.stringify(msg), "EX", tempDelete);
+                  } else {
+                    pipeline.set(msgKey, JSON.stringify(msg));
+                  }
+                } catch (error) {
+                  logger.error(
+                    `Erro ao processar mensagem ${msg?.key?.id}:`,
+                    error,
+                  );
+                }
+              }
+            }
+            await pipeline.exec();
+
+            logger.info(
+              `💾 ${data.messages.length} mensagens sincronizadas para sessão ${sessionId}`,
+            );
+          }
+
+          // ✅ Processar chats em lotes
+          if (data.chats?.length > 0) {
+            logger.info(
+              `📥 messaging-history.set: ${data.chats.length} chats para processar da sessão ${sessionId}`,
+            );
+
+            const pipeline = this.redis.client.pipeline();
+            for (let i = 0; i < data.chats.length; i += batchSize) {
+              const batch = data.chats.slice(i, i + batchSize);
+
+              for (const chat of batch) {
+                try {
+                  if (
+                    !Array.isArray(chat.messages) ||
+                    chat.messages.length === 0
+                  ) {
+                    continue;
+                  }
+
+                  const validMessages = chat.messages.filter((msg) => {
+                    return !(
+                      msg?.message?.messageStubType &&
+                      (msg.message.messageStubType ==
+                        proto.WebMessageInfo.StubType.E2E_ENCRYPTED ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .BIZ_COEX_PRIVACY_TRANSITION ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.E2E_ENCRYPTED_NOW ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .GROUP_PARTICIPANT_INVITE ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.GROUP_CREATE ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.GROUP_CHANGE_ICON ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .GROUP_PARTICIPANT_REMOVE ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .GROUP_CHANGE_DESCRIPTION ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.GROUP_PARTICIPANT_ADD ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .GROUP_PARTICIPANT_LEAVE ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.CIPHERTEXT ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .INDIVIDUAL_CHANGE_NUMBER ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.GROUP_CHANGE_SUBJECT ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType
+                            .BIZ_PRIVACY_MODE_TO_FB ||
+                        msg.message.messageStubType ==
+                          proto.WebMessageInfo.StubType.BIZ_COEX_PRIVACY_INIT)
+                    );
+                  });
+
+                  if (validMessages.length === 0) continue;
+
+                  if (!chat?.id) continue;
+                  const tempDelete = configenv.delete_message
+                    ? configenv.temp_delet_message
+                    : null;
+                  if (tempDelete) {
+                    pipeline.set(
+                      `chat:${sessionId}:${chat.id}`,
+                      JSON.stringify(chat),
+                      "EX",
+                      tempDelete,
+                    );
+                  } else {
+                    pipeline.set(
+                      `chat:${sessionId}:${chat.id}`,
+                      JSON.stringify(chat),
+                    );
+                  }
+                } catch (error) {
+                  logger.error(`Erro ao processar chat ${chat?.id}:`, error);
+                }
+              }
+            }
+
+            await pipeline.exec();
+            logger.info(
+              `💾 ${data.chats.length} chats sincronizados para sessão ${sessionId}`,
+            );
+          }
+
+          // ✅ Processar contatos em lotes
+          if (data.contacts?.length > 0) {
+            logger.info(
+              `📥 messaging-history.set: ${data.contacts.length} contatos para processar da sessão ${sessionId}`,
+            );
+
+            const pipeline = this.redis.client.pipeline();
+            for (let i = 0; i < data.contacts.length; i += batchSize) {
+              const batch = data.contacts.slice(i, i + batchSize);
+
+              for (const contact of batch) {
+                try {
+                  if (contact.id.endsWith("@g.us")) {
+                    continue;
+                  }
+                  if (contact.id.endsWith("@lid")) {
+                    const id = contact.id.split("@")[0];
+                    const existingMapping = await this.redis.get(
+                      `lid-mapping:${sessionId}:${id}`,
+                    );
+                    if (existingMapping) {
+                      contact.id =
+                        JSON.stringify(existingMapping) + "@s.whatsapp.net";
+                    } else {
+                      continue;
+                    }
+                  }
+                  const key = `contatos:${sessionId}:${contact.id}`;
+                  contact.url_imagem = null;
+                  try {
+                    const url = await this.getSocket(
+                      sessionId,
+                    ).profilePictureUrl(contact.id);
+                    contact.url_imagem = url;
+                  } catch (error) {}
+                  contact.name = contact.notify || "";
+                  pipeline.set(key, JSON.stringify(contact));
+                } catch (error) {
+                  logger.error(
+                    `Erro ao processar contato ${contact?.id}:`,
+                    error,
+                  );
+                }
+              }
+
+              await pipeline.exec();
+              await this.delay(50);
+            }
+
+            logger.info(
+              `💾 ${data.contacts.length} contatos sincronizados para sessão ${sessionId}`,
+            );
+          }
+
+          await this.emitEvent(sessionId, "messaging_history_set", {
+            messages: data.messages?.length || 0,
+            chats: data.chats?.length || 0,
+            contacts: data.contacts?.length || 0,
+          });
+
+          logger.info(
+            `✅ Histórico de mensagens sincronizado para sessão ${sessionId}`,
+          );
         } catch (error) {
-          logger.error(`❌ Erro ao processar lote para ${sessionId}:`, error);
-          // Limpar estatísticas em caso de erro
-          await this.redis.del(`history_stats:${sessionId}`);
+          logger.error(
+            `Erro ao processar messaging-history.set na sessão ${sessionId}:`,
+            error,
+          );
         }
       });
+      
     } catch (error) {
       logger.error("Erro ao processar eventos:", error);
     }
   }
 
-  // Função para restaurar credenciais do banco para arquivos
-  static async restoreCredsFromDB(sessionId) {
-    try {
-      logger.info(
-        `🔄 Restaurando credenciais do banco para sessão: ${sessionId}`,
-      );
+  static async delRedisSessionData(sessionId) {
+    await BaileysService.redis.del(`sessao:${sessionId}`);
+    await this.deleteContatos(sessionId);
+    await this.deleteChats(sessionId);
+    await this.deleteMessageRedis(sessionId);
+    await this.deleteLid_Mapping(sessionId);
+  }
 
-      const session = await Session.findById(sessionId);
-      if (!session || !session.creds) {
-        logger.warn(
-          `❌ Nenhuma credencial encontrada no banco para sessão: ${sessionId}`,
-        );
-        return false;
-      }
-
-      const sessionDir = path.join(process.cwd(), "sessions", sessionId);
-      if (!fs.existsSync(sessionDir)) {
-        fs.mkdirSync(sessionDir, { recursive: true });
-      }
-      // Parsear credenciais do banco
-      const creds = session.creds;
-
-      // Salvar cada arquivo de credencial
-      for (const [fileName, content] of Object.entries(creds)) {
-        const filePath = path.join(sessionDir, fileName);
-        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
-      }
-
-      logger.info(
-        `✅ Credenciais restauradas do banco para arquivos: ${sessionId}`,
-      );
-      return true;
-    } catch (error) {
-      logger.error(
-        `❌ Erro ao restaurar credenciais do banco para ${sessionId}:`,
-        error,
-      );
-      return false;
+  // Deletar mensagens armazenadas no Redis para uma sessão
+  static async deleteMessageRedis(sessionId) {
+    const id2s = await BaileysService.redis.client.smembers(
+      `messages:${sessionId}`,
+    );
+    if (id2s && id2s.length > 0) {
+      const pipeline = BaileysService.redis.client.multi();
+      id2s.forEach((id2) => {
+        pipeline.del(`message:${sessionId}:${id2}`);
+      });
+      pipeline.del(`messages:${sessionId}`);
+      await pipeline.exec();
     }
+  }
+
+  // Deletar mapeamento de LID para uma sessão
+  static async deleteLid_Mapping(sessionId) {
+    const id2s = await BaileysService.redis.client.keys(
+      `lid-mapping:${sessionId}:*`,
+    );
+    id2s.forEach((key) => {
+      BaileysService.redis.del(key);
+    });
+  }
+
+  // Deletar chats armazenados no Redis para uma sessão
+  static async deleteChats(sessionId) {
+    const id2s = await BaileysService.redis.client.keys(`chat:${sessionId}:*`);
+
+    id2s.forEach((key) => {
+      BaileysService.redis.del(key);
+    });
+  }
+
+  // Deletar contatos armazenados no Redis para uma sessão
+  static async deleteContatos(sessionId) {
+    const id2s = await BaileysService.redis.client.keys(
+      `contatos:${sessionId}:*`,
+    );
+    id2s.forEach((key) => {
+      BaileysService.redis.del(key);
+    });
   }
 
   // Função para throttling de sincronização
@@ -540,7 +787,7 @@ class BaileysService {
   static async update_conexao(sessionId, update) {
     const { connection, lastDisconnect, qr } = update;
     const sock = this.getSocket(sessionId);
-    const sessionData = await this.redis.get(`sessao:${sessionId}`);
+    const sessionData = await Session.findById(sessionId);
     if (!sessionData || !sock) return;
 
     logger.info(`🔄 Conexão ${sessionId}: ${connection || "indefinido"}`);
@@ -572,10 +819,10 @@ class BaileysService {
         });
         let code = null;
 
-        if (sessionData.phoneNumber && sessionData.phoneNumber !== "") {
+        if (sessionData.numero && sessionData.numero !== "") {
           try {
             await this.delay(1000);
-            code = await sock.requestPairingCode(sessionData.phoneNumber);
+            code = await sock.requestPairingCode(sessionData.numero);
             logger.info(`Codigo de pareamento: ${code}`);
           } catch (error) {
             logger.error("erro ao gerar codigo de conexão");
@@ -583,7 +830,7 @@ class BaileysService {
         }
 
         const qrCodeDataURL = await QRCode.toDataURL(qr);
-        sessionData.qrCode = qrCodeDataURL;
+        sessionData.qrcode = qrCodeDataURL;
 
         await Session.update(sessionId, {
           status: "qr_ready",
@@ -604,24 +851,36 @@ class BaileysService {
       try {
         sessionData.status = "disconnected";
         await Session.update(sessionId, { status: "disconnected" });
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect =
           (lastDisconnect?.error && lastDisconnect.error.output?.statusCode) !==
           DisconnectReason.loggedOut;
 
         if (shouldReconnect) {
-          // Sistema de reconexão inteligente com backoff exponencial
           return await this.handleReconnection(sessionId, lastDisconnect);
+        }
+
+        if (statusCode === 515) {
+          // espera antes de reconectar (ANTI-BAN)
+          setTimeout(() => {
+            return this.handleReconnection(sessionId, lastDisconnect);
+          }, 5000);
+
+          return;
         }
 
         await this.emitEvent(sessionId, "session_disconnected", {
           reason: lastDisconnect?.error?.message,
         });
+
         logger.info(`🚪 Sessão ${sessionId} foi desconectada (logout)`);
+
         try {
           await deleteSession(BaileysService.db.pool, sessionId);
         } catch (err) {
           console.error("Erro ao remover sessão:", err);
         }
+
         await this.deleteSession(sessionId);
         return;
       } catch (error) {
@@ -631,7 +890,6 @@ class BaileysService {
 
     if (connection === "connecting") {
       sessionData.status = "connecting";
-
       await Session.update(sessionId, { status: "connecting" });
     }
 
@@ -641,353 +899,86 @@ class BaileysService {
         .tz(configenv.timeZone)
         .format("YYYY-MM-DD HH:mm:ss");
       await this.qrcodelimites.delete(`limiteqrcode:${sessionId}`);
-      await this.redis.del(`tentativas:${sessionId}`);
-      // Limpar tentativas de reconexão
       this.reconnectAttempts.delete(sessionId);
 
       const phoneNumber = sock?.user?.id?.split(":")[0];
       const sessaoDB = await Session.findById(sessionId);
 
       sessionData.phoneNumber = phoneNumber;
-      sessionData.ignorar_grupos = sessaoDB.ignorar_grupos;
-      sessionData.rejeitar_ligacoes = sessaoDB.rejeitar_ligacoes;
-      sessionData.msg_rejectcalls = sessaoDB.msg_rejectcalls;
-      sessionData.webhook_status = sessaoDB.webhook_status;
-      sessionData.webhook_url = sessaoDB.webhook_url;
-      sessionData.events = sessaoDB.events;
+
       await Session.update(sessionId, {
         status: "connected",
         phone_number: phoneNumber,
+        qr_code: null,
       });
 
       logger.info(
         `✅ Sessão ${sessionId} conectada com sucesso! Telefone: ${phoneNumber}`,
       );
-      // Sincronização mais conservadora após conexão
-      this.forceSyncAll(sessionId);
     }
 
     await this.redis.set(`sessao:${sessionId}`, sessionData);
   }
 
-  // Função para sincronização de contatos do Baileys v7
-  static async forceSyncContatos(sessionId) {
-    try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
-      const sock = this.getSocket(sessionId);
-
-      if (!sessionData || !sock) return;
-
-      logger.info(
-        `🔄 Forçando sincronização de contatos para sessão ${sessionId}...`,
-      );
-
-      // Método válido no Baileys v7: Sincronizar contatos via eventos
-      try {
-        // Força um evento de sincronização de contatos (se disponível)
-        if (typeof sock.ev?.emit === "function") {
-          logger.info(`📱 Tentando forçar evento de sincronização de contatos`);
-        }
-
-        // Alternativa: Extrair contatos dos chats existentes
-        const chats = await Store.getChats(sessionId);
-        let contactsFromChats = 0;
-
-        if (chats && chats.length > 0) {
-          logger.info(
-            `📂 Extraindo contatos de ${chats.length} chats existentes`,
-          );
-
-          for (const chat of chats) {
-          }
-
-          logger.info(
-            `📱 ${contactsFromChats} contatos extraídos e salvos dos chats`,
-          );
-        } else {
-          logger.warn(`📂 Nenhum chat encontrado para extrair contatos`);
-        }
-      } catch (syncError) {
-        logger.error(`Erro na sincronização de contatos:`, syncError.message);
-      }
-    } catch (error) {
-      logger.error(
-        `Erro ao forçar sincronização de contatos para ${sessionId}:`,
-        error,
-      );
-    }
-  }
-
-  // NOVA FUNÇÃO: Forçar sincronização completa
-  static async forceSyncAll(sessionId) {
-    try {
-      logger.info(
-        `🔄 Iniciando sincronização completa para sessão ${sessionId}...`,
-      );
-
-      // Executa sequencialmente para reduzir uso simultâneo de memória/IO
-      await this.forceSyncContatos(sessionId);
-      await this.delay(2000);
-      await this.forceSyncChats(sessionId);
-      await this.delay(2000);
-      const getsessao = await this.redis.get(`sessao:${sessionId}`);
-      if (getsessao && !getsessao.ignorar_grupos) {
-        await this.forceSyncGroups(sessionId);
-      }
-
-      logger.info(
-        `✅ Sincronização completa finalizada para sessão ${sessionId}`,
-      );
-    } catch (error) {
-      logger.error(`Erro na sincronização completa para ${sessionId}:`, error);
-    }
-  }
-
-  static async forceSyncChats(sessionId) {
-    try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
-      if (!sessionData || !sessionData.store) return;
-
-      const store = sessionData.store;
-      if (store.chats) {
-        const chats = Object.values(store.chats);
-        logger.info(`💬 Sincronizando ${chats.length} chats do store interno`);
-
-        // Processar em lotes
-        const batchSize = 25;
-        for (let i = 0; i < chats.length; i += batchSize) {
-          const batch = chats.slice(i, i + batchSize);
-          for (const chat of batch) {
-            await Store.saveChat(sessionId, chat);
-          }
-          await this.delay(200);
-        }
-      }
-    } catch (error) {
-      logger.error(`Erro ao sincronizar chats:`, error);
-    }
-  }
-
-  static async forceSyncGroups(sessionId) {
-    try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
-      const sock = this.getSocket(sessionId);
-      if (!sock) return;
-      // Obter grupos que o usuário participa
-      const groups = await sock.groupFetchAllParticipating();
-      const groupList = Object.values(groups);
-      logger.info(`👥 Sincronizando ${groupList.length} grupos`);
-      // Processar em lotes pequenos
-      const batchSize = 10;
-      for (let i = 0; i < groupList.length; i += batchSize) {
-        const batch = groupList.slice(i, i + batchSize);
-        for (const group of batch) {
-          await Store.saveGroup(sessionId, group);
-        }
-        await this.delay(300);
-      }
-    } catch (error) {
-      logger.error(`Erro ao sincronizar grupos:`, error);
-    }
-  }
-
-  // Função pública para sincronização manual
-  static async syncContactsManually(sessionId) {
-    await this.forceSyncContatos(sessionId);
-  }
-
-  static async relayInteractiveMessage(sock, jid, quoted, interactiveMessage) {
-    const userJid = sock?.user?.id;
-    if (!userJid) {
-      throw new Error("Socket ainda sem user.id; aguarde a conexao abrir.");
-    }
-
-    const payload = {
-      viewOnceMessage: {
-        message: {
-          interactiveMessage:
-            proto.Message.InteractiveMessage.create(interactiveMessage),
-        },
-      },
-    };
-
-    const msg = generateWAMessageFromContent(jid, payload, { userJid, quoted });
-    await sock.relayMessage(jid, msg.message, {
-      messageId: msg.key.id,
-      additionalNodes: this.BIZ_NATIVE_FLOW_NODE,
-    });
-  }
-
-  // ✅ SALVAMENTO DIRETO POSTGRESQL - PROCESSAMENTO EM TEMPO REAL
-
-  // Processar lote imediatamente no PostgreSQL (sem acumular na memória)
-  static async processHistoryBatchDirectly(
-    sessionId,
-    { chats, contacts, messages },
-  ) {
-    try {
-      // Processar de forma assíncrona para não bloquear outros lotes
-      setImmediate(async () => {
-        try {
-          let savedChats = 0,
-            savedContacts = 0,
-            savedMessages = 0;
-
-          // Salvar contatos do lote atual
-          for (const contact of contacts) {
-            try {
-              if (
-                !contact.id ||
-                !contact.id.includes("@s.whatsapp.net") ||
-                contact.id == "0"
-              )
-                continue;
-
-              const key = `contatos:${sessionId}_${contact.id}`;
-              const existingContact = await this.redis.exists(key);
-              if (!existingContact) {
-                await this.redis.set(key, contact, 3600); // Cache por 1 hora
-
-                // Tentar obter foto de perfil (com timeout rápido)
-                try {
-                  const sock = this.getSocket(sessionId);
-                  if (sock) {
-                    const profilePromise = sock.profilePictureUrl(contact.id);
-                    const timeoutPromise = new Promise((_, reject) =>
-                      setTimeout(() => reject(new Error("Timeout")), 2000),
-                    );
-                    const profileUrl = await Promise.race([
-                      profilePromise,
-                      timeoutPromise,
-                    ]);
-                    contact.url_imagem = profileUrl;
-                  }
-                } catch (profileError) {
-                  // Ignorar erros de foto de perfil
-                }
-                if (!contact.id.endsWith("@s.whatsapp.net")) continue;
-                await Store.saveContact(sessionId, contact);
-                savedContacts++;
-              } else {
-                if (!contact.id.endsWith("@s.whatsapp.net")) continue;
-                await Store.updateContact(sessionId, contact.id, contact);
-              }
-            } catch (error) {
-              // Continuar mesmo com erro em item individual
-            }
-          }
-
-          // Salvar mensagens do lote atual (limitado para performance)
-          const limitedMessages = messages.slice(-50); // Apenas últimas 50 mensagens por lote
-
-          for (const message of limitedMessages) {
-            try {
-              if (!message?.key?.id) continue;
-              const key = `message:${sessionId}_${message.key.id}`;
-              const existingMessage = await this.redis.exists(key);
-              if (!existingMessage) {
-                let temp_delete = null;
-                if (configenv.delete_message) {
-                  temp_delete = configenv.temp_delet_message;
-                }
-                this.redis.set(key, message, temp_delete);
-                await Store.saveMessage(sessionId, message);
-                savedMessages++;
-              }
-            } catch (error) {
-              // Continuar mesmo com erro em item individual
-            }
-          }
-
-          if (savedChats > 0 || savedContacts > 0 || savedMessages > 0) {
-            logger.info(
-              `💾 Lote salvo para ${sessionId}: ${savedChats} chats, ${savedContacts} contatos, ${savedMessages} mensagens`,
-            );
-          }
-        } catch (error) {
-          logger.error(
-            `❌ Erro ao processar lote direto para ${sessionId}:`,
-            error,
-          );
-        }
-      });
-    } catch (error) {
-      logger.error(
-        `❌ Erro ao agendar processamento para ${sessionId}:`,
-        error,
-      );
-    }
-  }
-
-  // Obter estatísticas das sincronizações no Redis
-  static async getHistoryAccumulatorStats() {
-    try {
-      const patterns = ["history_stats:*", "history_accumulator:*"]; // Compatibilidade
-      const stats = {
-        total: 0,
-        sessions: [],
-        directProcessing: true, // Indica que usa processamento direto
-      };
-
-      for (const pattern of patterns) {
-        let cursor = "0";
-
-        do {
-          const [nextCursor, keys] = await this.redis.client.scan(
-            cursor,
-            "MATCH",
-            pattern,
-            "COUNT",
-            200,
-          );
-          cursor = nextCursor;
-
-          for (const key of keys) {
-            stats.total += 1;
-            const sessionId = key.split(":")[1];
-            const data = await this.redis.get(key);
-
-            if (data) {
-              const sessionStats = {
-                sessionId,
-                batches: data.batches || 0,
-                totalChats: data.totalChats || data.chats?.length || 0,
-                totalContacts: data.totalContacts || data.contacts?.length || 0,
-                totalMessages: data.totalMessages || data.messages?.length || 0,
-                duration: data.startTime
-                  ? (Date.now() - data.startTime) / 1000
-                  : 0,
-                processing: pattern.includes("stats")
-                  ? "direct"
-                  : "accumulated",
-              };
-              stats.sessions.push(sessionStats);
-            }
-          }
-        } while (cursor !== "0");
-      }
-
-      return stats;
-    } catch (error) {
-      logger.error("❌ Erro ao obter estatísticas Redis:", error);
-      return { total: 0, sessions: [], directProcessing: true };
-    }
-  }
-
   static async msgrecebidas(sessionId, messages, type) {
     const getsessao = (await this.redis.get(`sessao:${sessionId}`)) || {};
     const sock = this.getSocket(sessionId);
+
+    const pipeline = this.redis.client.pipeline();
     for (const message of messages) {
       if (!message || !message.key) {
         continue;
       }
 
+      // Verificar se a mensagem é de um contato com LID e criar mapeamento se necessário
+      if (
+        (message?.key?.remoteJidAlt &&
+          message.key.remoteJidAlt.endsWith("@lid")) ||
+        (message?.key?.remoteJid && message.key.remoteJid.endsWith("@lid"))
+      ) {
+        const lidId =
+          message.key.remoteJidAlt && message.key.remoteJidAlt.endsWith("@lid")
+            ? message.key.remoteJidAlt.split("@")[0]
+            : message.key.remoteJid && message.key.remoteJid.endsWith("@lid")
+              ? message.key.remoteJid.split("@")[0]
+              : null;
+
+        if (lidId) {
+          const getLid_Mapping = await this.redis.get(
+            `lid-mapping:${sessionId}:${lidId}`,
+          );
+
+          if (!getLid_Mapping) {
+            const liJid =
+              message.key.remoteJidAlt &&
+              message.key.remoteJidAlt.endsWith("@s.whatsapp.net")
+                ? message.key.remoteJidAlt.split("@")[0]
+                : message.key.remoteJid &&
+                    message.key.remoteJid.endsWith("@s.whatsapp.net")
+                  ? message.key.remoteJid.split("@")[0]
+                  : null;
+
+            if (liJid) {
+              await this.redis.set(
+                `lid-mapping:${sessionId}:${lidId}`,
+                JSON.stringify(liJid),
+              );
+              logger.info(
+                `🔄 Mapeamento criado para LID ${lidId} -> ${liJid} na sessão ${sessionId}`,
+              );
+            }
+          }
+        }
+      }
+
+      // Se a mensagem tiver um remoteJid alternativo com LID, trocar os valores para usar o JID real
       if (message.key.addressingMode === "lid" && message.key.remoteJidAlt) {
         const jid = message.key.remoteJidAlt;
         const lid = message.key.remoteJid;
         message.key.remoteJidAlt = lid;
         message.key.remoteJid = jid;
       }
+
       // Validação básica da estrutura da mensagem
       if (!message || !message.key || !message.key.remoteJid) {
         logger.warn(`⚠️ Mensagem inválida recebida na sessão ${sessionId}:`, {
@@ -998,6 +989,7 @@ class BaileysService {
         continue;
       }
 
+      // Filtro de mensagens de grupos, com tratamento de erros para evitar falhas no processamento
       try {
         const remoteJid = message.key.remoteJid;
         if (
@@ -1011,106 +1003,19 @@ class BaileysService {
           `⚠️ Falha ao avaliar filtro de grupo na sessão ${sessionId}, continuando processamento.`,
         );
       }
-      let selectedOptions = null;
-      const pollMsgId1 = message?.message?.pollCreationMessageKey?.id || null;
-      const pollMsgId2 =
-        message?.message?.pollUpdateMessage?.pollCreationMessageKey?.id || null;
-      const pollMsgId = pollMsgId1 || pollMsgId2;
-      const pollId = message.key.id;
-
-      if (pollMsgId && message.key?.remoteJid) {
-        try {
-          // const [msg] = await Store.getMessagesvote(sessionId, message.key, pollMsgId)
-          const key = `message:${sessionId}_${pollMsgId}`;
-          const getmessage = await this.redis.exists(key);
-
-          if (!getmessage) {
-            logger.warn(
-              `⚠️ Mensagem de enquete não encontrada para ID ${pollMsgId} na sessão ${sessionId}`,
-            );
-            continue;
-          }
-          const msg = await this.redis.get(key);
-          const creatpollJid = msg.participant
-            ? msg.participant.split(":")[0] + "@s.whatsapp.net"
-            : sock.user.id.split(":")[0] + "@s.whatsapp.net";
-
-          let voterJid = message.key.remoteJid;
-          if (message.key.fromMe) {
-            voterJid = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-          } else {
-            if (message.key.addressingMode === "lid") {
-              voterJid = message.key.participantAlt || message.key.participant;
-            }
-          }
-
-          if (
-            sock?.user?.id?.split(":")[0] &&
-            msg.message?.messageContextInfo?.messageSecret
-          ) {
-            const decrypted = await decryptPollVote(
-              message?.message.pollUpdateMessage.vote,
-              {
-                pollCreatorJid: creatpollJid,
-                pollMsgId: pollMsgId,
-                pollEncKey: Buffer.from(
-                  msg.message.messageContextInfo.messageSecret,
-                  "base64",
-                ),
-                voterJid: voterJid,
-              },
-            );
-
-            for (const decryptedHash of decrypted.selectedOptions) {
-              const hashHex = Buffer.from(decryptedHash)
-                .toString("hex")
-                .toUpperCase();
-              for (const option of msg.message.pollCreationMessageV3?.options ||
-                []) {
-                const hash = Buffer.from(
-                  digestSync(
-                    "SHA-256",
-                    new TextEncoder().encode(
-                      Buffer.from(option.optionName).toString(),
-                    ),
-                  ),
-                )
-                  .toString("hex")
-                  .toUpperCase();
-                if (hashHex === hash) {
-                  selectedOptions = option.optionName;
-                  break;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          logger.error(
-            `❌ Erro ao processar atualização de enquete (sessionId: ${sessionId}):`,
-            {
-              error: error.message,
-              stack: error.stack,
-              messageKey: message?.key,
-              pollUpdate: message?.message ? "presente" : "ausente",
-              hasRemoteJid: !!message?.key?.remoteJid,
-            },
-          );
-        }
-      }
 
       try {
-        // Salvar mensagem no store
+        // Salvar mensagem no Redis
         if (!message?.key?.id) continue;
-        const key = `message:${sessionId}_${message.key.id}`;
-        const getmessage = await this.redis.exists(key);
+        const key = `message:${sessionId}:${message.key.id}`;
+        const tempDelete = configenv.delete_message
+          ? configenv.temp_delet_message
+          : null;
 
-        if (!getmessage) {
-          let temp_delete = null;
-          if (configenv.delete_message) {
-            temp_delete = configenv.temp_delet_message;
-          }
-          this.redis.set(key, message, temp_delete);
-          await Store.saveMessage(sessionId, message);
+        if (tempDelete) {
+          await pipeline.set(key, JSON.stringify(message), "EX", tempDelete);
+        } else {
+          await pipeline.set(key, JSON.stringify(message));
         }
 
         // Verificar configurações da sessão
@@ -1130,19 +1035,13 @@ class BaileysService {
           );
         }
 
-        if (selectedOptions) {
-          message.PollVote = selectedOptions;
-        }
-
-        let mensagemSend = message;
-        const decryptMidia = await this.baixarMediaComoBase64(message, sock);
-        if (decryptMidia) {
-          mensagemSend = decryptMidia;
-        }
-
         // Emit message event
+        const messageType = this.getMessageType(message.message);
+        const text = this.extractMessageContent(message.message);
         await this.emitEvent(sessionId, "message_received", {
-          message: mensagemSend,
+          message,
+          messageType,
+          text,
         });
 
         try {
@@ -1155,7 +1054,16 @@ class BaileysService {
             message.url_imagem = perfil;
           } catch (error) {}
           if (message.id.endsWith("@s.whatsapp.net")) {
-            await Store.saveContact(sessionId, message);
+            const contactData = {
+              id: message.id,
+              name: message.name || message.verifiedName || "",
+              notify: message.name || message.verifiedName || "",
+              url_imagem: message.url_imagem,
+            };
+            this.redis.set(
+              `contatos:${sessionId}:${message.id}`,
+              JSON.stringify(contactData),
+            );
           }
         } catch (error) {
           logger.error(`Erro ao processar mensagem:`, error);
@@ -1164,100 +1072,12 @@ class BaileysService {
         logger.error(`Erro ao processar mensagem:`, error);
       }
     }
-  }
-
-  static async baixarMediaComoBase64(message, sock) {
-    try {
-      if (!message?.message) return null;
-
-      let msg = message.message;
-
-      // --- DESENCAPSULA mensagens ---
-      const unwrap = (obj) => {
-        const tipos = [
-          "ephemeralMessage",
-          "viewOnceMessage",
-          "viewOnceMessageV2",
-          "viewOnceMessageV2Extension",
-          "documentWithCaptionMessage",
-          "deviceSentMessage",
-        ];
-        while (tipos.some((t) => obj?.[t])) {
-          const tipo = Object.keys(obj)[0];
-          obj = obj[tipo].message || obj[tipo];
-        }
-        return obj;
-      };
-
-      msg = unwrap(msg);
-
-      const tipo = Object.keys(msg)[0];
-      const conteudo = msg[tipo];
-
-      const tiposSuportados = [
-        "imageMessage",
-        "videoMessage",
-        "audioMessage",
-        "documentMessage",
-        "stickerMessage",
-      ];
-
-      if (!tiposSuportados.includes(tipo)) return null;
-
-      // --- BAIXA MÍDIA ---
-      const buffer = await downloadMediaMessage(
-        message,
-        "buffer",
-        {},
-        {
-          logger: console,
-          reuploadRequest: sock.updateMediaMessage?.bind(sock),
-        },
+    pipeline.exec().catch((error) => {
+      logger.error(
+        `Erro ao salvar mensagens no Redis para sessão ${sessionId}:`,
+        error,
       );
-
-      // --- LIMITE ---
-      const MAX_BYTES = parseInt(
-        configenv.max_media_bytes || `${5 * 1024 * 1024}`,
-      );
-
-      // Grande → salva arquivo
-      if (buffer.length > MAX_BYTES) {
-        const tmpDir = path.join(process.cwd(), "tmp");
-        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-        const ext = (conteudo.mimetype || "bin").split("/")[1] || "dat";
-
-        const tmpFile = path.join(tmpDir, `${message.key.id}_${tipo}.${ext}`);
-
-        await fs.promises.writeFile(tmpFile, buffer);
-
-        return {
-          ...message,
-          media: {
-            filePath: tmpFile,
-            size: buffer.length,
-            mimetype: conteudo.mimetype,
-            largeFile: true,
-          },
-        };
-      }
-
-      // Pequeno → base64
-      const base64 = buffer.toString("base64");
-
-      return {
-        ...message,
-        media: {
-          base64,
-          dataUrl: `data:${conteudo.mimetype};base64,${base64}`,
-          mimetype: conteudo.mimetype,
-          size: buffer.length,
-        },
-      };
-    } catch (e) {
-      console.error("Erro baixar mídia:", e);
-      return null;
-    }
+    });
   }
 
   static async update_mensagem(sessionId, updates) {
@@ -1279,8 +1099,6 @@ class BaileysService {
           jid: update.key.remoteJid,
           update,
         });
-        // Atualizar status da mensagem no banco
-        // Implementar lógica de atualização se necessário
 
         logger.debug(
           `📝 Mensagem atualizada: ${update.key.id} - Status: ${update.update?.status}`,
@@ -1288,17 +1106,6 @@ class BaileysService {
       } catch (error) {
         logger.error(`Erro ao atualizar mensagem:`, error);
       }
-    }
-  }
-
-  static async handlePresenceUpdate(sessionId, id, presences) {
-    try {
-      await this.emitEvent(sessionId, "presence_update", {
-        jid: id,
-        presences,
-      });
-    } catch (error) {
-      logger.error(`Erro ao processar atualização de presença:`, error);
     }
   }
 
@@ -1329,8 +1136,49 @@ class BaileysService {
     }
   }
 
-  extractMessageContent(message) {
-    if (!message) return "";
+  static getMessageType(message) {
+    if (!message || typeof message !== "object") return null;
+
+    if (message.ephemeralMessage?.message) {
+      return this.getMessageType(message.ephemeralMessage.message);
+    }
+
+    if (message.viewOnceMessage?.message) {
+      return this.getMessageType(message.viewOnceMessage.message);
+    }
+
+    if (message.viewOnceMessageV2?.message) {
+      return this.getMessageType(message.viewOnceMessageV2.message);
+    }
+
+    if (message.viewOnceMessageV2Extension?.message) {
+      return this.getMessageType(message.viewOnceMessageV2Extension.message);
+    }
+
+    return Object.keys(message)[0] || null;
+  }
+
+  static extractMessageContent(message) {
+    if (!message || typeof message !== "object") return "";
+
+    if (message.ephemeralMessage?.message) {
+      return this.extractMessageContent(message.ephemeralMessage.message);
+    }
+
+    if (message.viewOnceMessage?.message) {
+      return this.extractMessageContent(message.viewOnceMessage.message);
+    }
+
+    if (message.viewOnceMessageV2?.message) {
+      return this.extractMessageContent(message.viewOnceMessageV2.message);
+    }
+
+    if (message.viewOnceMessageV2Extension?.message) {
+      return this.extractMessageContent(
+        message.viewOnceMessageV2Extension.message,
+      );
+    }
+
     if (message.conversation) return message.conversation;
     if (message.extendedTextMessage?.text)
       return message.extendedTextMessage.text;
@@ -1338,7 +1186,15 @@ class BaileysService {
     if (message.videoMessage?.caption) return message.videoMessage.caption;
     if (message.documentMessage?.caption)
       return message.documentMessage.caption;
-    return JSON.stringify(message);
+    if (message.buttonsResponseMessage?.selectedDisplayText)
+      return message.buttonsResponseMessage.selectedDisplayText;
+    if (message.listResponseMessage?.title)
+      return message.listResponseMessage.title;
+    if (message.templateButtonReplyMessage?.selectedDisplayText)
+      return message.templateButtonReplyMessage.selectedDisplayText;
+    if (message.templateButtonReplyMessage?.selectedId)
+      return message.templateButtonReplyMessage.selectedId;
+    return "";
   }
 
   static async emitEvent(sessionId, event, data) {
@@ -1349,7 +1205,7 @@ class BaileysService {
       }
 
       // Session-specific webhook
-      const config = await this.redis.get(`sessao:${sessionId}`);
+      const config = await Session.findById(sessionId);
 
       const webhookTasks = [];
 
@@ -1492,9 +1348,8 @@ class BaileysService {
   // Message sending methods
   static async deleteMessage(sessionId, to, message) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1510,9 +1365,8 @@ class BaileysService {
 
   static async sendReaction(sessionId, to, messageId, emoji) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1535,9 +1389,8 @@ class BaileysService {
 
   static async sendTyping(sessionId, to, typing, audio = false) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1557,9 +1410,8 @@ class BaileysService {
 
   static async markAsRead(sessionId, jid, messageId = null) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1578,9 +1430,8 @@ class BaileysService {
 
   // Contact methods
   static async getContactProfile(sessionId, jid) {
-    const sessionData = await this.redis.get(`sessao:${sessionId}`);
     const sock = this.getSocket(sessionId);
-    if (!sessionData || !sock) {
+    if (!sock) {
       throw new Error("Sessão não encontrada ou não conectada");
     }
     try {
@@ -1589,7 +1440,8 @@ class BaileysService {
     } catch (error) {
       // Try regular profile if business profile fails
       try {
-        const status = await sock.fetchStatus(jid);
+        const jid2 = jid.includes("@") ? jid : `${jid}@s.whatsapp.net`;
+        const status = await sock.fetchStatus(jid2);
         return { status: status?.status };
       } catch (err) {
         logger.error(`Erro ao obter perfil do contato:`, error);
@@ -1600,9 +1452,8 @@ class BaileysService {
 
   static async checkNumbers(sessionId, numbers) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1636,9 +1487,8 @@ class BaileysService {
 
   static async blockContact(sessionId, jid) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1652,9 +1502,8 @@ class BaileysService {
 
   static async unblockContact(sessionId, jid) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1669,9 +1518,8 @@ class BaileysService {
   // Group methods
   static async getGroupInfo(sessionId, groupJid) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1685,9 +1533,8 @@ class BaileysService {
 
   static async createGroup(sessionId, subject, participants) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1701,9 +1548,8 @@ class BaileysService {
 
   static async addParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1721,9 +1567,8 @@ class BaileysService {
 
   static async removeParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1741,9 +1586,8 @@ class BaileysService {
 
   static async promoteParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1761,9 +1605,8 @@ class BaileysService {
 
   static async demoteParticipants(sessionId, groupJid, participants) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1781,9 +1624,8 @@ class BaileysService {
 
   static async leaveGroup(sessionId, groupJid) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1797,9 +1639,8 @@ class BaileysService {
 
   static async updateGroupSubject(sessionId, groupJid, subject) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1813,9 +1654,8 @@ class BaileysService {
 
   static async groupSettingUpdate(sessionId, groupJid, subject) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1829,9 +1669,8 @@ class BaileysService {
 
   static async updateGroupDescription(sessionId, groupJid, description) {
     try {
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
       const sock = this.getSocket(sessionId);
-      if (!sessionData || !sock) {
+      if (!sock) {
         throw new Error("Sessão não encontrada ou não conectada");
       }
 
@@ -1874,14 +1713,8 @@ class BaileysService {
       } catch (err) {
         console.error("Erro ao remover sessão:", err);
       }
+      await BaileysService.redis.del(`sessao:${sessionId}`);
 
-      // Remover da memória
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
-      if (sessionData) {
-        await this.qrcodelimites.delete(`limiteqrcode:${sessionId}`);
-        await this.redis.del(`tentativas:${sessionId}`);
-        await this.redis.del(`sessao:${sessionId}`);
-      }
       logger.info(`🗑️ Sessão ${sessionId} deletada completamente`);
     } catch (error) {
       logger.error(`Erro ao deletar sessão ${sessionId}:`, error);
@@ -1903,7 +1736,6 @@ class BaileysService {
   static async getSession(sessionId) {
     const sessionData = await this.redis.get(`sessao:${sessionId}`);
     const sock = this.getSocket(sessionId);
-
     if (
       sock &&
       sessionData &&
@@ -1916,14 +1748,14 @@ class BaileysService {
         );
         sessionData.url_imagem = perfil;
       } catch (error) {
+        console.error(
+          `Erro ao obter imagem de perfil para ${sessionId}:`,
+          error,
+        );
         logger.error("Erro ao obter imagem de perfil:", error);
       }
     }
     return sessionData;
-  }
-
-  static getActiveSessions() {
-    return Array.from(this.redis.getAllSessions());
   }
 
   static async getSessionsStats() {
@@ -1939,85 +1771,18 @@ class BaileysService {
   }
 
   static async healthCheck() {
-    const stats = this.getSessionsStats();
-    const activeSessions = this.getActiveSessions();
-    const historyStats = await this.getHistoryAccumulatorStats();
-
+    const stats = await this.getSessionsStats();
     return {
       status: "healthy",
       timestamp: moment().tz(configenv.timeZone).toISOString(),
       sessions: stats,
-      activeSessions,
-      historyAccumulators: historyStats,
       memory: process.memoryUsage(),
       uptime: process.uptime(),
       redis: {
         connected: true,
-        accumulatorsInProgress: historyStats.total,
+        accumulatorsInProgress: 0,
       },
     };
-  }
-
-  static startHealthCheck() {
-    this.healthCheckInterval = setInterval(
-      async () => {
-        try {
-          await this.cleanupSessions();
-        } catch (error) {
-          logger.error("Erro no health check:", error);
-        }
-      },
-      5 * 60 * 1000,
-    ); // Every 5 minutes
-  }
-
-  static stopHealthCheck() {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-    }
-  }
-
-  static async cleanupSessions() {
-    const sessionsToCleanup = [];
-    const getsessoes = await this.redis.getAllSessions();
-
-    for (const sessao of getsessoes) {
-      let sessionId = null;
-      try {
-        sessionId = sessao.key.split(":")[1];
-      } catch (error) {}
-      if (
-        configenv.delete_sessao &&
-        sessao.value.status === "disconnected" &&
-        sessionId
-      ) {
-        const pastTime = moment.tz(
-          sessao.value.lastConnected,
-          "America/Sao_Paulo",
-        );
-        const currentTime = moment.tz("America/Sao_Paulo");
-
-        const diffInHours = currentTime.diff(pastTime, "hours", true);
-        const hasPassedFiveHours =
-          diffInHours >= parseInt(configenv.temp_delete_sessao);
-
-        if (hasPassedFiveHours) {
-          // Sincronizar credenciais antes de limpar
-          sessionsToCleanup.push(sessionId);
-        }
-      }
-    }
-
-    for (const sessionId of sessionsToCleanup) {
-      logger.info(`🧹 Limpando sessão inativa: ${sessionId}`);
-
-      // await this.deleteSession(sessionId, true);
-    }
-
-    if (sessionsToCleanup.length > 0) {
-      logger.info(`🧹 ${sessionsToCleanup.length} sessões inativas removidas`);
-    }
   }
 
   // Gerenciar reconexão inteligente com backoff exponencial
@@ -2046,13 +1811,13 @@ class BaileysService {
       await this.delay(backoffSeconds * 1000);
 
       // Verificar se a sessão ainda existe
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sessionData = await Session.findById(sessionId);
       if (!sessionData) {
         logger.warn(`⚠️ Sessão ${sessionId} foi removida durante reconexão`);
         return;
       }
       // Tentar reconectar
-      await this.createSession(sessionId, sessionData.phoneNumber);
+      await this.createSession(sessionId, sessionData.numero);
     } catch (error) {
       logger.error(`❌ Erro na reconexão de ${sessionId}:`, error);
 
@@ -2073,12 +1838,11 @@ class BaileysService {
     try {
       logger.warn(`🔌 Perda de conexão detectada para ${sessionId}`);
 
-      const sessionData = await this.redis.get(`sessao:${sessionId}`);
+      const sessionData = await Session.findById(sessionId);
       if (!sessionData) return;
 
       // Marcar como desconectado
       sessionData.status = "disconnected";
-      await this.redis.set(`sessao:${sessionId}`, sessionData);
       await Session.update(sessionId, { status: "disconnected" });
 
       // Remover socket

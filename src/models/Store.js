@@ -54,26 +54,8 @@ class Store {
         status,
       ];
 
-      let sql;
-      if (db.dbType === "mysql") {
-        sql = `
-        INSERT INTO mensagens (
-          sessao_id, mensagem_id, remoteJid, fromMe, isgrupo, 
-          participant, tipo_mensagem, conteudo_mensagem, timestamp, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          remoteJid = VALUES(remoteJid),
-          fromMe = VALUES(fromMe),
-          isgrupo = VALUES(isgrupo),
-          participant = VALUES(participant),
-          tipo_mensagem = VALUES(tipo_mensagem),
-          conteudo_mensagem = VALUES(conteudo_mensagem),
-          timestamp = VALUES(timestamp),
-          status = VALUES(status)
-      `;
-      } else {
-        const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
-        sql = `
+      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
+      const sql = `
         INSERT INTO mensagens (
           ${fields.join(", ")}
         ) VALUES (${pgFields})
@@ -87,7 +69,6 @@ class Store {
           timestamp = EXCLUDED.timestamp,
           status = EXCLUDED.status
       `;
-      }
 
       await db.execute(sql, values);
       return true;
@@ -166,8 +147,6 @@ class Store {
   // ===== CONTATOS =====
   static async saveContact(sessionId, contactData) {
     try {
-      const isMySQL = db.dbType === "mysql";
-
       // Lista de campos
       const fields = [
         "sessao_id",
@@ -188,23 +167,8 @@ class Store {
         contactData.url_imagem || null,
         contactData.status || null,
       ];
-      let sql;
-      if (isMySQL) {
-        sql = `
-          INSERT INTO contatos (${fields.join(", ")})
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-            nome = VALUES(nome),
-            apelido = VALUES(apelido),
-            nome_verificado = VALUES(nome_verificado),
-            url_imagem = VALUES(url_imagem),
-            status_contato = VALUES(status_contato),
-            updated_at = CURRENT_TIMESTAMP
-        `;
-      } else {
-        // Em Postgres, substitua ? por $1, $2, ...
-        const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
-        sql = `
+      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
+      const sql = `
           INSERT INTO contatos (${fields.join(", ")})
           VALUES (${pgFields})
           ON CONFLICT (sessao_id, jid) DO UPDATE SET
@@ -215,8 +179,6 @@ class Store {
             status_contato = EXCLUDED.status_contato,
             updated_at = CURRENT_TIMESTAMP
         `;
-      }
-
       // Executa
       await db.execute(sql, values);
       return true;
@@ -228,8 +190,6 @@ class Store {
 
   static async updateContact(sessionId, jid, contactData) {
     try {
-      const isMySQL = db.dbType === "mysql";
-
       const values = [
         contactData.nome || null,
         contactData.apelido || null,
@@ -239,21 +199,7 @@ class Store {
         jid,
       ];
 
-      let sql;
-
-      if (isMySQL) {
-        sql = `
-        UPDATE contatos
-        SET
-          nome = ?,
-          apelido = ?,
-          nome_verificado = ?,
-          url_imagem = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE sessao_id = ? AND jid = ?
-      `;
-      } else {
-        sql = `
+      const sql = `
         UPDATE contatos
         SET
           nome = $1,
@@ -263,7 +209,6 @@ class Store {
           updated_at = CURRENT_TIMESTAMP
         WHERE sessao_id = $5 AND jid = $6
       `;
-      }
 
       await db.execute(sql, values);
 
@@ -307,8 +252,6 @@ class Store {
   // ===== CHATS =====
   static async saveChat(sessionId, chatData) {
     try {
-      const isMySQL = db.dbType === "mysql";
-
       const fields = [
         "sessao_id",
         "jid",
@@ -330,25 +273,8 @@ class Store {
         chatData.pinned ? 1 : 0,
         chatData.muteEndTime || null,
       ];
-      let sql;
-      if (isMySQL) {
-        sql = `
-          INSERT INTO chats (
-            ${fields.join(", ")}
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-            nome = VALUES(nome),
-            mensagens_nao_lidas = VALUES(mensagens_nao_lidas),
-            ultima_mensagem = VALUES(ultima_mensagem),
-            arquivado = VALUES(arquivado),
-            fixado = VALUES(fixado),
-            silenciado_ate = VALUES(silenciado_ate),
-            updated_at = CURRENT_TIMESTAMP
-        `;
-      } else {
-        // Postgres: $1, $2, ... placeholders
-        const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
-        sql = `
+      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
+      const sql = `
           INSERT INTO chats (
             ${fields.join(", ")}
           ) VALUES (${pgFields})
@@ -361,8 +287,6 @@ class Store {
             silenciado_ate = EXCLUDED.silenciado_ate,
             updated_at = CURRENT_TIMESTAMP
         `;
-      }
-
       await db.execute(sql, values);
       return true;
     } catch (error) {
@@ -388,8 +312,6 @@ class Store {
   // ===== GRUPOS =====
   static async saveGroup(sessionId, groupData) {
     try {
-      const isMySQL = db.dbType === "mysql"; // ajuste conforme sua lógica de detecção
-
       const fields = [
         "sessao_id",
         "jid",
@@ -424,30 +346,8 @@ class Store {
         JSON.stringify(groupData.participants || []),
       ];
 
-      let sql;
-
-      if (isMySQL) {
-        sql = `
-        INSERT INTO grupos (
-          ${fields.join(", ")}
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          assunto = VALUES(assunto),
-          dono_assunto = VALUES(dono_assunto),
-          data_assunto = VALUES(data_assunto),
-          dono_grupo = VALUES(dono_grupo),
-          descricao_grupo = VALUES(descricao_grupo),
-          dono_descricao = VALUES(dono_descricao),
-          id_descricao = VALUES(id_descricao),
-          restrito_mensagens = VALUES(restrito_mensagens),
-          apenas_admins = VALUES(apenas_admins),
-          tamanho_grupo = VALUES(tamanho_grupo),
-          participantes = VALUES(participantes),
-          updated_at = CURRENT_TIMESTAMP
-      `;
-      } else {
-        const pgPlaceholders = fields.map((_, i) => `$${i + 1}`).join(", ");
-        sql = `
+      const pgPlaceholders = fields.map((_, i) => `$${i + 1}`).join(", ");
+      const sql = `
         INSERT INTO grupos (
           ${fields.join(", ")}
         ) VALUES (${pgPlaceholders})
@@ -465,7 +365,6 @@ class Store {
           participantes = EXCLUDED.participantes,
           updated_at = CURRENT_TIMESTAMP
       `;
-      }
 
       await db.execute(sql, values);
       return true;
@@ -628,6 +527,14 @@ class Store {
         grupos: { total_grupos: 0 },
       };
     }
+  }
+
+  static async getjid(key_type, sessionId) {
+    const result = await db.execute(
+      `SELECT value_json, key_id FROM wa_session_keys WHERE key_type = ? AND session_id = ?`,
+      [key_type, sessionId],
+    );
+    return result;
   }
 
   // ===== UTILITÁRIOS =====

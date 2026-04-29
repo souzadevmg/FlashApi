@@ -6,3 +6,5 @@ Dockerfile
 examples
 keys
 sessions/
+temp/
+package-lock.json

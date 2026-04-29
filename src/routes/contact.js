@@ -1,134 +1,102 @@
-import express from 'express';
-import authenticateApiKey from '../middleware/auth.js';
-import BaileysService from '../services/BaileysService.js';
-import Store from '../models/Store.js';
-import logger from '../utils/logger.js';
-import fs from 'fs';
-import util from 'util';
+import express from "express";
+import authenticateApiKey from "../middleware/auth.js";
+import BaileysService from "../services/BaileysService.js";
+import Store from "../models/Store.js";
+import logger from "../utils/logger.js";
+import fs from "fs";
+import util from "util";
+import Session from "../models/Session.js";
 
 const router = express.Router();
 
-
-router.get('/list', authenticateApiKey, async (req, res) => {
+router.get("/list", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
 
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Sessão não está conectada'
-      });
-    }
-    let contacts = []
-    const getcontato = await Store.getContacts(sessionId);
-    const sock = BaileysService.getSocket(sessionId);
-    if (getcontato && getcontato.length > 0) {
-      contacts = getcontato
-    }
+    let contacts = await getAllContacts(sessionId);
 
+    const SoJids = contacts
+      .map((c) => {
+        if (!c?.id) return null;
+
+        return {
+          ...c,
+          id: c.id.replace(/"/g, ""), // remove todas aspas
+          name: c.name ? c.name.replace(/"/g, "") : "", // remove todas aspas
+          notify: c.notify ? c.notify.replace(/"/g, "") : "", // remove todas aspas
+        };
+      })
+      .filter((c) => c && c.id.includes("@s.whatsapp.net"));
     res.json({
       success: true,
-      data: {
-        contacts,
-        total: contacts.length
-      }
+      total: SoJids.length,
+      contacts: SoJids,
     });
-
   } catch (error) {
-    logger.error('Erro ao listar contatos:', error);
+    console.log(error);
+    logger.error("Erro ao listar contatos:", error);
     res.status(500).json({
       success: false,
-      message: 'Erro interno do servidor'
+      message: "Erro interno do servidor",
     });
   }
 });
 
-router.post('/sync', authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers['apikey'];
+async function getAllContacts(sessionId) {
+  const redis = BaileysService.redis.client;
 
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Sessão não está conectada'
-      });
+  let cursor = "0";
+  const allKeys = [];
+
+  do {
+    const [nextCursor, keys] = await redis.scan(
+      cursor,
+      "MATCH",
+      `contatos:${sessionId}:*`,
+      "COUNT",
+      500,
+    );
+
+    cursor = nextCursor;
+    allKeys.push(...keys);
+  } while (cursor !== "0");
+
+  if (!allKeys.length) return [];
+
+  // ⚡ pega TODOS os valores de uma vez
+  const values = await redis.mget(allKeys);
+
+  const contacts = [];
+
+  for (const v of values) {
+    if (!v) continue;
+
+    try {
+      contacts.push(JSON.parse(v));
+    } catch {
+      // ignora inválido
     }
-
-    // Forçar sincronização manual de contatos
-    await BaileysService.syncContactsManually(sessionId);
-
-    // Aguardar um pouco e obter contatos atualizados
-    setTimeout(async () => {
-      const contacts = await Store.getContacts(sessionId);
-      logger.info(`📱 Sincronização manual concluída: ${contacts.length} contatos encontrados`);
-    }, 2000);
-
-    res.json({
-      success: true,
-      message: 'Sincronização de contatos iniciada com sucesso',
-      data: {
-        sessionId,
-        status: 'syncing'
-      }
-    });
-
-  } catch (error) {
-    logger.error('Erro ao sincronizar contatos:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
   }
-});
 
-router.post('/force-sync-all', authenticateApiKey, async (req, res) => {
+  return contacts;
+}
+
+router.post("/profile", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
-
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Sessão não está conectada'
-      });
-    }
-
-    // Forçar sincronização completa
-    await BaileysService.forceSyncAll(sessionId);
-
-    res.json({
-      success: true,
-      message: 'Sincronização completa iniciada com sucesso',
-      data: {
-        sessionId,
-        status: 'syncing_all'
-      }
-    });
-
-  } catch (error) {
-    logger.error('Erro ao sincronizar dados:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
-  }
-});
-
-router.post('/profile', authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { jid } = req.body;
 
     if (!jid) {
       return res.status(400).json({
         success: false,
-        message: 'JID é obrigatório'
+        message: "JID é obrigatório",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -136,34 +104,33 @@ router.post('/profile', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      data: profile
+      data: profile,
     });
-
   } catch (error) {
-    logger.error('Erro ao obter perfil do contato:', error);
+    logger.error("Erro ao obter perfil do contato:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/check', authenticateApiKey, async (req, res) => {
+router.post("/check", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { numbers } = req.body;
 
     if (!numbers || !Array.isArray(numbers)) {
       return res.status(400).json({
         success: false,
-        message: 'Lista de números é obrigatória'
+        message: "Lista de números é obrigatória",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -171,34 +138,33 @@ router.post('/check', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      data: results
+      data: results,
     });
-
   } catch (error) {
-    logger.error('Erro ao verificar números:', error);
+    logger.error("Erro ao verificar números:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/block', authenticateApiKey, async (req, res) => {
+router.post("/block", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { jid } = req.body;
 
     if (!jid) {
       return res.status(400).json({
         success: false,
-        message: 'JID é obrigatório'
+        message: "JID é obrigatório",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -206,35 +172,34 @@ router.post('/block', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Contato bloqueado com sucesso',
-      data: { jid, action: 'blocked' }
+      message: "Contato bloqueado com sucesso",
+      data: { jid, action: "blocked" },
     });
-
   } catch (error) {
-    logger.error('Erro ao bloquear contato:', error);
+    logger.error("Erro ao bloquear contato:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });
 
-router.post('/unblock', authenticateApiKey, async (req, res) => {
+router.post("/unblock", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers['apikey'];
+    const sessionId = req.headers["apikey"];
     const { jid } = req.body;
 
     if (!jid) {
       return res.status(400).json({
         success: false,
-        message: 'JID é obrigatório'
+        message: "JID é obrigatório",
       });
     }
 
     if (!BaileysService.isSessionConnected(sessionId)) {
       return res.status(400).json({
         success: false,
-        message: 'Sessão não está conectada'
+        message: "Sessão não está conectada",
       });
     }
 
@@ -242,15 +207,14 @@ router.post('/unblock', authenticateApiKey, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Contato desbloqueado com sucesso',
-      data: { jid, action: 'unblocked' }
+      message: "Contato desbloqueado com sucesso",
+      data: { jid, action: "unblocked" },
     });
-
   } catch (error) {
-    logger.error('Erro ao desbloquear contato:', error);
+    logger.error("Erro ao desbloquear contato:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Erro interno do servidor'
+      message: error.message || "Erro interno do servidor",
     });
   }
 });

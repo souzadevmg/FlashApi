@@ -68,25 +68,7 @@ router.put("/config", authenticateApiKey, async (req, res) => {
     currentConfig.leitura_automatica = autoRead;
     currentConfig.msg_rejectcalls = msg_rejectcalls;
 
-    const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
-    if (!getsessao) {
-      BaileysService.createSession(sessionId);
-      res.status(500).json({
-        success: false,
-        message:
-          "Erro ao buscar sessão reniciando sessao tente novamente em instantes",
-      });
-      return;
-    }
-    getsessao.rejeitar_ligacoes = rejectCalls;
-    getsessao.ignorar_grupos = ignoreGroups;
-    getsessao.autoRead = autoRead;
-    getsessao.msg_rejectcalls = msg_rejectcalls;
-    await BaileysService.redis.set(`sessao:${sessionId}`, getsessao);
     const success = await Store.saveSessionConfig(sessionId, currentConfig);
-    try {
-      BaileysService.forceSyncAll(sessionId);
-    } catch (error) {}
     if (!success) {
       return res.status(500).json({
         success: false,
@@ -150,19 +132,6 @@ router.put("/webhook", authenticateApiKey, async (req, res) => {
     currentConfig.events = events;
     currentConfig.webhook_status = status;
     const success = await Store.saveSessionConfig(sessionId, currentConfig);
-    const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
-    if (!getsessao) {
-      res.status(500).json({
-        success: false,
-        message:
-          "Erro ao buscar sessão, reiniciando sessão. Tente novamente em instantes",
-      });
-      return;
-    }
-    getsessao.webhook_url = currentConfig.webhook_url;
-    getsessao.events = currentConfig.events;
-    getsessao.webhook_status = currentConfig.webhook_status;
-    await BaileysService.redis.set(`sessao:${sessionId}`, getsessao);
     if (!success) {
       return res.status(500).json({
         success: false,
@@ -261,6 +230,8 @@ router.put("/proxy", authenticateApiKey, async (req, res) => {
         try {
           await sock.end();
         } catch (error) {
+          conect = await BaileysService.createSession(sessionId);
+        }finally{
           conect = await BaileysService.createSession(sessionId);
         }
       } else {

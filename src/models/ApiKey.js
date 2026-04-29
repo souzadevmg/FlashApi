@@ -11,9 +11,7 @@ class ApiKey {
 
   static async findByKey(key) {
     try {
-      const isMySQL = config.db_client === 'mysql';
-      const active = isMySQL ? 1 : true;
-      const [getapikey] = await db.execute(`SELECT * FROM sessao WHERE active = ? AND apikey = ?`, [active, key]);
+      const [getapikey] = await db.execute(`SELECT * FROM sessao WHERE active = ? AND apikey = ?`, [true, key]);
       return getapikey
     } catch (error) {
       logger.error('Erro ao buscar sessao: ', error)
@@ -34,9 +32,7 @@ class ApiKey {
 
   static async deactivate(id) {
     try {
-      const isMySQL = config.db_client === 'mysql';
-      const active = isMySQL ? 0 : false;
-      const desativarkey = await db.execute('UPDATE api_keys SET active = ?, updated_at = CURRENT_TIMESTAMP WHERE apikey = ?', [active, id])
+      const desativarkey = await db.execute('UPDATE api_keys SET active = ?, updated_at = CURRENT_TIMESTAMP WHERE apikey = ?', [false, id])
       return desativarkey.affectedRows > 0
     } catch (error) {
       logger.error('Erro ao buscar desativar sessao')

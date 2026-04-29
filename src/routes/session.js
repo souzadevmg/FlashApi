@@ -5,6 +5,7 @@ import BaileysService from "../services/BaileysService.js";
 import Session from "../models/Session.js";
 import logger from "../utils/logger.js";
 import authenticateApiKey from "../middleware/auth.js";
+import Store from "../models/Store.js";
 
 const router = express.Router();
 
@@ -51,7 +52,6 @@ router.post(
               'O proxy fornecido não está no formato válido (ex: { protocol: "http", usename: "user", password: "pass", host: "host", port: 8080 })',
           });
         }
-
       }
 
       let finalNomeSessao;
@@ -103,7 +103,7 @@ router.post(
         });
       }
 
-      if(proxy){
+      if (proxy) {
         await Session.setProxy(uuid, proxy);
       }
 
@@ -244,16 +244,17 @@ router.get("/status", authenticateApiKey, async (req, res) => {
     let memorySession = {
       url_imagem: null,
     };
-    const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
-    const sock = BaileysService.getSocket(sessionId);
-    if (getsessao && getsessao.status == "connected" && sock) {
-      try {
-        const foto = await sock.profilePictureUrl(
-          `${getsessao.phoneNumber}@s.whatsapp.net`,
-        );
-        memorySession.url_imagem = foto;
-      } catch (error) {}
+    const getsessao = await Session.findById(sessionId);
+    if (!getsessao.numero) {
+      getsessao.numero = null;
     }
+    const sock = BaileysService.getSocket(sessionId);
+    try {
+      const foto = await sock.profilePictureUrl(
+        `${getsessao.numero}@s.whatsapp.net`,
+      );
+      memorySession.url_imagem = foto;
+    } catch (error) {}
     const dados = {
       ...session,
       ...memorySession,
@@ -276,24 +277,26 @@ router.get("/list", globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
     const sessions = await Session.findByApiKey();
 
-    const sessionsWithStats = sessions.map((session) => {
-      const memorySession = BaileysService.getSession(session.apikey);
-      return {
-        id: session.apikey,
-        nome_sessao: session.nome_sessao,
-        status: session.status,
-        phoneNumber: session.numero,
-        hasWebhook: !!session.webhook_url,
-        createdAt: session.created_at,
-        updatedAt: session.updated_at,
-        inMemory: !!memorySession,
-        memoryStatus: memorySession?.status || "not_in_memory",
-        isConnected: BaileysService.isSessionConnected(session.apikey),
-        reconnectAttempts: memorySession?.reconnectAttempts || 0,
-        lastConnected: memorySession?.lastConnected || null,
-        connectionAttempts: memorySession?.connectionAttempts || 0,
-      };
-    });
+    const sessionsWithStats = await Promise.all(
+      sessions.map(async (session) => {
+        const memorySession = await BaileysService.getSession(session.apikey);
+        return {
+          id: session.apikey,
+          nome_sessao: session.nome_sessao,
+          status: session.status,
+          phoneNumber: session.numero,
+          hasWebhook: !!session.webhook_url,
+          createdAt: session.created_at,
+          updatedAt: session.updated_at,
+          inMemory: !!memorySession,
+          memoryStatus: memorySession?.status || "not_in_memory",
+          isConnected: await BaileysService.isSessionConnected(session.apikey),
+          reconnectAttempts: memorySession?.reconnectAttempts || 0,
+          lastConnected: memorySession?.lastConnected || null,
+          connectionAttempts: memorySession?.connectionAttempts || 0,
+        };
+      }),
+    );
 
     res.json({
       success: true,
@@ -301,10 +304,11 @@ router.get("/list", globalAuth.authenticateGlobalApiKey, async (req, res) => {
         sessions: sessionsWithStats,
         total: sessionsWithStats.length,
         stats: BaileysService.getSessionsStats(),
-        activeSessions: BaileysService.getActiveSessions(),
+        activeSessions: sessionsWithStats.filter((s) => s.isConnected).length,
       },
     });
   } catch (error) {
+    console.log(error);
     logger.error("Erro ao listar sessões:", error);
     res.status(500).json({
       success: false,
@@ -357,14 +361,15 @@ router.delete(
         } catch (error) {}
       }
 
-      await Session.delete(sessao.apikey);
+      await Session.delete(sessionId);
+      BaileysService.delRedisSessionData(sessionId);
 
       res.json({
         success: true,
         message: "Sessão deletada com sucesso",
       });
 
-      logger.info(`Sessão deletada: ${sessao.apikey}`);
+      logger.info(`Sessão deletada: ${sessionId}`);
     } catch (error) {
       logger.error("Erro ao deletar sessão:", error);
       res.status(500).json({
@@ -409,6 +414,7 @@ router.delete("/desconect/:sessionId", authenticateApiKey, async (req, res) => {
     try {
       await sock.logout();
     } catch (error) {}
+    await BaileysService.redis.del(`sessao:${sessionId}`);
     return res.json({
       success: true,
       message: "Sessão Desconectada com sucesso",
