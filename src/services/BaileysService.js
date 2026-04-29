@@ -829,6 +829,16 @@ class BaileysService {
       const phoneNumber = sock?.user?.id?.split(":")[0];
       const sessaoDB = await Session.findById(sessionId);
 
+      try {
+        const foto = await sock.profilePictureUrl(
+        `${phoneNumber}@s.whatsapp.net`,
+      );
+      sessionData.url_imagem = foto;
+
+      } catch (error) {
+        
+      }
+
       sessionData.phoneNumber = phoneNumber;
 
       await Session.update(sessionId, {
