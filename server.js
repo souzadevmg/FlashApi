@@ -19,6 +19,8 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import fs from 'fs';
 import session from 'express-session';
+import { RedisStore } from 'connect-redis';
+import redis from './src/services/redis.js';
 
 import config from './src/config/env.js';
 import swaggerOptions from './src/config/swagger.js';
@@ -77,15 +79,25 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-//Sistema de sessão
+// Adapter: connect-redis v8 uses redis v4 API ({ EX: n }), ioredis uses positional args
+const ioredisAdapter = {
+  get:    (key)            => redis.client.get(key),
+  set:    (key, val, opts) => opts?.EX ? redis.client.set(key, val, 'EX', opts.EX) : redis.client.set(key, val),
+  del:    (key)            => redis.client.del(key),
+  expire: (key, ttl)       => redis.client.expire(key, ttl),
+  mget:   (...keys)        => redis.client.mget(...keys),
+};
+
+//Sistema de sessão (persistida no Redis)
 app.use(session({
+  store: new RedisStore({ client: ioredisAdapter }),
   secret: config.manger_secret,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure: config.protocol == 'https' ? true : false,
-    maxAge: 1000 * 60 * 30 // sessão dura 30 minutos
+    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
   }
 }));
 
