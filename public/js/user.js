@@ -515,17 +515,59 @@ async function configuracao(instanceId) {
     const getapikey = getInstanceById(instanceId);
     if (!getapikey) return;
 
+    const configProxy = document.getElementById('config-proxy');
+    const getProxy = await getproxy(getapikey.apikey);
+    if (!getProxy) {
+        alert('Erro ao carregar configuracao de proxy, tente novamente.');
+        return;
+    }
+
+    if (getProxy.proxy) {
+        $('#proxy-ativo').prop('checked', getProxy.proxy.active == 1);
+        $('#proxy-protocol').val(getProxy.proxy.protocol || 'http');
+        $('#proxy-username').val(getProxy.proxy.username || '');
+        $('#proxy-password').val(getProxy.proxy.password || '');
+        $('#proxy-port').val(getProxy.proxy.port || '');
+        $('#proxy-host').val(getProxy.proxy.host || '');
+
+        if (getProxy.proxy.active == 1) {
+            configProxy?.classList.remove('d-none');
+        } else {
+            configProxy?.classList.add('d-none');
+        }
+    } else {
+        $('#proxy-ativo').prop('checked', false);
+        $('#proxy-protocol').val('http');
+        $('#proxy-username').val('');
+        $('#proxy-password').val('');
+        $('#proxy-port').val('');
+        $('#proxy-host').val('');
+        configProxy?.classList.add('d-none');
+    }
+
     $('#id_sessao').attr('data-id', instanceId);
     $('#configSessao').modal('show');
-    $('#webhook-url').val(getapikey.webhook_url || '');
-    $('#webhook-status').prop('checked', getapikey.webhook_status == '1');
-    $('[name="events[]"]').val(getapikey.events || []);
+    $('#webhook-url').val(getProxy.config?.webhook_url || '');
+    $('#webhook-status').prop('checked', getProxy.config?.webhook_status == 1);
+    $('[name="events[]"]').val(getProxy.config?.events || []);
 
-    $('#mensagem-rejeicao').val(getapikey.msg_rejectcalls || '');
-    $('#rejeitar-chamada').prop('checked', getapikey.rejeitar_ligacoes == '1');
+    $('#mensagem-rejeicao').val(getProxy.config?.msg_rejectcalls || '');
+    $('#rejeitar-chamada').prop('checked', getProxy.config?.rejeitar_ligacoes == 1);
 
-    $('#sempre-online').prop('checked', getapikey.leitura_automatica == '1');
-    $('#ignorar-grupos').prop('checked', getapikey.ignorar_grupos == '1');
+    $('#sempre-online').prop('checked', getProxy.config?.leitura_automatica == 1);
+    $('#ignorar-grupos').prop('checked', getProxy.config?.ignorar_grupos == 1);
+}
+
+async function getproxy(apikey) {
+    try {
+        const response = await apiGet(`${apiurl}/api/config/session`, apikey);
+        if (response.data?.success) {
+            return response.data.data || {};
+        }
+    } catch (error) {
+        return null;
+    }
+    return null;
 }
 
 async function att_webhook(data, apikey) {
@@ -540,6 +582,15 @@ async function att_webhook(data, apikey) {
 async function att_config(data, apikey) {
     try {
         const response = await apiPut(`${apiurl}/api/config/config`, data, apikey);
+        return response.data?.success === true;
+    } catch (error) {
+        return false;
+    }
+}
+
+async function att_proxy(data, apikey) {
+    try {
+        const response = await apiPut(`${apiurl}/api/config/proxy`, data, apikey);
         return response.data?.success === true;
     } catch (error) {
         return false;
@@ -648,7 +699,19 @@ function bindCoreForms() {
             getapikey.apikey
         );
 
-        if (okWebhook || okConfig) {
+        const okProxy = await att_proxy(
+            {
+                active: $('#proxy-ativo').prop('checked') === true,
+                protocol: $('#proxy-protocol').val(),
+                username: $('#proxy-username').val(),
+                password: $('#proxy-password').val(),
+                port: $('#proxy-port').val(),
+                host: $('#proxy-host').val()
+            },
+            getapikey.apikey
+        );
+
+        if (okWebhook || okConfig || okProxy) {
             alert('Configuracoes atualizadas');
             window.location.reload();
         } else {
@@ -658,6 +721,36 @@ function bindCoreForms() {
 }
 
 function bindNewFeatures() {
+    document.querySelectorAll('.btn-enviar').forEach((button) => {
+        button.addEventListener('click', function () {
+            const apikey = this.dataset.apikey;
+            const section = document.getElementById('messageStudioSection');
+            const msgSelect = document.getElementById('msgInstanceSelect');
+
+            if (msgSelect && apikey) {
+                msgSelect.value = apikey;
+                loadRecipients();
+            }
+
+            section?.scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+
+    document.querySelectorAll('img.instance-avatar').forEach((img) => {
+        img.addEventListener('error', function () {
+            this.style.display = 'none';
+        });
+    });
+
+    document.getElementById('proxy-ativo')?.addEventListener('change', function () {
+        const configProxy = document.getElementById('config-proxy');
+        if (this.checked) {
+            configProxy?.classList.remove('d-none');
+        } else {
+            configProxy?.classList.add('d-none');
+        }
+    });
+
     document.getElementById('messageType')?.addEventListener('change', function () {
         showTypeFields(this.value);
     });
