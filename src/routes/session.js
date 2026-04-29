@@ -6,6 +6,8 @@ import Session from "../models/Session.js";
 import logger from "../utils/logger.js";
 import authenticateApiKey from "../middleware/auth.js";
 import Store from "../models/Store.js";
+import axios from "axios";
+import path from "path";
 
 const router = express.Router();
 
@@ -425,6 +427,33 @@ router.delete("/desconect/:sessionId", authenticateApiKey, async (req, res) => {
       success: false,
       message: "Erro interno do servidor",
     });
+  }
+});
+
+router.get("/avatar/:apikey", async (req, res) => {
+  try {
+    const apiKey = req.params.apikey;
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        message: "ApiKey é obrigatória",
+      });
+    }
+    const sock = BaileysService.getSocket(apiKey);
+
+    if (!sock?.user?.id) return res.sendStatus(404);
+
+    const url = await sock.profilePictureUrl(sock.user.id, "image");
+
+    const response = await axios.get(url, {
+      responseType: "stream",
+      timeout: 5000,
+    });
+
+    res.setHeader("Content-Type", "image/jpeg");
+    response.data.pipe(res);
+  } catch {
+    return res.sendFile(path.resolve("public/images/image.png"));
   }
 });
 
