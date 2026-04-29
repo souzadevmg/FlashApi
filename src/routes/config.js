@@ -172,6 +172,17 @@ router.get("/stats", authenticateApiKey, async (req, res) => {
 
     const stats = await Store.getSessionStats(sessionId);
 
+    const sock = await BaileysService.getSocket(sessionId);
+    if (sock) {
+      try {
+        const groups = await sock.groupFetchAllParticipating();
+        const arr = Object.values(groups);
+        stats.grupos.total_grupos = arr.length;
+      } catch (error) {
+        stats.grupos.total_grupos = 0;
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -231,7 +242,7 @@ router.put("/proxy", authenticateApiKey, async (req, res) => {
           await sock.end();
         } catch (error) {
           conect = await BaileysService.createSession(sessionId);
-        }finally{
+        } finally {
           conect = await BaileysService.createSession(sessionId);
         }
       } else {
