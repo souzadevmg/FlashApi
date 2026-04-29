@@ -1,9 +1,46 @@
 <h1 align="center">Flash Api</h1>
-  
+
 <div align="center"><img src="./public/images/banner.jpg"></div>
 
+<p align="center">
+  API robusta para gerenciamento de múltiplas sessões do WhatsApp utilizando <b>Baileys</b>.
+</p>
 
-# Multi-Session Whatsapp usando Baileys
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=node.js&logoColor=white">
+  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white">
+  <img src="https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white">
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+</p>
+
+---
+
+## Índice
+
+- [Funcionalidades](#-funcionalidades)
+- [Requisitos](#-requisitos)
+- [Instalação Manual](#-instalação-manual)
+- [Instalação com Docker](#-instalação-com-docker)
+- [Configuração do .env](#-configuração-do-env)
+- [Configurar SSL (HTTPS)](#-configurar-ssl-https)
+- [Uso — Exemplos de Código](#-uso--exemplos-de-código)
+  - [Criar Sessão / QR Code](#criar-sessão)
+  - [Enviar Mensagem de Texto](#enviar-mensagem-de-texto)
+  - [Enviar Imagem](#enviar-imagem)
+  - [Enviar Vídeo](#enviar-vídeo)
+  - [Enviar Áudio](#enviar-áudio)
+  - [Enviar Documento](#enviar-documento)
+  - [Enviar Localização](#enviar-localização)
+  - [Enviar Enquete](#enviar-enquete)
+  - [Enviar Botões](#enviar-botões)
+  - [Enviar Lista Interativa](#enviar-lista-interativa)
+  - [Enviar Mensagem Interativa (Interactive Message)](#enviar-mensagem-interativa)
+- [WebSocket](#-websocket)
+- [Webhooks](#-webhooks)
+- [Endpoints](#-endpoints)
+- [Painel de Controle](#-painel-de-controle)
+- [Tecnologias](#-tecnologias)
+- [Suporte](#-suporte)
 
 <p align="center">
   API robusta para gerenciamento de múltiplas sessões do WhatsApp utilizando <b>Baileys</b>.
