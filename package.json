@@ -16,6 +16,7 @@
     "@whiskeysockets/baileys": "github:clsshbr2/Baileys",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
+    "connect-redis": "^9.0.0",
     "cors": "^2.8.5",
     "crypto-digest-sync": "^1.0.0",
     "dotenv": "^16.5.0",
