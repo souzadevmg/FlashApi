@@ -76,6 +76,16 @@ async function modifyTable() {
   try {
     await db.execute("DROP TABLE IF EXISTS baileys_sessions;");
   } catch (error) {}
+
+  try {
+    await db.execute(
+      "CREATE UNIQUE INDEX IF NOT EXISTS unique_contato ON contatos (sessao_id, jid);",
+    );
+  } catch (error) {
+    if (error.code !== "42P07") {
+      throw error; // só ignora se for duplicado
+    }
+  }
 }
 
 let initialized = false;
@@ -88,6 +98,6 @@ export async function initDatabase() {
   await modifyTable();
 }
 
-initDatabase()
+initDatabase();
 
 export default modifyTable;
