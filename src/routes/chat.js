@@ -51,7 +51,7 @@ router.post("/send-text", authenticateApiKey, async (req, res) => {
     const message = {
       text,
       linkPreview: linkPreview,
-      footer: "Rodapé",
+      title: "Rodapé",
     };
 
     if (mentions && mentions.length > 0) {
