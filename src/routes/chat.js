@@ -912,9 +912,9 @@ router.post("/send-list", authenticateApiKey, async (req, res) => {
                 title: row.title,
                 rowId: row.rowId,
                 description: row.description || "",
-              })
+              }),
             ),
-          })
+          }),
         ),
       }),
     };
@@ -1029,7 +1029,8 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
     if (imageMessage && videoMessage) {
       return res.status(400).json({
         success: false,
-        message: "imageMessage e videoMessage não podem ser usados ao mesmo tempo",
+        message:
+          "imageMessage e videoMessage não podem ser usados ao mesmo tempo",
       });
     }
 
@@ -1051,7 +1052,7 @@ router.post("/send-buttons", authenticateApiKey, async (req, res) => {
       });
     }
 
-     const payloadButtons = {
+    const payloadButtons = {
       buttonsMessage: proto.Message.ButtonsMessage.fromObject({
         contentText: text,
         footerText: footer,
@@ -1270,33 +1271,28 @@ router.post(
       }
 
       const payload = {
-        viewOnceMessage: {
-          message: {
-            interactiveMessage: WAProto.Message.InteractiveMessage.create({
-              header:
-                WAProto.Message.InteractiveMessage.Header.create(headerObj),
-              body: WAProto.Message.InteractiveMessage.Body.create({
-                text: body.text,
-              }),
-              footer: WAProto.Message.InteractiveMessage.Footer.create({
-                text: footer.text,
-              }),
-              nativeFlowMessage:
-                WAProto.Message.InteractiveMessage.NativeFlowMessage.create({
-                  buttons: buttons.map((button) => ({
-                    name:
-                      typeof button.name === "string"
-                        ? button.name
-                        : JSON.stringify(button.name),
-                    buttonParamsJson:
-                      typeof button.buttonParamsJson === "string"
-                        ? button.buttonParamsJson
-                        : JSON.stringify(button.buttonParamsJson),
-                  })),
-                }),
+        interactiveMessage: WAProto.Message.InteractiveMessage.create({
+          header: WAProto.Message.InteractiveMessage.Header.create(headerObj),
+          body: WAProto.Message.InteractiveMessage.Body.create({
+            text: body.text,
+          }),
+          footer: WAProto.Message.InteractiveMessage.Footer.create({
+            text: footer.text,
+          }),
+          nativeFlowMessage:
+            WAProto.Message.InteractiveMessage.NativeFlowMessage.create({
+              buttons: buttons.map((button) => ({
+                name:
+                  typeof button.name === "string"
+                    ? button.name
+                    : JSON.stringify(button.name),
+                buttonParamsJson:
+                  typeof button.buttonParamsJson === "string"
+                    ? button.buttonParamsJson
+                    : JSON.stringify(button.buttonParamsJson),
+              })),
             }),
-          },
-        },
+        }),
       };
 
       const jid = to.includes("@") ? to : `${to}@s.whatsapp.net`;
@@ -1427,7 +1423,9 @@ router.post("/send-carouselMessage", authenticateApiKey, async (req, res) => {
           footer: {
             text: item.footer || "",
           },
-          // carouselCardType: proto.Message.InteractiveMessage.CarouselMessage.CarouselCardType.FULL,
+          carouselCardType:
+            proto.Message.InteractiveMessage.CarouselMessage.CarouselCardType
+              .FULL,
           nativeFlowMessage: {
             buttons: item.buttons.map((btn) => ({
               name: btn.name,
@@ -1439,22 +1437,18 @@ router.post("/send-carouselMessage", authenticateApiKey, async (req, res) => {
     );
 
     const payload = {
-      viewOnceMessage: {
-        message: {
-          interactiveMessage: WAProto.Message.InteractiveMessage.create({
-            body: WAProto.Message.InteractiveMessage.Body.create({
-              text: text,
-            }),
-            footer: WAProto.Message.InteractiveMessage.Footer.create({
-              text: footer,
-            }),
-            carouselMessage:
-              WAProto.Message.InteractiveMessage.CarouselMessage.create({
-                cards,
-              }),
+      interactiveMessage: WAProto.Message.InteractiveMessage.create({
+        body: WAProto.Message.InteractiveMessage.Body.create({
+          text: text,
+        }),
+        footer: WAProto.Message.InteractiveMessage.Footer.create({
+          text: footer,
+        }),
+        carouselMessage:
+          WAProto.Message.InteractiveMessage.CarouselMessage.create({
+            cards,
           }),
-        },
-      },
+      }),
     };
 
     const jid = to.includes("@") ? to : `${to}@s.whatsapp.net`;
