@@ -8,3 +8,5 @@ keys
 sessions/
 temp/
 package-lock.json
+.prettierrc
+logs/
