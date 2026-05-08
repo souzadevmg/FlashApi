@@ -1,955 +1,513 @@
-const el = document.getElementById("userInfo");
-let instacias = JSON.parse(el.dataset.instance || "[]");
+document.addEventListener("DOMContentLoaded", async () => {
+  // Obtém elementos-base do dashboard.
+  const elementoInfoUsuario = document.getElementById("userInfo");
+  const inputFiltroBusca = document.getElementById("filtroBusca");
+  const botaoAtualizar = document.getElementById("btnRefreshAnalytics");
+  const modalQrCode = document.getElementById("modalQR");
+  const btn_conectar = document.querySelectorAll(".btn-conectar");
+  const btn_desconectar = document.querySelectorAll(".btn-desconectar");
+  const btn_deletar = document.querySelectorAll(".btn-deletar");
+  const btn_configuracao = document.querySelectorAll(".btn-configuracao");
+  const btn_copiar = document.querySelectorAll(".copiar-btn");
 
-const apikeyGlobal = el.dataset.apikey;
-const apiurl = `${window.location.protocol}//${window.location.host}`;
-
-const metricElements = {
-  totalInstances: document.getElementById("metricTotalInstances"),
-  connectedInstances: document.getElementById("metricConnectedInstances"),
-  chats: document.getElementById("metricChats"),
-  contacts: document.getElementById("metricContacts"),
-  groups: document.getElementById("metricGroups"),
-  messages: document.getElementById("metricMessages"),
-  queue: document.getElementById("metricQueue"),
-  statusText: document.getElementById("dashboardStatusText"),
-  updatedAt: document.getElementById("analyticsUpdatedAt"),
-};
-
-const REALTIME_INTERVAL_MS = 5000;
-let fullRefreshInProgress = false;
-let liveRefreshInProgress = false;
-let realtimeIntervalId = null;
-
-function formatNumber(value) {
-  return new Intl.NumberFormat("pt-BR").format(Number(value || 0));
-}
-
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (!Number.isFinite(value) || value <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let unitIndex = 0;
-  let current = value;
-  while (current >= 1024 && unitIndex < units.length - 1) {
-    current /= 1024;
-    unitIndex += 1;
-  }
-  return `${current.toFixed(current >= 10 || unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
-}
-
-function formatPercent(value) {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num)) return "0%";
-  return `${num.toFixed(2)}%`;
-}
-
-function formatSeconds(totalSeconds) {
-  const sec = Math.max(0, Math.floor(Number(totalSeconds || 0)));
-  const days = Math.floor(sec / 86400);
-  const hours = Math.floor((sec % 86400) / 3600);
-  const minutes = Math.floor((sec % 3600) / 60);
-  const seconds = sec % 60;
-
-  if (days > 0) {
-    return `${days}d ${hours}h ${minutes}m`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  }
-  return `${minutes}m ${seconds}s`;
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function getInstanceById(instanceId) {
-  return instacias.find((i) => String(i.id) === String(instanceId));
-}
-
-function getInstanceByApiKey(apikey) {
-  return instacias.find((i) => String(i.apikey) === String(apikey));
-}
-
-function updateAnalyticsTimestamp() {
-  if (metricElements.updatedAt) {
-    metricElements.updatedAt.textContent = new Date().toLocaleString("pt-BR");
-  }
-}
-
-async function safeGet(url, headers = {}) {
-  try {
-    const response = await axios.get(url, { headers });
-    if (response.data && response.data.success) {
-      return { ok: true, data: response.data.data };
-    }
-    return {
-      ok: false,
-      error: response.data?.message || "Falha ao consultar endpoint",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error.response?.data?.message || error.message || "Erro na requisicao",
-    };
-  }
-}
-
-function readStatsTotals(stats = {}) {
-  const mensagens = stats.mensagens || {};
-  const contatos = stats.contatos || {};
-  const chats = stats.chats || {};
-  const grupos = stats.grupos || {};
-
-  return {
-    mensagens: Number(mensagens.total_mensagens || mensagens.total || 0),
-    contatos: Number(contatos.total_contatos || contatos.total || 0),
-    chats: Number(chats.total_chats || chats.total || 0),
-    grupos: Number(grupos.total_grupos || grupos.total || 0),
-  };
-}
-
-function setDashboardMessage(text) {
-  if (metricElements.statusText) {
-    metricElements.statusText.textContent = text;
-  }
-}
-
-function setTextById(id, value) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = value ?? "-";
-}
-
-function setRealtimeStatus(text, healthy = true) {
-  const el = document.getElementById("realtimeStatus");
-  if (!el) return;
-  el.textContent = text;
-  el.className = healthy
-    ? "badge rounded-pill text-bg-success"
-    : "badge rounded-pill text-bg-danger";
-}
-
-async function loadAggregateMetrics() {
-  setDashboardMessage(
-    "Consolidando dados de chats, contatos, grupos e mensagens...",
-  );
-
-  const totals = {
-    instances: instacias.length,
-    connected: instacias.filter((instance) => instance.status === "connected")
-      .length,
-    chats: 0,
-    contacts: 0,
-    groups: 0,
-    messages: 0,
-    queue: 0,
-  };
-
-  await Promise.all(
-    instacias.map(async (instance) => {
-      const headers = { apikey: instance.apikey };
-
-      const [statsRes] = await Promise.all([
-        safeGet(`${apiurl}/api/config/stats`, headers),
-      ]);
-
-      if (statsRes.ok) {
-        const parsed = readStatsTotals(statsRes.data?.stats || {});
-        totals.chats += parsed.chats;
-        totals.contacts += parsed.contatos;
-        totals.groups += parsed.grupos;
-        totals.messages += parsed.mensagens;
+  btn_copiar.forEach((botao) => {
+    botao.addEventListener("click", function () {
+      const valorCopiar = this.getAttribute("data-copy");
+      if (!valorCopiar) {
+        alert("Valor para copiar não encontrado.");
+        return;
       }
-    }),
-  );
+      navigator.clipboard.writeText(valorCopiar).then(  () => {
+        alert("Valor copiado para a área de transferência.");
 
-  if (metricElements.totalInstances)
-    metricElements.totalInstances.textContent = formatNumber(totals.instances);
-  if (metricElements.connectedInstances)
-    metricElements.connectedInstances.textContent = formatNumber(
-      totals.connected,
-    );
-  if (metricElements.chats)
-    metricElements.chats.textContent = formatNumber(totals.chats);
-  if (metricElements.contacts)
-    metricElements.contacts.textContent = formatNumber(totals.contacts);
-  if (metricElements.groups)
-    metricElements.groups.textContent = formatNumber(totals.groups);
-  if (metricElements.messages)
-    metricElements.messages.textContent = formatNumber(totals.messages);
-  if (metricElements.queue)
-    metricElements.queue.textContent = formatNumber(totals.queue);
-}
+      }).catch((err) => {
+        alert("Erro ao copiar o valor. Veja o console para detalhes.");
+        console.error("Erro ao copiar para a área de transferência:", err);
+      });
+    });
+  });
 
-function renderRows(targetId, rows, emptyText, cols = 2) {
-  const target = document.getElementById(targetId);
-  if (!target) return;
+  const modalConfig = new bootstrap.Modal(document.getElementById("configSessao"));
+  modalConfig._element.addEventListener("hidden.bs.modal", function () {
+    window.location.reload();
+  });
 
-  if (!rows || rows.length === 0) {
-    target.innerHTML = `<tr><td colspan="${cols}" class="small-muted">${emptyText}</td></tr>`;
+  if (!elementoInfoUsuario) {
     return;
   }
 
-  target.innerHTML = rows.join("");
-}
+  const apikeyGlobal = elementoInfoUsuario.getAttribute("data-apikey");
 
-async function loadInstanceAnalytics(selectedApiKey) {
-  const selectEl = document.getElementById("instanceAnalyticsSelect");
-  const defaultApiKey =
-    selectedApiKey || selectEl?.value || instacias[0]?.apikey;
-  const instance = getInstanceByApiKey(defaultApiKey);
-
-  if (!instance) {
-    renderRows("tableRecentChats", [], "Nenhuma instancia disponivel.");
-    renderRows("tableRecentContacts", [], "Nenhuma instancia disponivel.");
-    renderRows("tableRecentGroups", [], "Nenhuma instancia disponivel.");
-    return;
-  }
-
-  if (selectEl && selectEl.value !== instance.apikey) {
-    selectEl.value = instance.apikey;
-  }
-
-  const headers = { apikey: instance.apikey };
-
-  const [chatsRes, contactsRes, groupsRes, statusRes] = await Promise.all([
-    safeGet(`${apiurl}/api/chat/chats`, headers),
-    safeGet(`${apiurl}/api/contact/list`, headers),
-    safeGet(`${apiurl}/api/group/list`, headers),
-    safeGet(`${apiurl}/api/session/status`, headers),
-  ]);
-
-  const chats = chatsRes.ok ? chatsRes.data?.chats || [] : [];
-  const contacts = contactsRes.ok ? contactsRes.data?.contacts || [] : [];
-  const groups = groupsRes.ok ? groupsRes.data?.groups || [] : [];
-
-  const chatsRows = chats.slice(0, 8).map((chat) => {
-    const name =
-      chat.nome || chat.name || chat.push_name || chat.subject || "Sem nome";
-    const jid = chat.remotejid || chat.jid || chat.id || "-";
-    return `<tr><td>${escapeHtml(name)}</td><td class="small-muted">${escapeHtml(jid)}</td></tr>`;
-  });
-
-  const contactsRows = contacts.slice(0, 8).map((contact) => {
-    const name = contact.nome || contact.apelido || "Sem nome";
-    const number = contact.jid
-      ? contact.jid.replace("@s.whatsapp.net", "")
-      : "-";
-    return `<tr><td>${escapeHtml(name)}</td><td class="small-muted">${escapeHtml(number)}</td></tr>`;
-  });
-
-  const groupsRows = groups.slice(0, 8).map((group) => {
-    const name = group.assunto || group.nome || group.name || "Sem titulo";
-    const id = group.id || group.jid || group.groupJid || "-";
-    return `<tr><td>${escapeHtml(name)}</td><td class="small-muted">${escapeHtml(id)}</td></tr>`;
-  });
-
-  renderRows("tableRecentChats", chatsRows, "Sem chats para exibir.");
-  renderRows(
-    "tableRecentContacts",
-    contactsRows,
-    contactsRes.ok
-      ? "Sem contatos para exibir."
-      : "Instancia desconectada ou sem acesso.",
-  );
-  renderRows(
-    "tableRecentGroups",
-    groupsRows,
-    groupsRes.ok
-      ? "Sem grupos para exibir."
-      : "Instancia desconectada ou sem acesso.",
-  );
-
-  const statusText = statusRes.ok
-    ? `Instancia selecionada: ${instance.nome_sessao} (${statusRes.data?.status || instance.status})`
-    : `Instancia selecionada: ${instance.nome_sessao} (${instance.status})`;
-
-  setDashboardMessage(statusText);
-}
-
-async function loadSystemHealth() {
-  const headers = { apikey: apikeyGlobal };
-  const stateEl = document.getElementById("systemHealthState");
-  const totalEl = document.getElementById("systemSessionsTotal");
-  const connectedEl = document.getElementById("systemSessionsConnected");
-  const connectingEl = document.getElementById("systemSessionsConnecting");
-
-  const [listRes, healthRes] = await Promise.all([
-    safeGet(`${apiurl}/api/session/list`, headers),
-    safeGet(`${apiurl}/api/session/health`, headers),
-  ]);
-
-  const fallbackTotal = instacias.length;
-  const fallbackConnected = instacias.filter(
-    (instance) => instance.status === "connected",
-  ).length;
-
-  if (listRes.ok) {
-    const stats = listRes.data?.stats || {};
-    if (totalEl)
-      totalEl.textContent = formatNumber(
-        stats.total || listRes.data?.total || fallbackTotal,
-      );
-    if (connectedEl)
-      connectedEl.textContent = formatNumber(
-        stats.connected || fallbackConnected,
-      );
-    if (connectingEl)
-      connectingEl.textContent = formatNumber(stats.connecting || 0);
-  } else {
-    if (totalEl) totalEl.textContent = formatNumber(fallbackTotal);
-    if (connectedEl) connectedEl.textContent = formatNumber(fallbackConnected);
-    if (connectingEl) connectingEl.textContent = "0";
-  }
-
-  if (stateEl) {
-    const healthy = healthRes.ok;
-    stateEl.textContent = healthy ? "Saudavel" : "Indisponivel";
-    stateEl.className = healthy
-      ? "badge rounded-pill text-bg-success"
-      : "badge rounded-pill text-bg-danger";
-  }
-}
-
-async function loadSystemInfra() {
-  const headers = { apikey: apikeyGlobal };
-  const statusRes = await safeGet(`${apiurl}/api/system/status`, headers);
-
-  if (!statusRes.ok) {
-    setTextById("systemHostname", "Indisponivel");
-    setTextById("systemOs", "Indisponivel");
-    setTextById("systemUptime", "-");
-    setTextById("systemLoadAvg", "-");
-    setTextById("systemCpuModel", "-");
-    setTextById("systemCpuCores", "-");
-    setTextById("systemCpuLoad", "-");
-    setTextById("systemCpuIdle", "-");
-    setTextById("systemRamTotal", "-");
-    setTextById("systemRamUsed", "-");
-    setTextById("systemRamFree", "-");
-    setTextById("systemNodeHeap", "-");
-    renderRows("tableSystemDisks", [], "Dados de disco indisponiveis.", 4);
-    renderRows("tableSystemNetwork", [], "Dados de rede indisponiveis.", 4);
-    return;
-  }
-
-  const payload = statusRes.data || {};
-  const system = payload.system || {};
-  const host = system.host || {};
-  const cpu = system.cpu || {};
-  const cpuLoad = cpu.load || {};
-  const memoryDetails = system.memoryDetails || {};
-  const sysMem = memoryDetails.system || {};
-  const processMem = memoryDetails.process || system.memory || {};
-
-  const totalRamBytes = Number(sysMem.total || 0);
-  const availableRamBytes = Number(sysMem.available ?? sysMem.free ?? 0);
-  const calculatedUsedRamBytes =
-    totalRamBytes > 0
-      ? Math.max(0, totalRamBytes - availableRamBytes)
-      : Number(sysMem.used || 0);
-  const ramUsagePercent =
-    totalRamBytes > 0
-      ? (calculatedUsedRamBytes / totalRamBytes) * 100
-      : Number(sysMem.usagePercent || 0);
-
-  setTextById("systemHostname", host.hostname || "-");
-  setTextById(
-    "systemOs",
-    `${host.type || ""} ${host.release || ""}`.trim() ||
-      system.os?.distro ||
-      "-",
-  );
-  setTextById("systemUptime", formatSeconds(host.uptime || system.uptime || 0));
-  setTextById(
-    "systemLoadAvg",
-    Array.isArray(host.loadAverage)
-      ? host.loadAverage.map((v) => Number(v || 0).toFixed(2)).join(" | ")
-      : "-",
-  );
-
-  setTextById("systemCpuModel", cpu.brand || cpu.manufacturer || "-");
-  setTextById("systemCpuCores", `${cpu.cores || "-"} cores`);
-  setTextById("systemCpuLoad", formatPercent(cpuLoad.current));
-  setTextById(
-    "systemCpuIdle",
-    cpuLoad.idle == null ? "-" : formatPercent(cpuLoad.idle),
-  );
-
-  setTextById("systemRamTotal", formatBytes(totalRamBytes));
-  setTextById(
-    "systemRamUsed",
-    `${formatBytes(calculatedUsedRamBytes)} (${formatPercent(ramUsagePercent)})`,
-  );
-  setTextById("systemRamFree", formatBytes(availableRamBytes));
-  setTextById(
-    "systemNodeHeap",
-    `${formatBytes(processMem.heapUsed)} / ${formatBytes(processMem.heapTotal)}`,
-  );
-
-  const disks = system.storage?.disks || [];
-  const diskRows = disks.slice(0, 8).map(
-    (disk) => `
-        <tr>
-            <td>${escapeHtml(disk.mount || disk.fs || "-")}</td>
-            <td>${escapeHtml(formatBytes(disk.total))}</td>
-            <td>${escapeHtml(formatBytes(disk.used))}</td>
-            <td class="small-muted">${escapeHtml(formatPercent(disk.use))}</td>
-        </tr>
-    `,
-  );
-
-  const nets = system.network?.stats || [];
-  const netRows = nets.slice(0, 8).map(
-    (net) => `
-        <tr>
-            <td>${escapeHtml(net.iface || "-")}</td>
-            <td>${escapeHtml(net.operstate || "-")}</td>
-            <td>${escapeHtml(formatBytes(net.rxBytes))}</td>
-            <td class="small-muted">${escapeHtml(formatBytes(net.txBytes))}</td>
-        </tr>
-    `,
-  );
-
-  renderRows("tableSystemDisks", diskRows, "Nenhum volume encontrado.", 4);
-  renderRows(
-    "tableSystemNetwork",
-    netRows,
-    "Nenhuma interface ativa encontrada.",
-    4,
-  );
-}
-
-function populateInstanceSelect() {
-  const select = document.getElementById("instanceAnalyticsSelect");
-  if (!select) return;
-
-  select.innerHTML = "";
-  instacias.forEach((instance) => {
-    const option = document.createElement("option");
-    option.value = instance.apikey;
-    option.textContent = `${instance.nome_sessao} (${instance.status})`;
-    select.appendChild(option);
-  });
-
-  if (instacias.length > 0) {
-    select.value = instacias[0].apikey;
-  }
-}
-
-async function refreshAnalytics() {
-  if (fullRefreshInProgress) {
-    return;
-  }
-
-  fullRefreshInProgress = true;
+  // Tenta ler as instâncias vindas do backend.
+  let instancias = [];
   try {
-    const refreshBtn = document.getElementById("btnRefreshAnalytics");
-    if (refreshBtn) {
-      refreshBtn.disabled = true;
-      refreshBtn.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando';
+    instancias = JSON.parse(elementoInfoUsuario.getAttribute("data-instance") || "[]");
+  } catch (erro) {
+    instancias = [];
+  }
+
+  // Lista original das colunas de card para re-renderização do filtro.
+  const colunasOriginais = Array.from(document.querySelectorAll(".card-instance"))
+    .map((card) => card.closest(".col-md-6.col-lg-4"))
+    .filter(Boolean);
+
+  const containerCards = colunasOriginais[0]?.parentElement || null;
+
+  // Faz requisições para a API com o header de apikey.
+  async function fazerRequisicao(url, metodo = "GET", apikey = apikeyGlobal, dados = null) {
+    const opcoes = {
+      method: metodo,
+      headers: {
+        "Content-Type": "application/json",
+        apikey: apikey,
+      },
+    };
+
+    if (dados && metodo !== "GET") {
+      opcoes.body = JSON.stringify(dados);
     }
 
-    await loadAggregateMetrics();
-    await loadInstanceAnalytics();
-    await loadSystemHealth();
-    await loadSystemInfra();
-    updateAnalyticsTimestamp();
-    setRealtimeStatus(
-      `Ativo (${Math.floor(REALTIME_INTERVAL_MS / 1000)}s)`,
-      true,
-    );
-  } catch (error) {
-    setDashboardMessage("Erro ao atualizar metricas do dashboard.");
-    setRealtimeStatus("Erro no tempo real", false);
-  } finally {
-    fullRefreshInProgress = false;
-    const refreshBtn = document.getElementById("btnRefreshAnalytics");
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-      refreshBtn.innerHTML =
-        '<i class="bi bi-arrow-clockwise me-1"></i> Atualizar';
+    try {
+      const resposta = await fetch(url, opcoes);
+      return await resposta.json();
+    } catch (erro) {
+      console.error("Erro ao consultar API:", erro);
+      return null;
     }
   }
-}
 
-async function refreshRealtimeConsumption() {
-  if (liveRefreshInProgress || fullRefreshInProgress || document.hidden) {
-    return;
-  }
+  // Atualiza os indicadores de total/conectadas/conectando/desconectadas.
+  async function atualizarMetricasSessoes() {
+    const respostaSessoes = await fazerRequisicao("/api/session/list", "GET");
+    const stats = respostaSessoes?.data?.stats;
 
-  liveRefreshInProgress = true;
-  try {
-    await loadSystemHealth();
-    await loadSystemInfra();
-    updateAnalyticsTimestamp();
-    setRealtimeStatus(
-      `Ativo (${Math.floor(REALTIME_INTERVAL_MS / 1000)}s)`,
-      true,
-    );
-  } catch (error) {
-    setRealtimeStatus("Erro no tempo real", false);
-  } finally {
-    liveRefreshInProgress = false;
-  }
-}
-
-function startRealtimeConsumptionUpdates() {
-  if (realtimeIntervalId) {
-    clearInterval(realtimeIntervalId);
-  }
-
-  realtimeIntervalId = setInterval(
-    refreshRealtimeConsumption,
-    REALTIME_INTERVAL_MS,
-  );
-  setRealtimeStatus(
-    `Ativo (${Math.floor(REALTIME_INTERVAL_MS / 1000)}s)`,
-    true,
-  );
-}
-
-function stopRealtimeConsumptionUpdates() {
-  if (realtimeIntervalId) {
-    clearInterval(realtimeIntervalId);
-    realtimeIntervalId = null;
-  }
-  setRealtimeStatus("Pausado (aba inativa)", true);
-}
-
-function bindRealtimeLifecycle() {
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      stopRealtimeConsumptionUpdates();
+    if (!stats) {
       return;
     }
 
-    startRealtimeConsumptionUpdates();
-    refreshRealtimeConsumption();
-  });
-}
+    const total = Number(stats.total || 0);
+    const conectadas = Number(stats.connected || 0);
+    const conectando = Number(stats.connecting || 0);
+    const desconectadas = Number(stats.disconnected || 0);
 
-function bindAnalyticsEvents() {
-  const select = document.getElementById("instanceAnalyticsSelect");
-  if (select) {
-    select.addEventListener("change", async function () {
-      await loadInstanceAnalytics(this.value);
-      updateAnalyticsTimestamp();
+    const totalEl = document.getElementById("metricTotalInstances");
+    const conectadasEl = document.getElementById("metricConnectedInstances");
+    const conectandoEl = document.getElementById("metricConnectingInstances");
+    const desconectadasEl = document.getElementById("metricDisconnectedInstances");
+    const statusTextoEl = document.getElementById("dashboardStatusText");
+    const atualizadoEmEl = document.getElementById("analyticsUpdatedAt");
+
+    if (totalEl) totalEl.textContent = String(total);
+    if (conectadasEl) conectadasEl.textContent = String(conectadas);
+    if (conectandoEl) conectandoEl.textContent = String(conectando);
+    if (desconectadasEl) desconectadasEl.textContent = String(desconectadas);
+
+    if (statusTextoEl) {
+      statusTextoEl.textContent = `Total: ${total} | Conectadas: ${conectadas} | Conectando: ${conectando} | Desconectadas: ${desconectadas}`;
+    }
+
+    if (atualizadoEmEl) {
+      atualizadoEmEl.textContent = new Date().toLocaleString("pt-BR");
+    }
+  }
+
+  // Define fallback de imagem sem usar handlers inline (compatível com CSP).
+  function configurarFallbackAvatar() {
+    const avatares = document.querySelectorAll("img.instance-avatar[data-fallback-src]");
+    avatares.forEach((avatar) => {
+      avatar.addEventListener("error", function aoFalharAvatar() {
+        const srcFallback = this.getAttribute("data-fallback-src") || "/images/image.png";
+        if (this.getAttribute("src") !== srcFallback) {
+          this.setAttribute("src", srcFallback);
+          return;
+        }
+
+        this.style.display = "none";
+      });
     });
   }
 
-  const refreshBtn = document.getElementById("btnRefreshAnalytics");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", refreshAnalytics);
-  }
-}
+  // Extrai os campos usados na busca de cada card.
+  function extrairCamposBusca(colunaCard) {
+    const card = colunaCard.querySelector(".card-instance");
 
-// Botao Conectar instancia
+    const nome = card?.querySelector(".instancia_name")?.textContent?.toLowerCase().trim() || "";
+    const telefone = card?.querySelector(".phone-number")?.textContent?.toLowerCase().trim() || "";
+    const apikey = card?.querySelector(".api-key")?.textContent?.toLowerCase().trim() || "";
 
-document.querySelectorAll(".btn-generate").forEach((button) => {
-  button.addEventListener("click", function () {
-    const instanceId = this.dataset.id;
-    const $btn = $(this);
-    $btn.prop("disabled", true);
-    $btn.find(".btn-text").text("Conectando...");
-    $btn.find(".spinner-border").removeClass("d-none");
-    generateQRCode(instanceId);
-  });
-});
-
-// Botao Desconectar instancia
-
-document.querySelectorAll(".btn-disconnect").forEach((button) => {
-  button.addEventListener("click", function () {
-    const instanceId = this.dataset.id;
-    const $btn = $(this);
-    $btn.prop("disabled", true);
-    $btn.find(".btn-text").text("Desconectando...");
-    $btn.find(".spinner-border").removeClass("d-none");
-    if (confirm("Deseja realmente desconectar a instancia?")) {
-      disconnectInstance(instanceId);
-    }
-  });
-});
-
-// Botao Deletar instancia
-
-document.querySelectorAll(".btn-delete").forEach((button) => {
-  button.addEventListener("click", function () {
-    const instanceId = this.dataset.id;
-    if (confirm("Deseja realmente deletar a instancia?")) {
-      const $btn = $(this);
-      $btn.prop("disabled", true);
-      $btn.find(".btn-text").text("Deletando...");
-      $btn.find(".spinner-border").removeClass("d-none");
-      deleteInstance(instanceId);
-    }
-  });
-});
-
-// Botao atualizar qrcode
-
-document.querySelectorAll(".btn-att-qrcode").forEach((button) => {
-  button.addEventListener("click", function () {
-    const instanceId = this.dataset.id;
-    $("#qr-code-info").html("");
-    $("#qr-code-img").attr("src", "");
-    $("#info-detalhes").html("");
-    generateQRCode(instanceId);
-  });
-});
-
-// Botao configuracao
-
-document.querySelectorAll(".btn-config").forEach((button) => {
-  button.addEventListener("click", async function () {
-    this.disabled = true;
-    const instanceId = this.dataset.id;
-    await configuracao(instanceId);
-    this.disabled = false;
-  });
-});
-
-// Funcao gerar qrcode
-
-async function generateQRCode(instanceId, modal = true) {
-  const getapikey = getInstanceById(instanceId);
-
-  if (!getapikey) {
-    alert("Instancia nao encontrada.");
-    return;
+    return { colunaCard, nome, telefone, apikey };
   }
 
-  try {
-    const headers = { apikey: getapikey.apikey };
+  // Limpa a grade e renderiza apenas os resultados filtrados, ordenados por nome.
+  function renderizarFiltroInstancias(termoBusca) {
+    if (!containerCards) {
+      return;
+    }
 
-    const response = await axios.put(
-      `${apiurl}/api/session/conectar_sessao`,
-      null,
-      { headers },
-    );
-    if (response.data.success) {
-      $(".btn-att-qrcode").attr("data-id", instanceId);
-      $("#qr-code-info").html(
-        `<strong>Codigo de conexao:</strong> ${response.data.code}`,
-      );
-      $("#qr-code-img").attr("src", response.data.qrcode);
-      $("#info-detalhes").html(`<strong>${response.data.message}</strong>`);
-      if (modal) {
-        $("#modalQR").modal("show");
+    const termo = String(termoBusca || "")
+      .toLowerCase()
+      .trim();
+    const cardsComDados = colunasOriginais.map(extrairCamposBusca);
+
+    const resultados = cardsComDados.filter(({ nome, telefone, apikey }) => {
+      if (!termo) {
+        return true;
       }
-    } else {
-      alert(response.data.message || "QR Code nao disponivel.");
-    }
-  } catch (error) {
-    alert("Erro ao gerar sessao, tente novamente.");
-  }
-}
 
-// Funcao desconectar instancia
+      return nome.includes(termo) || telefone.includes(termo) || apikey.includes(termo);
+    });
 
-async function disconnectInstance(instanceId) {
-  const getapikey = getInstanceById(instanceId);
-  if (!getapikey) {
-    alert("Instancia nao encontrada.");
-    return;
-  }
+    resultados.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 
-  try {
-    const headers = { apikey: getapikey.apikey };
+    containerCards.innerHTML = "";
 
-    const response = await axios.delete(
-      `${apiurl}/api/session/desconect/${getapikey.apikey}`,
-      { headers },
-    );
-    if (response.data.success) {
-      alert(response.data.message);
-    } else {
-      alert(response.data.message || "Erro ao desconectar instancia.");
-    }
-    window.location.reload();
-  } catch (error) {
-    alert("Erro ao desconectar sessao, tente novamente.");
-  }
-}
-
-// Funcao deletar instancia
-
-async function deleteInstance(instanceId) {
-  const getapikey = getInstanceById(instanceId);
-  if (!getapikey) {
-    alert("Instancia nao encontrada.");
-    return;
-  }
-
-  try {
-    const headers = { apikey: apikeyGlobal };
-
-    const response = await axios.delete(
-      `${apiurl}/api/session/delete/${getapikey.apikey}`,
-      { headers },
-    );
-    if (response.data.success) {
-      alert(response.data.message);
-    } else {
-      alert(response.data.message || "Erro ao deletar instancia.");
-    }
-    window.location.reload();
-  } catch (error) {
-    alert("Erro ao deletar sessao, tente novamente.");
-  }
-}
-
-// Criar instancia
-
-$("#form-Criar-Instance").on("submit", async (event) => {
-  event.preventDefault();
-  const nome_sessao = $("#nome-sessao").val();
-  const apikey = $("#apikey-sessao").val();
-  const numero = $("#numero-sessao").val();
-
-  try {
-    const headers = { apikey: apikeyGlobal };
-
-    const data = { nome_sessao, apikey, numero };
-    const response = await axios.post(
-      `${apiurl}/api/session/create_sessao`,
-      data,
-      { headers },
-    );
-    if (response.data.success) {
-      alert("Sessao criada com sucesso");
-    } else {
-      alert(response.data.message || "Erro ao criar instancia.");
-    }
-  } catch (error) {
-    alert("Erro ao criar sessao, tente novamente.");
-  } finally {
-    window.location.reload();
-  }
-});
-
-$("#modalQR").on("hidden.bs.modal", function () {
-  window.location.reload();
-});
-
-$("#modalcreateSessao").on("hidden.bs.modal", function () {
-  window.location.reload();
-});
-
-async function configuracao(instanceId) {
-  const getapikey = getInstanceById(instanceId);
-  const configProxy = document.getElementById("config-proxy");
-  if (getapikey) {
-    const getProxy = await getproxy(instanceId, getapikey.apikey);
-    if (!getProxy) {
-      return alert("Erro ao carregar configuracao de proxy, tente novamente.");
+    if (resultados.length === 0) {
+      const avisoSemResultado = document.createElement("div");
+      avisoSemResultado.className = "col-12 small-muted";
+      avisoSemResultado.textContent = "Nenhuma instância encontrada para o filtro informado.";
+      containerCards.appendChild(avisoSemResultado);
+      return;
     }
 
-    if (getProxy.proxy) {
-      $("#proxy-ativo").prop("checked", getProxy.proxy.active == 1);
-      $("#proxy-protocol").val(getProxy.proxy.protocol || "http");
-      $("#proxy-username").val(getProxy.proxy.username || "");
-      $("#proxy-password").val(getProxy.proxy.password || "");
-      $("#proxy-port").val(getProxy.proxy.port || "");
-      $("#proxy-host").val(getProxy.proxy.host || "");
+    resultados.forEach(({ colunaCard }) => {
+      containerCards.appendChild(colunaCard);
+    });
+  }
 
-      if (getProxy.proxy.active == 1) {
-        configProxy.classList.remove("d-none");
+  // Mantém a variável em uso para evitar remoções acidentais por linters.
+  if (!Array.isArray(instancias)) {
+    instancias = [];
+  }
+
+  // Configura o fallback de avatar para todas as imagens de instância.
+  configurarFallbackAvatar();
+  await atualizarMetricasSessoes();
+  setInterval(atualizarMetricasSessoes, 6000);
+
+  // Configura o botão de atualizar para recarregar as métricas de sessões.
+  if (botaoAtualizar) {
+    botaoAtualizar.addEventListener("click", atualizarMetricasSessoes);
+  }
+
+  // Configura o filtro de busca para atualizar a lista de instâncias conforme o usuário digita.
+  if (inputFiltroBusca) {
+    inputFiltroBusca.addEventListener("input", function aoDigitarFiltro() {
+      renderizarFiltroInstancias(this.value);
+    });
+  }
+
+  // Configura os botões de conectar para iniciar o processo de conexão da sessão correspondente.
+  btn_conectar.forEach((botao) => {
+    botao.addEventListener("click", async function () {
+      const sessionId = this.getAttribute("data-id");
+      if (!sessionId) {
+        alert("ID da sessão não encontrado para esta instância.");
+        return;
+      }
+      const instacia = instancias.find((inst) => String(inst.apikey) === String(sessionId));
+      if (!instacia) {
+        alert("Instância não encontrada para esta sessão.");
+        return;
+      }
+      botao.disabled = true;
+      const spinner = botao.querySelector(".spinner-border");
+      const textoBotao = botao.querySelector(".btn-text");
+      if (spinner) spinner.classList.remove("d-none");
+      if (textoBotao) textoBotao.textContent = "Conectando...";
+      try {
+        const conectar = await fazerRequisicao(`/api/session/conectar_sessao`, "PUT", sessionId, { numero: instacia.numero });
+        if (!conectar || !conectar.success) {
+          alert("Falha ao conectar a sessão." + (conectar?.message ? ` Mensagem: ${conectar.message}` : ""));
+          console.error("Resposta da API:", conectar);
+          return;
+        }
+
+        modalQrCode.querySelector(".modal-title").textContent = `QR Code - ${instacia.nome_sessao}`;
+        const imgQr = modalQrCode.querySelector("#qr-code-img");
+        if (imgQr) {
+          imgQr.setAttribute("src", `${conectar.qrcode}`);
+          if (conectar.code) {
+            document.getElementById("qr-code-info").textContent = `Codigo: ${conectar.code}`;
+          }
+        }
+        const modal = new bootstrap.Modal(modalQrCode);
+        modal.show();
+
+        const intervalId = setInterval(async () => {
+          const status = await verificarStatusSessao(sessionId);
+          console.log("Status verificado:", status);
+          if (status && status.status === "connected") {
+            modal.hide();
+            clearInterval(intervalId);
+            window.location.reload();
+          }
+        }, 2000);
+      } catch (error) {
+        alert("Erro ao conectar a sessão. Veja o console para detalhes.");
+        console.error("Erro ao conectar a sessão:", error);
+      } finally {
+        botao.disabled = false;
+        if (spinner) spinner.classList.add("d-none");
+        if (textoBotao) textoBotao.textContent = "Conectar";
+      }
+    });
+  });
+
+  // Configura os botões de desconectar para iniciar o processo de desconexão da sessão correspondente.
+  btn_desconectar.forEach((botao) => {
+    botao.addEventListener("click", async function () {
+      const sessionId = this.getAttribute("data-id");
+      if (!sessionId) {
+        alert("ID da sessão não encontrado para esta instância.");
+        return;
+      }
+      if (!confirm("Tem certeza que deseja desconectar esta sessão?")) {
+        return;
+      }
+      botao.disabled = true;
+      const spinner = botao.querySelector(".spinner-border");
+      const textoBotao = botao.querySelector(".btn-text");
+      if (spinner) spinner.classList.remove("d-none");
+      if (textoBotao) textoBotao.textContent = "Desconectando...";
+      try {
+        const resposta = await fazerRequisicao(`/api/session/desconect/${sessionId}`, "DELETE", sessionId);
+        if (!resposta || !resposta.success) {
+          alert("Falha ao desconectar a sessão." + (resposta?.message ? ` Mensagem: ${resposta.message}` : ""));
+          console.error("Resposta da API:", resposta);
+          return;
+        }
+        alert("Sessão desconectada com sucesso.");
+        window.location.reload();
+      } catch (error) {
+        alert("Erro ao desconectar a sessão. Veja o console para detalhes.");
+        console.error("Erro ao desconectar a sessão:", error);
+      } finally {
+        botao.disabled = false;
+        if (spinner) spinner.classList.add("d-none");
+        if (textoBotao) textoBotao.textContent = "Desconectar";
+      }
+    });
+  });
+
+  // Configura os botões de deletar para iniciar o processo de deleção da sessão correspondente.
+  btn_deletar.forEach((botao) => {
+    botao.addEventListener("click", async function () {
+      const sessionId = this.getAttribute("data-id");
+      if (!sessionId) {
+        alert("ID da sessão não encontrado para esta instância.");
+        return;
+      }
+      if (!confirm("Tem certeza que deseja deletar esta sessão?")) {
+        return;
+      }
+      botao.disabled = true;
+      const spinner = botao.querySelector(".spinner-border");
+      const textoBotao = botao.querySelector(".btn-text");
+      if (spinner) spinner.classList.remove("d-none");
+      if (textoBotao) textoBotao.textContent = "Deletando...";
+      try {
+        const resposta = await fazerRequisicao(`/api/session/delete/${sessionId}`, "DELETE", apikeyGlobal);
+        if (!resposta || !resposta.success) {
+          alert("Falha ao deletar a sessão." + (resposta?.message ? ` Mensagem: ${resposta.message}` : ""));
+          console.error("Resposta da API:", resposta);
+          return;
+        }
+        alert("Sessão deletada com sucesso.");
+        window.location.reload();
+      } catch (error) {
+        alert("Erro ao deletar a sessão. Veja o console para detalhes.");
+        console.error("Erro ao deletar a sessão:", error);
+      } finally {
+        botao.disabled = false;
+        if (spinner) spinner.classList.add("d-none");
+        if (textoBotao) textoBotao.textContent = "Deletar";
+      }
+    });
+  });
+
+  // Configura o formulário de criação de sessão para enviar os dados para a API e criar uma nova sessão.
+  document.getElementById("form-Criar-Instance").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const nome_sessao = document.getElementById("nome-sessao").value.trim() || "";
+    const apikey = document.getElementById("apikey-sessao").value.trim() || "";
+    const numero = document.getElementById("numero-sessao").value.trim() || "";
+    let proxy = null;
+    if (document.getElementById("proxy-ativo-add").checked) {
+      proxy = {
+        protocol: document.getElementById("proxy-protocol-add").value.trim() || "http",
+        username: document.getElementById("proxy-username-add").value.trim() || "",
+        password: document.getElementById("proxy-password-add").value.trim() || "",
+        host: document.getElementById("proxy-host-add").value.trim() || "",
+        port: document.getElementById("proxy-port-add").value.trim() || "",
+      };
+    }
+
+    try {
+      const resposta = await fazerRequisicao(`/api/session/create_sessao`, "POST", apikeyGlobal, { nome_sessao, numero, apikey, proxy });
+      if (!resposta || !resposta.success) {
+        alert("Falha ao criar a sessão." + (resposta?.message ? ` Mensagem: ${resposta.message}` : ""));
+        console.error("Resposta da API:", resposta);
+        return;
+      }
+      alert("Sessão criada com sucesso. Conectando...");
+      window.location.reload();
+    } catch (error) {
+      alert("Erro ao criar a sessão. Veja o console para detalhes.");
+      console.error("Erro ao criar a sessão:", error);
+    } finally {
+      inputNome.value = "";
+      inputNumero.value = "";
+    }
+  });
+
+  // Configura os botões de configuração para abrir o modal de configuração da sessão correspondente e preencher os campos com os dados atuais da sessão.
+  btn_configuracao.forEach((botao) => {
+    botao.addEventListener("click", async function () {
+      const sessionId = this.getAttribute("data-id");
+      botao.disabled = true;
+      botao.querySelector(".btn-text").textContent = "Carregando...";
+      const resposta = await fazerRequisicao(`/api/session/status/`, "GET", sessionId);
+      if (!resposta || !resposta.success) {
+        alert("Falha ao obter status da sessão." + (resposta?.message ? ` Mensagem: ${resposta.message}` : ""));
+        console.error("Resposta da API:", resposta);
+        return;
+      }
+
+      const modalConfig = new bootstrap.Modal(document.getElementById("configSessao"));
+      modalConfig.show();
+      document.getElementById("id_sessao").value = sessionId;
+      document.getElementById("webhook-url").value = resposta.data.webhook_url || "";
+      document.getElementById("webhook-status").checked = resposta.data.webhook_status == 1;
+      document.getElementById("mensagem-rejeicao").value = resposta.data.msg_rejectcalls || "";
+      document.getElementById("rejeitar-chamada").checked = resposta.data.rejeitar_ligacoes == 1;
+      document.getElementById("ignorar-grupos").checked = resposta.data.ignorar_grupos == 1;
+      document.getElementById("sempre-online").checked = resposta.data.leitura_automatica == 1;
+      document.getElementById("proxy-ativo").checked = resposta.data.proxy.active ? true : false;
+
+      const select = document.getElementById("events[]");
+      const values = resposta.data.events || [];
+
+      Array.from(select.options).forEach((option) => {
+        option.selected = values.includes(option.value);
+      });
+
+      if (resposta?.data?.proxy) {
+        document.getElementById("proxy-protocol").value = resposta.data.proxy.protocol || "http";
+        document.getElementById("proxy-username").value = resposta.data.proxy.username || "";
+        document.getElementById("proxy-password").value = resposta.data.proxy.password || "";
+        document.getElementById("proxy-host").value = resposta.data.proxy.host || "";
+        document.getElementById("proxy-port").value = resposta.data.proxy.port || "";
+        if (resposta.data.proxy.active) {
+          document.getElementById("config-proxy").classList.remove("d-none");
+        }
       } else {
-        configProxy.classList.add("d-none");
-      }
-    }
-
-    $("#id_sessao").attr("data-id", instanceId);
-    $("#webhook-url").val(getProxy.config.webhook_url || "");
-    $("#webhook-status").prop("checked", getProxy.config.webhook_status == 1);
-    $('[name="events[]"]').val(getProxy.config.events || []);
-    $("#mensagem-rejeicao").val(getProxy.config.msg_rejectcalls || "");
-    $("#rejeitar-chamada").prop(
-      "checked",
-      getProxy.config.rejeitar_ligacoes == 1,
-    );
-    $("#sempre-online").prop(
-      "checked",
-      getProxy.config.leitura_automatica == 1,
-    );
-    $("#ignorar-grupos").prop("checked", getProxy.config.ignorar_grupos == 1);
-    $("#configSessao").modal("show");
-  }
-}
-
-async function getproxy(instanceId, apikey) {
-  try {
-    const headers = { apikey: apikey };
-    const config = await axios.get(`${apiurl}/api/config/session`, { headers });
-    if (config.data.success) {
-      return config.data.data || {};
-    }
-  } catch (error) {
-    console.log(error);
-    return null;
-  }
-}
-// Alterar configuracoes
-
-$("#form-config-Instance").on("submit", async function (e) {
-  e.preventDefault();
-  const instanceId = $("#id_sessao").attr("data-id");
-  const getapikey = getInstanceById(instanceId);
-  if (!getapikey) {
-    alert("Sessao nao encontrada");
-    window.location.reload();
-    return;
-  }
-
-  const $btn = $(this).find('button[type="submit"]');
-  $btn.prop("disabled", true);
-  $btn.find(".btn-text").text("Salvando...");
-  $btn.find(".spinner-border").removeClass("d-none");
-
-  const events = $('[name="events[]"]').val();
-  const status_webhook = $("#webhook-status").prop("checked");
-  const webhookUrl = $("#webhook-url").val();
-
-  const headers = { apikey: getapikey.apikey };
-
-  await att_webhook(
-    {
-      events,
-      status_webhook: status_webhook === true,
-      webhookUrl,
-    },
-    headers,
-  );
-
-  const ignoreGroups = $("#ignorar-grupos").prop("checked");
-  const autoRead = $("#sempre-online").prop("checked");
-  const rejectCalls = $("#rejeitar-chamada").prop("checked");
-  const msg_rejectcalls = $("#mensagem-rejeicao").val();
-
-  await att_config(
-    {
-      ignoreGroups: ignoreGroups === true,
-      autoRead: autoRead === true,
-      rejectCalls: rejectCalls === true,
-      msg_rejectcalls,
-    },
-    headers,
-  );
-
-  const proxyAtivo = $("#proxy-ativo").prop("checked");
-  const proxyProtocol = $("#proxy-protocol").val();
-  const proxyUsername = $("#proxy-username").val();
-  const proxyPassword = $("#proxy-password").val();
-  const proxyPort = $("#proxy-port").val();
-  const proxyHost = $("#proxy-host").val();
-  await att_proxy(
-    {
-      active: proxyAtivo === true,
-      protocol: proxyProtocol,
-      username: proxyUsername,
-      password: proxyPassword,
-      port: proxyPort,
-      host: proxyHost,
-    },
-    headers,
-  );
-
-  alert("Configuracoes atualizadas");
-  window.location.reload();
-});
-
-// Funcao para atualizar webhook
-
-async function att_webhook(data, headers) {
-  try {
-    await axios.put(`${apiurl}/api/config/webhook`, data, { headers });
-  } catch (error) {}
-}
-
-// Funcao para atualizar configuracao geral
-
-async function att_config(data, headers) {
-  try {
-    await axios.put(`${apiurl}/api/config/config`, data, { headers });
-  } catch (error) {}
-}
-
-async function att_proxy(data, headers) {
-  try {
-    await axios.put(`${apiurl}/api/config/proxy`, data, { headers });
-  } catch (error) {}
-}
-
-// Filtro por nome/apikey
-
-const filtroBusca = document.getElementById("filtroBusca");
-if (filtroBusca) {
-  filtroBusca.addEventListener("input", function () {
-    const termo = String(this.value || "").toLowerCase();
-    const cards = document.querySelectorAll(".card-instance");
-
-    cards.forEach((card) => {
-      const nome = String(card.dataset.nome || "").toLowerCase();
-      const apikey = String(card.dataset.apikey || "").toLowerCase();
-      const wrapper = card.parentElement;
-
-      if (nome.includes(termo) || apikey.includes(termo)) {
-        wrapper.style.display = "";
-      } else {
-        wrapper.style.display = "none";
+        document.getElementById("config-proxy").classList.add("d-none");
       }
     });
   });
-}
 
-// Copiar ao clicar
+  // Configura o checkbox de ativação de proxy para mostrar/ocultar as configurações de proxy.
+  document.getElementById("proxy-ativo").addEventListener("change", function () {
+    const configProxy = document.getElementById("config-proxy");
+    if (this.checked) {
+      configProxy.classList.remove("d-none");
+    } else {
+      configProxy.classList.add("d-none");
+    }
+  });
 
-document.addEventListener("click", function (e) {
-  const copyButton = e.target.closest(".copiar-btn");
-  if (!copyButton) return;
+  // Configura o checkbox de ativação de proxy para mostrar/ocultar as configurações de proxy.
+  document.getElementById("proxy-ativo-add").addEventListener("change", function () {
+    const configProxy = document.getElementById("config-proxy-add");
+    if (this.checked) {
+      configProxy.classList.remove("d-none");
+    } else {
+      configProxy.classList.add("d-none");
+    }
+  });
 
-  const valor = copyButton.getAttribute("data-copy");
-  if (!valor) return;
+  // Configura o formulário de configuração de sessão para enviar os dados para a API e atualizar as configurações da sessão.
+  document.getElementById("form-config-Instance").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const btnSalvar = this.querySelector('button[type="submit"]');
+    btnSalvar.disabled = true;
+    const spinner = btnSalvar.querySelector(".spinner-border");
+    const textoBotao = btnSalvar.querySelector(".btn-text");
+    if (spinner) spinner.classList.remove("d-none");
+    if (textoBotao) textoBotao.textContent = "Salvando...";
 
-  navigator.clipboard
-    .writeText(valor)
-    .then(() => {
-      copyButton.classList.add("copied");
-      setTimeout(() => {
-        copyButton.classList.remove("copied");
-      }, 1200);
-    })
-    .catch((err) => {
-      console.error("Erro ao copiar:", err);
-    });
-});
+    const sessionId = document.getElementById("id_sessao").value;
+    const webhook_url = document.getElementById("webhook-url").value.trim() || "";
+    const webhook_status = document.getElementById("webhook-status").checked ? 1 : 0;
+    const events = Array.from(document.getElementById("events[]").selectedOptions).map((option) => option.value);
+    const msg_rejectcalls = document.getElementById("mensagem-rejeicao").value.trim() || "";
+    const rejeitar_ligacoes = document.getElementById("rejeitar-chamada").checked ? 1 : 0;
+    const ignorar_grupos = document.getElementById("ignorar-grupos").checked ? 1 : 0;
+    const leitura_automatica = document.getElementById("sempre-online").checked ? 1 : 0;
+    let proxy = null;
+    if (document.getElementById("proxy-ativo").checked) {
+      proxy = {
+        protocol: document.getElementById("proxy-protocol").value.trim() || "http",
+        username: document.getElementById("proxy-username").value.trim() || "",
+        password: document.getElementById("proxy-password").value.trim() || "",
+        host: document.getElementById("proxy-host").value.trim() || "",
+        port: document.getElementById("proxy-port").value.trim() || "",
+        active: true,
+      };
+    }
+    const datawebhook = {
+      webhookUrl: document.getElementById("webhook-url").value.trim() || "",
+      events: Array.from(document.getElementById("events[]").selectedOptions).map((option) => option.value),
+      status_webhook: document.getElementById("webhook-status").checked ? true : false,
+    };
 
-(async function initDashboardAnalytics() {
-  populateInstanceSelect();
-  bindAnalyticsEvents();
-  bindRealtimeLifecycle();
-  await refreshAnalytics();
-  startRealtimeConsumptionUpdates();
-})();
+    const proxyConfig = {
+      protocol: document.getElementById("proxy-protocol").value.trim() || "http",
+      username: document.getElementById("proxy-username").value.trim() || "",
+      password: document.getElementById("proxy-password").value.trim() || "",
+      host: document.getElementById("proxy-host").value.trim() || "",
+      port: document.getElementById("proxy-port").value.trim() || "",
+      active: document.getElementById("proxy-ativo").checked ? true : false,
+    };
 
-//Botão proxy
+    if (document.getElementById("proxy-ativo").checked) {
+      const param = ["protocol", "username", "password", "host", "port"];
+      for (const p of param) {
+        if (!proxyConfig[p]) {
+          alert(`Por favor, preencha o campo ${p} para ativar o proxy.`);
+          return;
+        }
+      }
+    }
 
-document.getElementById("proxy-ativo").addEventListener("change", function () {
-  const configProxy = document.getElementById("config-proxy");
-  if (this.checked) {
-    configProxy.classList.remove("d-none");
-  } else {
-    configProxy.classList.add("d-none");
+    const config = {
+      ignoreGroups: document.getElementById("ignorar-grupos").checked ? true : false,
+      autoRead: document.getElementById("sempre-online").checked ? true : false,
+      msg_rejectcalls: document.getElementById("mensagem-rejeicao").value.trim() || "",
+      rejectCalls: document.getElementById("rejeitar-chamada").checked ? true : false,
+    };
+
+    await fazerRequisicao(`/api/config/webhook`, "PUT", sessionId, datawebhook);
+    await fazerRequisicao(`/api/config/proxy`, "PUT", sessionId, proxyConfig);
+    await fazerRequisicao(`/api/config/config`, "PUT", sessionId, config);
+    alert("Configurações atualizadas com sucesso.");
+    window.location.reload();
+  });
+
+  //Verificar status de uma sessao
+  async function verificarStatusSessao(sessionId) {
+    try {
+      const resposta = await fazerRequisicao(`/api/session/status/`, "GET", sessionId);
+      console.log("Resposta do status da sessão:", resposta);
+      if (resposta && resposta.success) {
+        return resposta.data;
+      } else {
+        console.error("Falha ao obter status da sessão:", resposta);
+        return null;
+      }
+    } catch (error) {
+      console.error("Erro ao verificar status da sessão:", error);
+      return null;
+    }
   }
 });
