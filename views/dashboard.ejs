@@ -57,220 +57,39 @@
     <section class="analytics-section mb-4" id="analyticsSection">
       <div class="analytics-header d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div>
-          <h3 class="analytics-heading mb-1">Visão Geral da Operação</h3>
-          <p class="small-muted mb-0" id="dashboardStatusText">Carregando métricas da API...</p>
+          <h3 class="analytics-heading mb-1">Resumo das Instâncias</h3>
+          <p class="small-muted mb-0" id="dashboardStatusText">Carregando status das instâncias...</p>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <select id="instanceAnalyticsSelect" class="form-select form-select-sm">
-            <option value="">Selecionar instância</option>
-          </select>
           <button id="btnRefreshAnalytics" class="btn btn-sm btn-primary" type="button">
             <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
           </button>
         </div>
       </div>
 
-      <div class="row g-3 mb-3">
-        <div class="col-6 col-md-4 col-xl-2">
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
           <article class="metric-card">
-            <span class="metric-label">Instâncias</span>
+            <span class="metric-label">Total</span>
             <strong class="metric-value" id="metricTotalInstances">0</strong>
           </article>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
+        <div class="col-6 col-md-3">
           <article class="metric-card">
             <span class="metric-label">Conectadas</span>
             <strong class="metric-value" id="metricConnectedInstances">0</strong>
           </article>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
+        <div class="col-6 col-md-3">
           <article class="metric-card">
-            <span class="metric-label">Chats</span>
-            <strong class="metric-value" id="metricChats">0</strong>
+            <span class="metric-label">Aguardando Conexão</span>
+            <strong class="metric-value" id="metricConnectingInstances">0</strong>
           </article>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
+        <div class="col-6 col-md-3">
           <article class="metric-card">
-            <span class="metric-label">Contatos</span>
-            <strong class="metric-value" id="metricContacts">0</strong>
-          </article>
-        </div>
-        <div class="col-6 col-md-4 col-xl-2">
-          <article class="metric-card">
-            <span class="metric-label">Grupos</span>
-            <strong class="metric-value" id="metricGroups">0</strong>
-          </article>
-        </div>
-        <div class="col-6 col-md-4 col-xl-2">
-          <article class="metric-card">
-            <span class="metric-label">Mensagens</span>
-            <strong class="metric-value" id="metricMessages">0</strong>
-          </article>
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-lg-4">
-          <article class="metric-card metric-card-inline">
-            <span class="metric-label">Fila pendente</span>
-            <strong class="metric-value" id="metricQueue">0</strong>
-          </article>
-        </div>
-        <div class="col-lg-8">
-          <article class="metric-card metric-card-inline">
-            <span class="metric-label">Saúde do sistema</span>
-            <div class="d-flex flex-wrap gap-3 align-items-center">
-              <span class="badge rounded-pill text-bg-secondary" id="systemHealthState">-</span>
-              <span class="small-muted">Sessões: <strong id="systemSessionsTotal">0</strong></span>
-              <span class="small-muted">Conectadas: <strong id="systemSessionsConnected">0</strong></span>
-              <span class="small-muted">Conectando: <strong id="systemSessionsConnecting">0</strong></span>
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-12 col-xl-4">
-          <article class="data-panel h-100 system-panel">
-            <h4>Host</h4>
-            <div class="system-grid">
-              <div><span class="small-muted">Hostname</span><strong id="systemHostname">-</strong></div>
-              <div><span class="small-muted">SO</span><strong id="systemOs">-</strong></div>
-              <div><span class="small-muted">Uptime</span><strong id="systemUptime">-</strong></div>
-              <div><span class="small-muted">Load Avg</span><strong id="systemLoadAvg">-</strong></div>
-            </div>
-          </article>
-        </div>
-        <div class="col-12 col-xl-4">
-          <article class="data-panel h-100 system-panel">
-            <h4>CPU</h4>
-            <div class="system-grid">
-              <div><span class="small-muted">Modelo</span><strong id="systemCpuModel">-</strong></div>
-              <div><span class="small-muted">Cores</span><strong id="systemCpuCores">-</strong></div>
-              <div><span class="small-muted">Uso total</span><strong id="systemCpuLoad">-</strong></div>
-              <div><span class="small-muted">Idle</span><strong id="systemCpuIdle">-</strong></div>
-            </div>
-          </article>
-        </div>
-        <div class="col-12 col-xl-4">
-          <article class="data-panel h-100 system-panel">
-            <h4>Memória</h4>
-            <div class="system-grid">
-              <div><span class="small-muted">RAM total</span><strong id="systemRamTotal">-</strong></div>
-              <div><span class="small-muted">RAM usada</span><strong id="systemRamUsed">-</strong></div>
-              <div><span class="small-muted">RAM livre</span><strong id="systemRamFree">-</strong></div>
-              <div><span class="small-muted">Heap Node</span><strong id="systemNodeHeap">-</strong></div>
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-12 col-xl-6">
-          <article class="data-panel h-100 system-panel">
-            <h4>Disco</h4>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0 dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Mount</th>
-                    <th>Total</th>
-                    <th>Usado</th>
-                    <th>Uso</th>
-                  </tr>
-                </thead>
-                <tbody id="tableSystemDisks">
-                  <tr>
-                    <td colspan="4" class="small-muted">Carregando...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </div>
-        <div class="col-12 col-xl-6">
-          <article class="data-panel h-100 system-panel">
-            <h4>Rede</h4>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0 dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Interface</th>
-                    <th>Estado</th>
-                    <th>RX</th>
-                    <th>TX</th>
-                  </tr>
-                </thead>
-                <tbody id="tableSystemNetwork">
-                  <tr>
-                    <td colspan="4" class="small-muted">Carregando...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <div class="row g-3">
-        <div class="col-12 col-xl-4">
-          <article class="data-panel h-100">
-            <h4>Chats Recentes</h4>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0 dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>JID</th>
-                  </tr>
-                </thead>
-                <tbody id="tableRecentChats">
-                  <tr>
-                    <td colspan="2" class="small-muted">Carregando...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </div>
-        <div class="col-12 col-xl-4">
-          <article class="data-panel h-100">
-            <h4>Contatos</h4>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0 dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Número</th>
-                  </tr>
-                </thead>
-                <tbody id="tableRecentContacts">
-                  <tr>
-                    <td colspan="2" class="small-muted">Carregando...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </div>
-        <div class="col-12 col-xl-4">
-          <article class="data-panel h-100">
-            <h4>Grupos</h4>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0 dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Grupo</th>
-                    <th>ID</th>
-                  </tr>
-                </thead>
-                <tbody id="tableRecentGroups">
-                  <tr>
-                    <td colspan="2" class="small-muted">Carregando...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <span class="metric-label">Desconectadas</span>
+            <strong class="metric-value" id="metricDisconnectedInstances">0</strong>
           </article>
         </div>
       </div>
@@ -306,13 +125,11 @@
         <div class="card-instance" data-nome="<%= instance.nome_sessao %>" data-apikey="<%= instance.apikey %>">
           <div class="top-row mb-2">
             <div class="d-flex align-items-center gap-3">
-              <img src="/api/session/avatar/<%= instance.apikey %>?t=<%= Date.now() %>" alt="Foto" class="instance-avatar" onerror="this.src='';this.style.display='none';this.nextElementSibling.style.display='flex';">
+              <img src="/api/session/avatar/<%= instance.apikey %>?t=<%= Date.now() %>" alt="Foto" class="instance-avatar" data-fallback-src="/images/image.png">
               <div>
-                <h5 class="text-primary mb-1">📱 <%= instance.nome_sessao %></h5>
-                <div class="small-muted">🔑 <%= instance.apikey %></div>
-                <% if (instance.numero) { %>
-                <div class="small-muted">📞 <strong><%= instance.numero %></strong></div>
-                <% } %>
+                <h5 class="text-primary mb-1 instancia_name">📱 <%= instance.nome_sessao %></h5>
+                <div class="small-muted api-key">🔑 <%= instance.apikey %></div>
+                <div class="small-muted phone-number">📞 <strong><%= instance.numero || "N/A" %></strong></div>
               </div>
             </div>
 
@@ -337,31 +154,34 @@
 
           <div class="card-actions mt-3">
             <div class="row row-cols-2 g-2">
+
               <% if (instance.status !=='connected' ) { %>
               <div class="col">
-                <button class="btn-generate btn btn-sm btn-success w-100" data-id="<%= instance.id %>">
+                <button class="btn-conectar btn btn-sm btn-success w-100" data-id="<%= instance.apikey %>">
                   <i class="bi bi-plug-fill me-1"></i><span class="btn-text">Conectar</span>
                   <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 </button>
               </div>
               <% } %>
 
+              <% if (instance.status==='connected' ) { %>
               <div class="col">
-                <button class="btn-disconnect btn btn-sm btn-danger w-100" data-id="<%= instance.id %>">
+                <button class="btn-desconectar btn btn-sm btn-danger w-100" data-id="<%= instance.apikey %>">
                   <i class="bi bi-power me-1"></i><span class="btn-text">Desconectar</span>
                   <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 </button>
               </div>
+              <% } %>
 
               <div class="col">
-                <button class="btn-delete btn btn-sm btn-danger w-100" data-id="<%= instance.id %>">
+                <button class="btn-deletar btn btn-sm btn-danger w-100" data-id="<%= instance.apikey %>">
                   <i class="bi bi-trash me-1"></i><span class="btn-text">Deletar instância</span>
                   <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 </button>
               </div>
 
               <div class="col">
-                <button class="btn-config btn btn-sm btn-secondary w-100" data-id="<%= instance.id %>">
+                <button class="btn-configuracao btn btn-sm btn-secondary w-100" data-id="<%= instance.apikey %>">
                   <i class="bi bi-gear me-1"></i><span class="btn-text">Configuração</span>
                 </button>
               </div>
@@ -429,9 +249,55 @@
                 <div class="form-text text-white" id="basic-addon4">Caso queira conectar via código
                 </div>
               </div>
+              <div class="col-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="proxy-ativo-add">
+                  <label class="form-check-label" for="proxy-ativo-add">🟢 Proxy Ativo</label>
+                </div>
+              </div>
 
             </div>
+
+            <div class="row mb-3 d-none" id="config-proxy-add">
+              <div class="mb-3 col-6">
+                <div class="input-group">
+                  <span class="input-group-text border-primary border-2">Protocol:</span>
+                  <input type="text" id="proxy-protocol-add" class="form-control border-primary border-2" placeholder="ex: http">
+                </div>
+              </div>
+
+              <div class="mb-3 col-6">
+                <div class="input-group">
+                  <span class="input-group-text border-primary border-2">Username:</span>
+                  <input type="text" id="proxy-username-add" class="form-control border-primary border-2" placeholder="ex: user123">
+                </div>
+              </div>
+
+              <div class="mb-3 col-6">
+                <div class="input-group">
+                  <span class="input-group-text border-primary border-2">Password:</span>
+                  <input type="text" id="proxy-password-add" class="form-control border-primary border-2" placeholder="ex: pass123">
+                </div>
+              </div>
+
+              <div class="mb-3 col-6">
+                <div class="input-group">
+                  <span class="input-group-text border-primary border-2">Port:</span>
+                  <input type="text" id="proxy-port-add" class="form-control border-primary border-2" placeholder="ex: 8080">
+                </div>
+              </div>
+
+              <div class="mb-3 col-6">
+                <div class="input-group">
+                  <span class="input-group-text border-primary border-2">Host:</span>
+                  <input type="text" id="proxy-host-add" class="form-control border-primary border-2" placeholder="ex: 127.0.0.1">
+                </div>
+              </div>
+
+            </div>
+
           </div>
+
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             <button type="submit" class="btn btn-primary">➕ Adicionar</button>
@@ -570,7 +436,7 @@
             </div>
           </div>
 
-          <div id="id_sessao" data-id=""></div>
+          <input type="hidden" name="id_sessao" id="id_sessao" value="" />
 
 
           <div class="modal-footer">
@@ -585,7 +451,7 @@
     </div>
   </div>
 
-  <script src="/js/dashboard.js"></script>
+  <script src="/js/dashboard.js?j=<%= new Date().getTime() %>"></script>
 
   <!-- Footer -->
   <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark dashboard-footer">
