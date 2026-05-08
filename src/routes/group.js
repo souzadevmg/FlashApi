@@ -5,25 +5,69 @@ import Store from "../models/Store.js";
 import logger from "../utils/logger.js";
 
 const router = express.Router();
+const GROUP_LIST_CACHE_TTL_SECONDS = 120;
 
-router.get("/list", authenticateApiKey, async (req, res) => {
+async function getignorarGrupo(req, res, next) {
+  const sessionId = req.headers["apikey"];
+  const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
+  if (getsessao && getsessao.ignorar_grupos) {
+    return res.status(400).json({ success: false, message: "A sessão está configurada para ignorar grupos" });
+  }
+  next();
+}
+
+function getGroupListCacheKey(sessionId) {
+  return `groups:list:${sessionId}`;
+}
+
+async function invalidateGroupListCache(sessionId) {
+  try {
+    await BaileysService.redis.del(getGroupListCacheKey(sessionId));
+  } catch (error) {
+    logger.error("Erro ao invalidar cache de grupos:", error);
+  }
+}
+
+router.get("/list", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
 
-    if (!BaileysService.isSessionConnected(sessionId)) {
+    if (!(await BaileysService.isSessionConnected(sessionId))) {
       return res.status(400).json({
         success: false,
         message: "Sessão não está conectada",
       });
     }
+
+    const cacheKey = getGroupListCacheKey(sessionId);
+    const cachedGroups = await BaileysService.redis.get(cacheKey);
+    if (Array.isArray(cachedGroups)) {
+      return res.json({
+        success: true,
+        total: cachedGroups.length,
+        groups: cachedGroups,
+        cache: true,
+      });
+    }
+
     const sock = BaileysService.getSocket(sessionId);
+    if (!sock) {
+      return res.status(400).json({
+        success: false,
+        message: "Sessão não foi iniciada ainda",
+      });
+    }
+
     const groups = await sock.groupFetchAllParticipating();
     const arr = Object.values(groups);
+
+    await BaileysService.redis.set(cacheKey, arr, GROUP_LIST_CACHE_TTL_SECONDS);
 
     return res.json({
       success: true,
       total: arr.length,
       groups: arr,
+      cache: false,
     });
   } catch (error) {
     logger.error("Erro ao listar grupos:", error);
@@ -34,7 +78,7 @@ router.get("/list", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/info", authenticateApiKey, async (req, res) => {
+router.post("/info", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid } = req.body;
@@ -68,7 +112,7 @@ router.post("/info", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/create", authenticateApiKey, async (req, res) => {
+router.post("/create", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { subject, participants } = req.body;
@@ -87,11 +131,9 @@ router.post("/create", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const result = await BaileysService.createGroup(
-      sessionId,
-      subject,
-      participants,
-    );
+    const result = await BaileysService.createGroup(sessionId, subject, participants);
+
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -107,7 +149,7 @@ router.post("/create", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/add-participant", authenticateApiKey, async (req, res) => {
+router.post("/add-participant", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
@@ -126,11 +168,9 @@ router.post("/add-participant", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const result = await BaileysService.addParticipants(
-      sessionId,
-      groupJid,
-      participants,
-    );
+    const result = await BaileysService.addParticipants(sessionId, groupJid, participants);
+
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -146,7 +186,7 @@ router.post("/add-participant", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/remove-participant", authenticateApiKey, async (req, res) => {
+router.post("/remove-participant", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
@@ -165,11 +205,9 @@ router.post("/remove-participant", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const result = await BaileysService.removeParticipants(
-      sessionId,
-      groupJid,
-      participants,
-    );
+    const result = await BaileysService.removeParticipants(sessionId, groupJid, participants);
+
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -185,7 +223,7 @@ router.post("/remove-participant", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/promote", authenticateApiKey, async (req, res) => {
+router.post("/promote", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
@@ -204,11 +242,9 @@ router.post("/promote", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const result = await BaileysService.promoteParticipants(
-      sessionId,
-      groupJid,
-      participants,
-    );
+    const result = await BaileysService.promoteParticipants(sessionId, groupJid, participants);
+
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -224,7 +260,7 @@ router.post("/promote", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/demote", authenticateApiKey, async (req, res) => {
+router.post("/demote", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, participants } = req.body;
@@ -243,11 +279,9 @@ router.post("/demote", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const result = await BaileysService.demoteParticipants(
-      sessionId,
-      groupJid,
-      participants,
-    );
+    const result = await BaileysService.demoteParticipants(sessionId, groupJid, participants);
+
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -263,7 +297,7 @@ router.post("/demote", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/leave", authenticateApiKey, async (req, res) => {
+router.post("/leave", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid } = req.body;
@@ -283,6 +317,7 @@ router.post("/leave", authenticateApiKey, async (req, res) => {
     }
 
     await BaileysService.leaveGroup(sessionId, groupJid);
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -298,7 +333,7 @@ router.post("/leave", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/update-subject", authenticateApiKey, async (req, res) => {
+router.post("/update-subject", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, subject } = req.body;
@@ -318,6 +353,7 @@ router.post("/update-subject", authenticateApiKey, async (req, res) => {
     }
 
     await BaileysService.updateGroupSubject(sessionId, groupJid, subject);
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -333,7 +369,7 @@ router.post("/update-subject", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/up-setting", authenticateApiKey, async (req, res) => {
+router.post("/up-setting", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, subject } = req.body;
@@ -353,6 +389,7 @@ router.post("/up-setting", authenticateApiKey, async (req, res) => {
     }
 
     await BaileysService.groupSettingUpdate(sessionId, groupJid, subject);
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
@@ -368,7 +405,7 @@ router.post("/up-setting", authenticateApiKey, async (req, res) => {
   }
 });
 
-router.post("/update-description", authenticateApiKey, async (req, res) => {
+router.post("/update-description", authenticateApiKey, getignorarGrupo, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
     const { groupJid, description } = req.body;
@@ -387,11 +424,8 @@ router.post("/update-description", authenticateApiKey, async (req, res) => {
       });
     }
 
-    await BaileysService.updateGroupDescription(
-      sessionId,
-      groupJid,
-      description,
-    );
+    await BaileysService.updateGroupDescription(sessionId, groupJid, description);
+    await invalidateGroupListCache(sessionId);
 
     res.json({
       success: true,
