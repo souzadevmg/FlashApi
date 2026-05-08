@@ -9,6 +9,17 @@ import axios from "axios";
 
 const router = express.Router();
 
+function checkStatusManager(req, res, next) {
+  if (!config.manager_status) {
+    return res.status(403).json({
+      success: false,
+      message: "O painel de gerenciamento está desativado.",
+    });
+  }
+  next();
+}
+
+router.use(checkStatusManager);
 // Página de login (GET)
 router.get("/login", (req, res) => {
   const error = req.session.error;
@@ -21,7 +32,7 @@ router.post("/login", async (req, res) => {
   const { apikey = null } = req.body;
 
   let modo = null;
-  if (config.globalApiKey === apikey) {
+  if (config.manager_secret === apikey) {
     modo = "admin";
     req.session.userId = apikey;
     req.session.modo = modo;
@@ -45,33 +56,16 @@ router.get("/dashboard", checkAuth, async (req, res) => {
   const modo = req.session.modo;
   if (modo == "admin") {
     const instances = await Session.findByApiKey();
-    // Enrich with profile picture from Redis
-    for (const inst of instances) {
-      try {
-        const cached = await BaileysService.redis.get(`sessao:${inst.id}`);
-        inst.url_imagem = cached?.url_imagem || null;
-      } catch { inst.url_imagem = null; }
-    }
     res.render("dashboard", { instances, userId, error: null });
   } else if (modo == "user") {
-    const getintacias = await Session.findByApiKey();
-    const instances = getintacias.filter((i) => i.apikey == userId);
+    const getintacias = await Session.findById(userId);
 
-    if (!instances) {
+    if (!getintacias) {
       req.session.error = { message: "Apikey invalida.", icon: "danger" };
       res.redirect("/manager/login");
       return;
     }
-
-    // Enrich with profile picture from Redis
-    for (const inst of instances) {
-      try {
-        const cached = await BaileysService.redis.get(`sessao:${inst.id}`);
-        inst.url_imagem = cached?.url_imagem || null;
-      } catch { inst.url_imagem = null; }
-    }
-
-    res.render("user", { instances, userId, error: null });
+    res.render("user", { instances: [getintacias], userId, error: null });
   }
 });
 
