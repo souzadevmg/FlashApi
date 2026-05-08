@@ -1,20 +1,20 @@
-import Database from "../config/database.js";
+import { execute, getDbClient } from "../config/database.js";
 import config from "../config/env.js";
 import logger from "../utils/logger.js";
 import Long from "long";
 
 // Instância singleton do banco
-const db = new Database();
 
 // Maps Baileys numeric proto status (0-5) to the allowed DB enum values
 const BAILEYS_STATUS_MAP = {
-  0: "received",  // ERROR / unknown
-  1: "received",  // PENDING
-  2: "sent",      // SERVER_ACK
+  0: "received", // ERROR / unknown
+  1: "received", // PENDING
+  2: "sent", // SERVER_ACK
   3: "delivered", // DELIVERY_ACK
-  4: "read",      // READ
-  5: "read",      // PLAYED
+  4: "read", // READ
+  5: "read", // PLAYED
 };
+
 const VALID_STATUSES = new Set(["received", "sent", "delivered", "read"]);
 
 function resolveMessageStatus(raw) {
@@ -84,7 +84,7 @@ class Store {
           status = EXCLUDED.status
       `;
 
-      await db.execute(sql, values);
+      await execute(sql, values);
       return true;
     } catch (error) {
       logger.error("Erro ao salvar mensagem:", error);
@@ -92,78 +92,7 @@ class Store {
     }
   }
 
-  static async saveMessagesBatch(sessionId, messages) {
-    if (!messages?.length) return;
-    console.log(
-      `Salvando ${messages.length} mensagens para sessão ${sessionId}`,
-    );
-    try {
-      const fields = [
-        "sessao_id",
-        "mensagem_id",
-        "remoteJid",
-        "fromMe",
-        "isgrupo",
-        "participant",
-        "tipo_mensagem",
-        "conteudo_mensagem",
-        "timestamp",
-        "status",
-      ];
-      const messagesFIltered = messages.filter((msg) => msg?.key?.remoteJid && !msg.key.remoteJid.includes("status@broadcast"));
-      const values = messagesFIltered.map((message) => [
-        sessionId,
-        message.key.id,
-        message.key.remoteJid || null,
-        message.key.fromMe ? 1 : 0,
-        message.key.remoteJid && message.key.remoteJid.includes("@g.us")
-          ? 1
-          : 0,
-        message.key.participant || null,
-        message.messageType || "unknown",
-        JSON.stringify(message.message || {}),
-        message.messageTimestamp
-          ? Long.isLong(message.messageTimestamp)
-            ? message.messageTimestamp.toNumber()
-            : message.messageTimestamp
-          : Date.now(),
-        resolveMessageStatus(message.status),
-      ]);
-      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
-      const placeholders = values
-        .map(
-          (_, i) =>
-            `(${fields.map((_, j) => `$${i * fields.length + j + 1}`).join(", ")})`,
-        )
-        .join(", ");
-      const sql = `
-        INSERT INTO mensagens (
-          ${fields.join(", ")}
-        ) VALUES ${placeholders}
-        ON CONFLICT (sessao_id, mensagem_id) DO UPDATE SET
-          remoteJid = EXCLUDED.remoteJid,
-          fromMe = EXCLUDED.fromMe, 
-          isgrupo = EXCLUDED.isgrupo,
-          participant = EXCLUDED.participant,
-          tipo_mensagem = EXCLUDED.tipo_mensagem,
-          conteudo_mensagem = EXCLUDED.conteudo_mensagem,
-          timestamp = EXCLUDED.timestamp,
-          status = EXCLUDED.status
-      `;
-      const flatValues = values.flat();
-      await db.execute(sql, flatValues);
-    } catch (error) {
-      logger.error("Erro ao salvar mensagens em lote:", error);
-    }
-  }
-
-  static async getMessages(
-    sessionId,
-    remoteJid = null,
-    limit = 50,
-    offset = 0,
-    mensagem_id = null,
-  ) {
+  static async getMessages(sessionId, remoteJid = null, limit = 50, offset = 0, mensagem_id = null) {
     try {
       let query = `SELECT * FROM mensagens  WHERE sessao_id = ?`;
       let params = [sessionId];
@@ -177,18 +106,14 @@ class Store {
         params.push(mensagem_id);
       }
 
-      const parsedLimit = Number.isFinite(Number(limit))
-        ? Math.max(1, Math.min(500, parseInt(limit, 10)))
-        : 50;
-      const parsedOffset = Number.isFinite(Number(offset))
-        ? Math.max(0, parseInt(offset, 10))
-        : 0;
+      const parsedLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(500, parseInt(limit, 10))) : 50;
+      const parsedOffset = Number.isFinite(Number(offset)) ? Math.max(0, parseInt(offset, 10)) : 0;
 
       query += ` ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
       params.push(parsedLimit, parsedOffset);
 
-      const rows = await db.execute(query, params);
-      return rows;
+      const { rows } = await execute(query, params);
+      return rows || [];
     } catch (error) {
       console.error("Erro ao buscar mensagens:", error);
       logger.error("Erro ao buscar mensagens:", error);
@@ -214,8 +139,8 @@ class Store {
 
       query += ` ORDER BY timestamp`;
 
-      const rows = await db.execute(query, params); // Linha 67 (ou 62 em outra versão)
-      return rows;
+      const { rows } = await execute(query, params);
+      return rows[0] || null;
     } catch (error) {
       console.error("Erro ao buscar mensagens:", error);
       logger.error("Erro ao buscar mensagens:", error);
@@ -226,18 +151,13 @@ class Store {
   // ===== CONTATOS =====
   static async saveContact(sessionId, contactData) {
     try {
-      // Lista de campos
-      const fields = [
-        "sessao_id",
-        "jid",
-        "nome",
-        "apelido",
-        "nome_verificado",
-        "url_imagem",
-        "status_contato",
-      ];
+      const jid = Store.normalizeJid(contactData?.id);
+      if (!jid) {
+        return false;
+      }
 
-      const jid = Store.normalizeJid(contactData.id);
+      // Lista de campos
+      const fields = ["sessao_id", "jid", "nome", "apelido", "nome_verificado", "url_imagem", "status_contato"];
 
       const values = [
         sessionId,
@@ -260,68 +180,13 @@ class Store {
             status_contato = EXCLUDED.status_contato,
             updated_at = CURRENT_TIMESTAMP
         `;
+
       // Executa
-      await db.execute(sql, values);
+      await execute(sql, values);
       return true;
     } catch (error) {
       logger.error("Erro ao salvar contato:", error);
       return false;
-    }
-  }
-
-  static async saveContactsBatch(sessionId, contatos) {
-    if (!contatos?.length) return;
-    console.log(
-      `Salvando ${contatos.length} contatos para sessão ${sessionId}`,
-    );
-    try {
-      const fields = [
-        "sessao_id",
-        "jid",
-        "nome",
-        "apelido",
-        "nome_verificado",
-        "url_imagem",
-        "status_contato",
-      ];
-
-      const values = [];
-      const placeholders = [];
-
-      contatos.forEach((contact, index) => {
-        const baseIndex = index * fields.length;
-
-        const jid = Store.normalizeJid(contact.id);
-
-        values.push(
-          sessionId,
-          jid,
-          contact.name || null,
-          contact.notify || null,
-          contact.verifiedName || null,
-          contact.url_imagem || null,
-          contact.status || null,
-        );
-
-        const place = fields.map((_, i) => `$${baseIndex + i + 1}`);
-        placeholders.push(`(${place.join(", ")})`);
-      });
-
-      const sql = `
-      INSERT INTO contatos (${fields.join(", ")})
-      VALUES ${placeholders.join(", ")}
-      ON CONFLICT (sessao_id, jid) DO UPDATE SET
-        nome = EXCLUDED.nome,
-        apelido = EXCLUDED.apelido,
-        nome_verificado = EXCLUDED.nome_verificado,
-        url_imagem = EXCLUDED.url_imagem,
-        status_contato = EXCLUDED.status_contato,
-        updated_at = CURRENT_TIMESTAMP
-    `;
-
-      await db.execute(sql, values);
-    } catch (error) {
-      logger.error("Erro ao salvar contatos em lote:", error);
     }
   }
 
@@ -365,7 +230,7 @@ class Store {
         WHERE sessao_id = $5 AND jid = $6
       `;
 
-      await db.execute(sql, values);
+      await execute(sql, values);
 
       return true;
     } catch (error) {
@@ -376,13 +241,13 @@ class Store {
 
   static async getContacts(sessionId) {
     try {
-      const contacts = await db.execute(
+      const { rows } = await execute(
         `
-        SELECT * FROM contatos WHERE sessao_id = ? ORDER BY nome ASC
+        SELECT * FROM contatos WHERE sessao_id = $1 ORDER BY nome ASC
       `,
         [sessionId],
       );
-      return contacts;
+      return rows;
     } catch (error) {
       logger.error("Erro ao buscar contatos:", error);
       return [];
@@ -392,13 +257,13 @@ class Store {
   static async getContact(sessionId, jid) {
     try {
       const normalizedJid = Store.normalizeJid(jid);
-      const [contact] = await db.execute(
+      const { rows } = await execute(
         `
-        SELECT * FROM contatos WHERE sessao_id = ? AND jid = ?
+        SELECT * FROM contatos WHERE sessao_id = $1 AND jid = $2
       `,
         [sessionId, normalizedJid],
       );
-      return contact || null;
+      return rows[0] || null;
     } catch (error) {
       logger.error("Erro ao buscar contato:", error);
       return null;
@@ -408,16 +273,7 @@ class Store {
   // ===== CHATS =====
   static async saveChat(sessionId, chatData) {
     try {
-      const fields = [
-        "sessao_id",
-        "jid",
-        "nome",
-        "eh_grupo",
-        "mensagens_nao_lidas",
-        "arquivado",
-        "fixado",
-        "silenciado_ate",
-      ];
+      const fields = ["sessao_id", "jid", "nome", "eh_grupo", "mensagens_nao_lidas", "arquivado", "fixado", "silenciado_ate"];
 
       chatData.id = chatData.id.replace(/"/g, "");
       const values = [
@@ -444,7 +300,7 @@ class Store {
             silenciado_ate = EXCLUDED.silenciado_ate,
             updated_at = CURRENT_TIMESTAMP
         `;
-      await db.execute(sql, values);
+      await execute(sql, values);
       return true;
     } catch (error) {
       logger.error("Erro ao salvar chat:", error);
@@ -452,63 +308,14 @@ class Store {
     }
   }
 
-  static async saveChatsBatch(sessionId, chats) {
-    if (!chats?.length) return;
-    try {
-      const fields = [
-        "sessao_id",
-        "jid",
-        "nome",
-        "eh_grupo",
-        "mensagens_nao_lidas",
-        "arquivado",
-        "fixado",
-        "silenciado_ate",
-      ];
-      const values = chats.map((chat) => [
-        sessionId,
-        chat.id.replace(/"/g, ""),
-        chat.name || null,
-        chat.id.includes("@g.us") ? 1 : 0,
-        chat.unreadCount || 0,
-        chat.archived ? 1 : 0,
-        chat.pinned ? 1 : 0,
-        chat.muteEndTime || null,
-      ]);
-      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
-      const placeholders = values
-        .map(
-          (_, i) =>
-            `(${fields.map((_, j) => `$${i * fields.length + j + 1}`).join(", ")})`,
-        )
-        .join(", ");
-      const sql = `
-        INSERT INTO chats (
-          ${fields.join(", ")}
-        ) VALUES ${placeholders}
-        ON CONFLICT (sessao_id, jid) DO UPDATE SET
-          nome = EXCLUDED.nome,
-          mensagens_nao_lidas = EXCLUDED.mensagens_nao_lidas,
-          ultima_mensagem = EXCLUDED.ultima_mensagem,
-          arquivado = EXCLUDED.arquivado,
-          fixado = EXCLUDED.fixado,
-          silenciado_ate = EXCLUDED.silenciado_ate,
-          updated_at = CURRENT_TIMESTAMP
-      `;
-      const flatValues = values.flat();
-      await db.execute(sql, flatValues);
-    } catch (error) {
-      logger.error("Erro ao salvar chats em lote:", error);
-    }
-  }
   static async getChats(sessionId) {
     try {
-      const chats = await db.execute(
+      const { rows } = await execute(
         `
-        SELECT * FROM chats WHERE sessao_id = ?`,
+        SELECT * FROM chats WHERE sessao_id = $1`,
         [sessionId],
       );
-      return chats;
+      return rows;
     } catch (error) {
       logger.error("Erro ao buscar chats:", error);
       return [];
@@ -572,7 +379,7 @@ class Store {
           updated_at = CURRENT_TIMESTAMP
       `;
 
-      await db.execute(sql, values);
+      await execute(sql, values);
       return true;
     } catch (error) {
       logger.error("Erro ao salvar grupo:", error);
@@ -582,11 +389,8 @@ class Store {
 
   static async getGroups(sessionId) {
     try {
-      const groups = await db.execute(
-        `SELECT * FROM grupos WHERE sessao_id = ?`,
-        [sessionId],
-      );
-      return groups;
+      const { rows } = await execute(`SELECT * FROM grupos WHERE sessao_id = $1`, [sessionId]);
+      return rows;
     } catch (error) {
       logger.error("Erro ao buscar grupos:", error);
       return [];
@@ -595,18 +399,20 @@ class Store {
 
   static async getGroup(sessionId, jid) {
     try {
-      const [group] = await db.execute(
+      const { rows } = await execute(
         `
-        SELECT * FROM grupos WHERE sessao_id = ? AND jid = ?
+        SELECT * FROM grupos WHERE sessao_id = $1 AND jid = $2
       `,
         [sessionId, jid],
       );
-      if (group) {
-        group.restrito_mensagens = group.restrito_mensagens === 1;
-        group.apenas_admins = group.apenas_admins === 1;
-        group.participantes = group.participantes || "[]";
+      if (rows.length > 0) {
+        const groupData = rows[0];
+        groupData.restrito_mensagens = groupData.restrito_mensagens === 1;
+        groupData.apenas_admins = groupData.apenas_admins === 1;
+        groupData.participantes = groupData.participantes || "[]";
+        return groupData;
       }
-      return group || null;
+      return null;
     } catch (error) {
       logger.error("Erro ao buscar grupo:", error);
       return null;
@@ -616,18 +422,18 @@ class Store {
   // ===== CONFIGURAÇÕES DE SESSÃO =====
   static async saveSessionConfig(sessionId, configData) {
     try {
-      await db.execute(
+      await execute(
         `
         UPDATE sessao SET 
-        webhook_url = ?,
-        ignorar_grupos = ?,
-        leitura_automatica = ?,
-        rejeitar_ligacoes = ?,
-        events = ?,
-        webhook_status = ?,
-        msg_rejectcalls = ?,
+        webhook_url = $1,
+        ignorar_grupos = $2,
+        leitura_automatica = $3,
+        rejeitar_ligacoes = $4,
+        events = $5,
+        webhook_status = $6,
+        msg_rejectcalls = $7,
         updated_at = CURRENT_TIMESTAMP
-        WHERE apikey = ?
+        WHERE apikey = $8
       `,
         [
           configData.webhook_url || null,
@@ -649,16 +455,16 @@ class Store {
 
   static async getSessionConfig(sessionId) {
     try {
-      const [sessionConfig] = await db.execute(
+      const { rows } = await execute(
         `
         SELECT webhook_url, events, webhook_status, ignorar_grupos, leitura_automatica, rejeitar_ligacoes,
         msg_rejectcalls
-        FROM sessao WHERE apikey = ?
+        FROM sessao WHERE apikey = $1
       `,
         [sessionId],
       );
-      if (sessionConfig) {
-        return sessionConfig;
+      if (rows.length > 0) {
+        return rows[0];
       }
       return null;
     } catch (error) {
@@ -670,38 +476,38 @@ class Store {
   // ===== ESTATÍSTICAS =====
   static async getSessionStats(sessionId) {
     try {
-      const [messageStats] = await db.execute(
+      const { rows: messageStats } = await execute(
         `
       SELECT 
         COUNT(*) as total_mensagens,
         COUNT(CASE WHEN fromMe = TRUE THEN 1 END) as mensagens_enviadas,
         COUNT(CASE WHEN fromMe = FALSE THEN 1 END) as mensagens_recebidas
-      FROM mensagens WHERE sessao_id = ?
+      FROM mensagens WHERE sessao_id = $1
     `,
         [sessionId],
       );
 
-      const [contactStats] = await db.execute(
+      const { rows: contactStats } = await execute(
         `
-      SELECT COUNT(*) as total_contatos FROM contatos WHERE sessao_id = ?
+      SELECT COUNT(*) as total_contatos FROM contatos WHERE sessao_id = $1
     `,
         [sessionId],
       );
 
-      const [chatStats] = await db.execute(
+      const { rows: chatStats } = await execute(
         `
       SELECT 
         COUNT(*) as total_chats,
         COUNT(CASE WHEN eh_grupo = TRUE THEN 1 END) as chats_grupo,
         COUNT(CASE WHEN eh_grupo = FALSE THEN 1 END) as chats_privados
-      FROM chats WHERE sessao_id = ?
+      FROM chats WHERE sessao_id = $1
     `,
         [sessionId],
       );
 
-      const [groupStats] = await db.execute(
+      const { rows: groupStats } = await execute(
         `
-      SELECT COUNT(*) as total_grupos FROM grupos WHERE sessao_id = ?
+      SELECT COUNT(*) as total_grupos FROM grupos WHERE sessao_id = $1
     `,
         [sessionId],
       );
@@ -736,16 +542,199 @@ class Store {
   }
 
   static async getjid(key_type, sessionId) {
-    const result = await db.execute(
-      `SELECT value_json, key_id FROM wa_session_keys WHERE key_type = ? AND session_id = ?`,
-      [key_type, sessionId],
-    );
-    return result;
+    const { rows } = await execute(`SELECT value_json, key_id FROM wa_session_keys WHERE key_type = $1 AND session_id = $2`, [
+      key_type,
+      sessionId,
+    ]);
+    return rows[0] || null;
   }
 
-  // ===== UTILITÁRIOS =====
-  static async getPoolStatus() {
-    return await db.getPoolStatus();
+  // SALVAR EM BATCH PARA OTIMIZAR PERFORMANCE
+
+  static async saveChatsBatch(chats) {
+    if (!chats?.length) return;
+    console.log(`Salvando ${chats.length} chats no Postgres`);
+    try {
+      const fields = ["sessao_id", "jid", "nome", "eh_grupo", "mensagens_nao_lidas", "arquivado", "fixado", "silenciado_ate"];
+      const values = chats.map((chat) => [
+        chat.sessao_id,
+        chat.id.replace(/"/g, ""),
+        chat.name || null,
+        chat.id.includes("@g.us") ? 1 : 0,
+        chat.unreadCount || 0,
+        chat.archived ? 1 : 0,
+        chat.pinned ? 1 : 0,
+        chat.muteEndTime || null,
+      ]);
+      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
+      const placeholders = values.map((_, i) => `(${fields.map((_, j) => `$${i * fields.length + j + 1}`).join(", ")})`).join(", ");
+      const sql = `
+        INSERT INTO chats (
+          ${fields.join(", ")}
+        ) VALUES ${placeholders}
+        ON CONFLICT (sessao_id, jid) DO UPDATE SET
+          nome = EXCLUDED.nome,
+          mensagens_nao_lidas = EXCLUDED.mensagens_nao_lidas,
+          ultima_mensagem = EXCLUDED.ultima_mensagem,
+          arquivado = EXCLUDED.arquivado,
+          fixado = EXCLUDED.fixado,
+          silenciado_ate = EXCLUDED.silenciado_ate,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+      const flatValues = values.flat();
+      const db = await getDbClient();
+      try {
+        await db.query(sql, flatValues);
+      } finally {
+        db.release();
+      }
+    } catch (error) {
+      logger.error("Erro ao salvar chats em lote:", error);
+    }
+  }
+
+  static async saveContactsBatch(contatos) {
+    if (!contatos?.length) return;
+    console.log(`Salvando ${contatos.length} contatos no Postgres`);
+    try {
+      const fields = ["sessao_id", "jid", "nome", "apelido", "nome_verificado", "url_imagem", "status_contato"];
+
+      const values = [];
+      const placeholders = [];
+
+      const contatosValidos = contatos.filter((contact) => {
+        const jid = Store.normalizeJid(contact?.id);
+        return Boolean(jid);
+      });
+
+      if (!contatosValidos.length) {
+        return;
+      }
+
+      contatosValidos.forEach((contact, index) => {
+        const baseIndex = index * fields.length;
+
+        const jid = Store.normalizeJid(contact.id);
+
+        values.push(
+          contact.sessao_id,
+          jid,
+          contact.name || null,
+          contact.notify || null,
+          contact.verifiedName || null,
+          contact.url_imagem || null,
+          contact.status || null,
+        );
+
+        const place = fields.map((_, i) => `$${baseIndex + i + 1}`);
+        placeholders.push(`(${place.join(", ")})`);
+      });
+
+      const sql = `
+      INSERT INTO contatos (${fields.join(", ")})
+      VALUES ${placeholders.join(", ")}
+      ON CONFLICT (sessao_id, jid) DO UPDATE SET
+        nome = EXCLUDED.nome,
+        apelido = EXCLUDED.apelido,
+        nome_verificado = EXCLUDED.nome_verificado,
+        url_imagem = EXCLUDED.url_imagem,
+        status_contato = EXCLUDED.status_contato,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+      const db = await getDbClient();
+      try {
+        await db.query(sql, values);
+      } finally {
+        db.release();
+      }
+    } catch (error) {
+      logger.error("Erro ao salvar contatos em lote:", error);
+    }
+  }
+
+  static async saveMessagesBatch(messages) {
+    if (!messages?.length) return;
+    console.log(`Salvando ${messages.length} mensagens no Postgres`);
+    try {
+      const fields = [
+        "sessao_id",
+        "mensagem_id",
+        "remoteJid",
+        "fromMe",
+        "isgrupo",
+        "participant",
+        "tipo_mensagem",
+        "conteudo_mensagem",
+        "timestamp",
+        "status",
+      ];
+      const normalizedMessages = messages
+        .map((message) => {
+          const sessaoId = message?.sessao_id || message?.sessaoId || message?.session_id || null;
+          return {
+            ...message,
+            sessao_id: sessaoId,
+          };
+        })
+        .filter(
+          (msg) =>
+            msg?.sessao_id &&
+            msg?.key?.id &&
+            msg?.key?.remoteJid &&
+            !msg.key.remoteJid.includes("status@broadcast"),
+        );
+
+      const droppedCount = messages.length - normalizedMessages.length;
+      if (droppedCount > 0) {
+        logger.warn(`Mensagens descartadas por dados incompletos (sessao_id/key): ${droppedCount}`);
+      }
+
+      if (!normalizedMessages.length) {
+        return;
+      }
+
+      const values = normalizedMessages.map((message) => [
+        message.sessao_id,
+        message.key.id,
+        message.key.remoteJid,
+        message.key.fromMe ? 1 : 0,
+        message.key.remoteJid.includes("@g.us") ? 1 : 0,
+        message.key.participant || null,
+        message.messageType || "unknown",
+        JSON.stringify(message.message || {}),
+        message.messageTimestamp
+          ? Long.isLong(message.messageTimestamp)
+            ? message.messageTimestamp.toNumber()
+            : message.messageTimestamp
+          : Date.now(),
+        resolveMessageStatus(message.status),
+      ]);
+
+      const placeholders = values.map((_, i) => `(${fields.map((_, j) => `$${i * fields.length + j + 1}`).join(", ")})`).join(", ");
+      const sql = `
+        INSERT INTO mensagens (
+          ${fields.join(", ")}
+        ) VALUES ${placeholders}
+        ON CONFLICT (sessao_id, mensagem_id) DO UPDATE SET
+          remoteJid = EXCLUDED.remoteJid,
+          fromMe = EXCLUDED.fromMe, 
+          isgrupo = EXCLUDED.isgrupo,
+          participant = EXCLUDED.participant,
+          tipo_mensagem = EXCLUDED.tipo_mensagem,
+          conteudo_mensagem = EXCLUDED.conteudo_mensagem,
+          timestamp = EXCLUDED.timestamp,
+          status = EXCLUDED.status
+      `;
+      const flatValues = values.flat();
+      const db = await getDbClient();
+      try {
+        await db.query(sql, flatValues);
+      } finally {
+        db.release();
+      }
+    } catch (error) {
+      logger.error("Erro ao salvar mensagens em lote:", error);
+    }
   }
 }
 
