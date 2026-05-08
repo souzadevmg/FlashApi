@@ -43,6 +43,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.prettierrc
 
 # Temporary files
 tmp/
@@ -57,3 +58,4 @@ swagger_full.json
 package-lock.json
 
 examples/
+logs/
