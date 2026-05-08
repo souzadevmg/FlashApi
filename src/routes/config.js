@@ -7,13 +7,16 @@ import config from "../config/env.js";
 import BaileysService from "../services/BaileysService.js";
 
 const router = express.Router();
+const SESSION_STATS_CACHE_TTL_SECONDS = 120;
 
 // Rota para obter configurações da sessão
 router.get("/session", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
 
-    const session = await Session.findById(sessionId);
+    const sessionRedis = await BaileysService.redis.get(`sessao:${sessionId}`);
+    const sessionDb = await Session.findById(sessionId);
+    const session = sessionRedis || sessionDb;
     if (!session) {
       return res.status(404).json({
         success: false,
@@ -54,40 +57,35 @@ router.put("/config", authenticateApiKey, async (req, res) => {
       rejectCalls = false,
     } = req.body;
 
-    const session = await Session.findById(sessionId);
+    const sessionRedis = await BaileysService.redis.get(`sessao:${sessionId}`);
+    const sessionDb = await Session.findById(sessionId);
+    const session = sessionRedis || sessionDb;
     if (!session) {
       return res.status(404).json({
         success: false,
         message: "Sessão não encontrada",
       });
     }
-
-    const currentConfig = (await Store.getSessionConfig(sessionId)) || {};
-    currentConfig.rejeitar_ligacoes = rejectCalls;
-    currentConfig.ignorar_grupos = ignoreGroups;
-    currentConfig.leitura_automatica = autoRead;
-    currentConfig.msg_rejectcalls = msg_rejectcalls;
-
-    const success = await Store.saveSessionConfig(sessionId, currentConfig);
+    session.ignorar_grupos = ignoreGroups;
+    session.leitura_automatica = autoRead;
+    session.msg_rejectcalls = msg_rejectcalls;
+    session.rejeitar_ligacoes = rejectCalls;
+    
+    const success = await Store.saveSessionConfig(sessionId, session);
     if (!success) {
       return res.status(500).json({
         success: false,
         message: "Erro ao salvar configurações",
       });
     }
-    const sock = await BaileysService.getSocket(sessionId);
-    if (sock) {
-      if (sock?.end) {
-        try {
-          await sock.end();
-        } catch (error) {}
-      }
+    if (sessionRedis) {
+      BaileysService.redis.set(`sessao:${sessionId}`, session);
     }
 
     res.json({
       success: true,
       message: "Configurações atualizadas com sucesso",
-      data: { sessionId, currentConfig },
+      data: { sessionId, session },
     });
 
     logger.info(`Configurações da sessão ${sessionId} atualizadas`);
@@ -127,22 +125,22 @@ router.put("/webhook", authenticateApiKey, async (req, res) => {
     }
     const status = status_webhook == true ? 1 : 0;
 
-    const currentConfig = (await Store.getSessionConfig(sessionId)) || {};
-    currentConfig.webhook_url = webhookUrl;
-    currentConfig.events = events;
-    currentConfig.webhook_status = status;
-    const success = await Store.saveSessionConfig(sessionId, currentConfig);
+    session.webhook_url = webhookUrl;
+    session.events = events;
+    session.webhook_status = status;
+    const success = await Store.saveSessionConfig(sessionId, session);
     if (!success) {
       return res.status(500).json({
         success: false,
         message: "Erro ao salvar webhook",
       });
     }
+    BaileysService.redis.set(`sessao:${sessionId}`, session);
 
     res.json({
       success: true,
       message: "Webhook Atualizado com sucesso",
-      data: { sessionId, currentConfig },
+      data: { sessionId, currentConfig: session },
     });
 
     logger.info(
@@ -170,6 +168,16 @@ router.get("/stats", authenticateApiKey, async (req, res) => {
       });
     }
 
+    const statsCacheKey = `cache:session:stats:${sessionId}`;
+    try {
+      const cachedStats = await BaileysService.redis.get(statsCacheKey);
+      if (cachedStats) {
+        return res.json(cachedStats);
+      }
+    } catch (cacheError) {
+      logger.warn("Falha ao ler cache de estatísticas da sessão:", cacheError);
+    }
+
     const stats = await Store.getSessionStats(sessionId);
 
     const sock = await BaileysService.getSocket(sessionId);
@@ -183,7 +191,7 @@ router.get("/stats", authenticateApiKey, async (req, res) => {
       }
     }
 
-    res.json({
+    const response = {
       success: true,
       data: {
         sessionId,
@@ -195,7 +203,19 @@ router.get("/stats", authenticateApiKey, async (req, res) => {
           updatedAt: session.updated_at,
         },
       },
-    });
+    };
+
+    try {
+      await BaileysService.redis.set(
+        statsCacheKey,
+        response,
+        SESSION_STATS_CACHE_TTL_SECONDS,
+      );
+    } catch (cacheError) {
+      logger.warn("Falha ao gravar cache de estatísticas da sessão:", cacheError);
+    }
+
+    res.json(response);
   } catch (error) {
     logger.error("Erro ao obter estatísticas da sessão:", error);
     res.status(500).json({
@@ -203,7 +223,7 @@ router.get("/stats", authenticateApiKey, async (req, res) => {
       message: "Erro interno do servidor",
     });
   }
-});
+}); 
 
 // Rota para atualizar configurações de proxy
 router.put("/proxy", authenticateApiKey, async (req, res) => {
