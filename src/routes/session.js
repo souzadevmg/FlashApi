@@ -42,7 +42,7 @@ router.post(
         if (
           typeof proxy != "object" ||
           !proxy.protocol ||
-          !proxy.usename ||
+          !proxy.username ||
           !proxy.password ||
           !proxy.host ||
           !proxy.port
@@ -51,7 +51,7 @@ router.post(
           return res.status(400).json({
             success: false,
             message:
-              'O proxy fornecido não está no formato válido (ex: { protocol: "http", usename: "user", password: "pass", host: "host", port: 8080 })',
+              'O proxy fornecido não está no formato válido (ex: { protocol: "http", username: "user", password: "pass", host: "host", port: 8080 })',
           });
         }
       }
@@ -109,6 +109,8 @@ router.post(
         await Session.setProxy(uuid, proxy);
       }
 
+      await BaileysService.redis.del(BaileysService.SESSIONS_STATS_CACHE_KEY);
+
       return res.status(200).json({
         success: true,
         message: "sessão criada com sucesso",
@@ -154,13 +156,14 @@ router.put("/conectar_sessao", authenticateApiKey, async (req, res) => {
     }
 
     if (numero) {
-      ((type = "code"), (phoneNumber = numero));
+      type = "code";
+      phoneNumber = numero;
     }
-
     const conectar = await BaileysService.createSession(
       uuid,
       phoneNumber,
       type,
+      false,
     );
     if (!conectar || !conectar.success) {
       return res.status(500).json({
@@ -168,26 +171,26 @@ router.put("/conectar_sessao", authenticateApiKey, async (req, res) => {
         message: conectar.message || "Erro ao iniciar sessão",
       });
     }
-    await BaileysService.delay(4000);
-    const getqr = await Session.findById(uuid);
-    if (getqr && getqr.qrcode && getqr.qrcode != "") {
-      const dados = {
-        success: true,
-        message: "Qrcode Gerado com sucesso",
-        qrcode: getqr.qrcode,
-        code: null,
-      };
-      if (numero) {
-        dados.code = getqr.code;
-      }
-      res.status(200).json(dados);
-    } else {
-      res.status(404).json({
+
+    await BaileysService.redis.del(BaileysService.SESSIONS_STATS_CACHE_KEY);
+
+    await BaileysService.delay(7000);
+    const getqr = await BaileysService.redis.get(`sessao:${uuid}`);
+    // console.log(getqr);
+    if (!getqr) {
+      return res.status(404).json({
         success: false,
         message:
-          "Erro ao buscar qrcode caso continue delete a sessao e crie outra",
+          "Erro ao buscar dados da sessão caso continue delete a sessao e crie outra",
       });
     }
+    const dados = {
+      success: true,
+      message: "Qrcode Gerado com sucesso",
+      qrcode: getqr.qrcode,
+      code: getqr.code || null,
+    };
+    res.status(200).json(dados);
   } catch (error) {
     logger.error("Erro ao criar sessão:", error);
     res.status(500).json({
@@ -213,10 +216,15 @@ router.put("/restart", authenticateApiKey, async (req, res) => {
     if (sock) {
       if (sock?.end) {
         try {
-          await sock.end();
+          sock.end();
+        } catch (error) {}
+        try {
+          await sock.ws.close();
         } catch (error) {}
       }
     }
+
+    await BaileysService.redis.del(BaileysService.SESSIONS_STATS_CACHE_KEY);
 
     return res.status(200).json({
       success: true,
@@ -236,30 +244,21 @@ router.get("/status", authenticateApiKey, async (req, res) => {
     const sessionId = req.headers["apikey"];
 
     const session = await Session.findById(sessionId);
-
+    const proxy = await Session.getProxy(sessionId);
     if (!session) {
       return res.status(404).json({
         success: false,
         message: "Sessão não encontrada",
       });
     }
-    let memorySession = {
-      url_imagem: null,
-    };
-    const getsessao = await Session.findById(sessionId);
-    if (!getsessao.numero) {
-      getsessao.numero = null;
+    session.url_imagem = null;
+    const getsessao = await BaileysService.redis.get(`sessao:${sessionId}`);
+    if (getsessao) {
+      session.url_imagem = getsessao.url_imagem || null;
     }
-    const sock = BaileysService.getSocket(sessionId);
-    try {
-      const foto = await sock.profilePictureUrl(
-        `${getsessao.numero}@s.whatsapp.net`,
-      );
-      memorySession.url_imagem = foto;
-    } catch (error) {}
     const dados = {
       ...session,
-      ...memorySession,
+      proxy,
     };
 
     return res.json({
@@ -277,38 +276,18 @@ router.get("/status", authenticateApiKey, async (req, res) => {
 
 router.get("/list", globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
-    const sessions = await Session.findByApiKey();
-
-    const sessionsWithStats = await Promise.all(
-      sessions.map(async (session) => {
-        const memorySession = await BaileysService.getSession(session.apikey);
-        return {
-          id: session.apikey,
-          nome_sessao: session.nome_sessao,
-          status: session.status,
-          phoneNumber: session.numero,
-          hasWebhook: !!session.webhook_url,
-          createdAt: session.created_at,
-          updatedAt: session.updated_at,
-          inMemory: !!memorySession,
-          memoryStatus: memorySession?.status || "not_in_memory",
-          isConnected: await BaileysService.isSessionConnected(session.apikey),
-          reconnectAttempts: memorySession?.reconnectAttempts || 0,
-          lastConnected: memorySession?.lastConnected || null,
-          connectionAttempts: memorySession?.connectionAttempts || 0,
-        };
-      }),
-    );
-
-    res.json({
+    const sessionsWithStats = await BaileysService.getSessionsStats();
+    const response = {
       success: true,
       data: {
-        sessions: sessionsWithStats,
-        total: sessionsWithStats.length,
-        stats: BaileysService.getSessionsStats(),
-        activeSessions: sessionsWithStats.filter((s) => s.isConnected).length,
+        ...sessionsWithStats,
+        total: sessionsWithStats.sessions.length,
+        activeSessions: sessionsWithStats.sessions.filter((s) => s.isConnected)
+          .length,
       },
-    });
+    };
+
+    res.json(response);
   } catch (error) {
     console.log(error);
     logger.error("Erro ao listar sessões:", error);
@@ -322,12 +301,14 @@ router.get("/list", globalAuth.authenticateGlobalApiKey, async (req, res) => {
 router.get("/health", globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
     const healthData = await BaileysService.healthCheck();
-
+    const sessions = await BaileysService.getSessionsStats();
+    healthData.sessions = sessions;
     res.json({
       success: true,
       data: healthData,
     });
   } catch (error) {
+    console.log(error);
     logger.error("Erro ao verificar saúde do sistema:", error);
     res.status(500).json({
       success: false,
@@ -356,22 +337,19 @@ router.delete(
         });
       }
 
-      const sock = BaileysService.getSocket(sessionId);
-      if (sock) {
-        try {
-          await sock.logout();
-        } catch (error) {}
-      }
+      const targetSessionId = sessao.apikey;
 
-      await Session.delete(sessionId);
-      BaileysService.delRedisSessionData(sessionId);
+      await BaileysService.deleteSession(targetSessionId);
+      await Session.delete(targetSessionId);
+      BaileysService.delRedisSessionData(targetSessionId);
+      await BaileysService.redis.del(BaileysService.SESSIONS_STATS_CACHE_KEY);
 
       res.json({
         success: true,
         message: "Sessão deletada com sucesso",
       });
 
-      logger.info(`Sessão deletada: ${sessionId}`);
+      logger.info(`Sessão deletada: ${targetSessionId}`);
     } catch (error) {
       logger.error("Erro ao deletar sessão:", error);
       res.status(500).json({
@@ -412,11 +390,9 @@ router.delete("/desconect/:sessionId", authenticateApiKey, async (req, res) => {
         message: "Sessão não foi iniciada ainda",
       });
     }
-
     try {
       await sock.logout();
     } catch (error) {}
-    await BaileysService.redis.del(`sessao:${sessionId}`);
     return res.json({
       success: true,
       message: "Sessão Desconectada com sucesso",
@@ -441,7 +417,9 @@ router.get("/avatar/:apikey", async (req, res) => {
     }
     const sock = BaileysService.getSocket(apiKey);
 
-    if (!sock?.user?.id) return res.sendStatus(404);
+    if (!sock?.user?.id) {
+      return res.sendFile(path.resolve("public/images/image.png"));
+    }
 
     const url = await sock.profilePictureUrl(sock.user.id, "image");
 
