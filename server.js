@@ -40,6 +40,7 @@ import { execSync } from 'child_process';
 import modifyTable from './src/config/verificardb.js';
 import BaileysService from './src/services/BaileysService.js';
 import Session from './src/models/Session.js';
+import { startMultiQueueWorker } from './src/utils/multiWorker.js';
 
 // Gerar arquivo swagger completo
 fs.writeFileSync('swagger_full.json', JSON.stringify(swaggerOptions.definition, null, 2));
@@ -91,7 +92,7 @@ const ioredisAdapter = {
 //Sistema de sessão (persistida no Redis)
 app.use(session({
   store: new RedisStore({ client: ioredisAdapter }),
-  secret: config.manger_secret,
+  secret: config.manager_secret,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -142,7 +143,7 @@ async function startServer() {
   try {
     logger.info('✅ Iniciando Flash API - WhatsApp Multi-Session');
     // Initialize BaileysService and restore sessions
-    
+    startMultiQueueWorker();
     BaileysService.initialize();
 
     server.listen(PORT, '0.0.0.0', () => {
