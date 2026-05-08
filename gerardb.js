@@ -68,6 +68,7 @@ async function checkAndInitDatabase() {
 
     logger.info('Script SQL executado com sucesso! Banco pronto para uso.');
   } catch (error) {
+    console.log(error)
     logger.error('Erro ao preparar o banco:');
   } finally {
     if (client) await client.end();
