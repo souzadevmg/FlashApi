@@ -118,20 +118,13 @@ CREATE TABLE IF NOT EXISTS proxy (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS wa_sessions (
-  session_id TEXT PRIMARY KEY,
-  creds_json JSONB NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS wa_session_keys (
+  id BIGSERIAL PRIMARY KEY,
   session_id TEXT NOT NULL,
-  key_type TEXT NOT NULL,
   key_id TEXT NOT NULL,
-  value_json JSONB NOT NULL,
+  value_json TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (session_id, key_type, key_id)
-);
 
-CREATE INDEX IF NOT EXISTS wa_session_keys_session_type_idx
-  ON wa_session_keys (session_id, key_type);
+  CONSTRAINT unique_session_key
+  UNIQUE (session_id, key_id)
+);
