@@ -1,5 +1,6 @@
 import config from '../config/env.js';
 import Session from '../models/Session.js';
+import BaileysService from '../services/BaileysService.js';
 import logger from '../utils/logger.js';
 
 const authenticateGlobalApiKey = (req, res, next) => {
@@ -84,7 +85,7 @@ const authenticateWebSocketSecret = async (secret, modo) => {
   }
 
    if (modo == 'client') {
-    const getsessao = await Session.findById(secret)
+    const getsessao = await BaileysService.redis.get(`sessao:${secret}`);
     if(!getsessao){
       return { success: false, message: 'WebSocket secret inválido' };
     }
