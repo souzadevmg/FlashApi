@@ -6,6 +6,11 @@ dotenv.config({ path: resolve('.env')});
 const minPort = process.env.PROXY_PORT_MIN ? Number(process.env.PROXY_PORT_MIN) : 10000;
 const maxPort = process.env.PROXY_PORT_MAX ? Number(process.env.PROXY_PORT_MAX) : 20000;
 
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 const config = {
   // Server
   port: process.env.PORT || 3000,
@@ -49,12 +54,12 @@ const config = {
 
   //Banco de dados
   host: process.env.DB_HOST || 'localhost',
-  porta: process.env.DB_PORT || 5432,
+  porta: toPositiveInt(process.env.DB_PORT, 5432),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'FlashApi',
-  connectionLimit: process.env.DB_CONNECTION_LIMIT || 50,
-  queuelimit: process.env.QUEUELIMIT || 0,
+  connectionLimit: toPositiveInt(process.env.DB_CONNECTION_LIMIT, 10),
+  queuelimit: toPositiveInt(process.env.QUEUELIMIT, 0),
   db_client: process.env.DB_TYPE || 'postgres', 
 
   //Redis
@@ -63,7 +68,7 @@ const config = {
   redis_pass: process.env.REDIS_PASS || '', 
 
   //manager
-  manger_secret: process.env.CHAVE_SECRET_SESSION_MANAGER || 'ASDASDSA55WQ88E55R8ER5T2QW5E5Q',
+  manager_secret: process.env.CHAVE_SECRET_SESSION_MANAGER || 'ASDASDSA55WQ88E55R8ER5T2QW5E5Q',
   manager_status: process.env.MANAGER === "true",
 
   //Proxy
@@ -84,6 +89,7 @@ const config = {
   temp_delet_message: process.env.TEMP_MENSAGE || 3600,
   apiversao: process.env.VERSAO || '1.0.4',
   sync_sessions: process.env.SYNC_SESSIONS == 'false' ? false : true,
+  baileys_debug_events: process.env.BAILEYS_DEBUG_EVENTS == 'true',
 };
 
 
