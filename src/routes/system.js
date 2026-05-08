@@ -7,16 +7,27 @@ import config from '../config/env.js';
 import logger from '../utils/logger.js';
 import os from 'os';
 import si from 'systeminformation';
+import Session from '../models/Session.js';
 
 const router = express.Router();
+const SYSTEM_STATUS_CACHE_KEY = 'cache:system:status';
+const SYSTEM_STATUS_CACHE_TTL_SECONDS = 120;
 
 router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
+    try {
+      const cachedStatus = await BaileysService.redis.get(SYSTEM_STATUS_CACHE_KEY);
+      if (cachedStatus) {
+        return res.json(cachedStatus);
+      }
+    } catch (cacheError) {
+      logger.warn('Falha ao ler cache do status do sistema:', cacheError);
+    }
+
     const [
       sessionsStats,
       webhookInfo,
       poolStatus,
-      redisSessions,
       cpuInfo,
       cpuLoad,
       memInfo,
@@ -30,8 +41,7 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
     ] = await Promise.all([
       BaileysService.getSessionsStats(),
       GlobalWebhookService.getWebhookInfo(),
-      Store.getPoolStatus(),
-      BaileysService.redis.getAllSessions(),
+      null,
       si.cpu().catch(() => null),
       si.currentLoad().catch(() => null),
       si.mem().catch(() => null),
@@ -174,14 +184,10 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
       },
       database: {
         dados: poolStatus
-      },
-      redis: {
-        connected: true,
-        sessionsCached: redisSessions.length
       }
     };
     
-    res.json({
+    const response = {
       success: true,
       data: {
         system: {
@@ -213,7 +219,19 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
         redis: services.redis,
         services
       }
-    });
+    };
+
+    try {
+      await BaileysService.redis.set(
+        SYSTEM_STATUS_CACHE_KEY,
+        response,
+        SYSTEM_STATUS_CACHE_TTL_SECONDS,
+      );
+    } catch (cacheError) {
+      logger.warn('Falha ao gravar cache do status do sistema:', cacheError);
+    }
+
+    res.json(response);
   } catch (error) {
     console.log(error)
     logger.error('Erro ao obter status do sistema:', error);
@@ -226,7 +244,7 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
 
 router.get('/config', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
-    const sessoes = await BaileysService.redis.getAllSessions();
+    const sessoes = await Session.findByApiKey();
     res.json({
       success: true,
       data: {
