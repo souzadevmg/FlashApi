@@ -63,8 +63,9 @@ router.post("/send-text", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -150,8 +151,9 @@ router.post("/send-image", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -239,8 +241,9 @@ router.post("/send-video", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -326,8 +329,9 @@ router.post("/send-audio", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -417,8 +421,9 @@ router.post("/send-document", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -510,8 +515,9 @@ router.post("/send-location", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -598,8 +604,9 @@ router.post("/send-contact", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -682,8 +689,9 @@ router.post("/send-sticker", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -814,8 +822,9 @@ router.post("/send-poll", authenticateApiKey, async (req, res) => {
       if (delay > 0) {
         await BaileysService.delay(delay);
       }
-      await BaileysService.sendMessage(sessionId, to, message);
-      return await BaileysService.sendTyping(sessionId, to, false);
+      const send = await BaileysService.sendMessage(sessionId, to, message);
+      await BaileysService.sendTyping(sessionId, to, false);
+      return send;
     };
 
     let result;
@@ -1425,7 +1434,7 @@ router.post("/send-carouselMessage", authenticateApiKey, async (req, res) => {
           },
           carouselCardType:
             proto.Message.InteractiveMessage.CarouselMessage.CarouselCardType
-              .FULL,
+              .HSCROLL_CARDS,
           nativeFlowMessage: {
             buttons: item.buttons.map((btn) => ({
               name: btn.name,
@@ -1725,7 +1734,7 @@ router.delete("/delete/:id_message", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const get_message = await Chats.getchat(sessionId, id_message);
+    const get_message = await Chats.getMessage(sessionId, id_message);
     if (!get_message) {
       return res.json({
         success: false,
