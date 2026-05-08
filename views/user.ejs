@@ -11,12 +11,10 @@
 
     <script src="/js/bootstrap.bundle.min.js"></script>
     <script src="/js/jquery.min.js"></script>
-    <script src="/js/axios.js"></script>
-
     <link href="/css/futuristic-theme.css" rel="stylesheet" />
 </head>
 
-<body class="panel-page user-page">
+<body class="panel-page user-page dashboard-page">
 
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-primary">
@@ -33,6 +31,13 @@
 
     <div class="container mt-4">
 
+        <div class="row mb-3">
+            <div class="col-12">
+                <h2 class="text-primary dashboard-title">Painel do Cliente</h2>
+                <p class="small-muted mb-0">Gerencie sua instância com segurança: conexão, webhook, eventos e recursos.</p>
+            </div>
+        </div>
+
         <% if (error) { %>
             <div class="alert alert-danger"><%= error %></div>
         <% } %>
@@ -41,16 +46,16 @@
 
         <!-- ─── Instâncias ──────────────────────────────────────────── -->
         <section class="mb-5">
-            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <h4 class="text-primary mb-0"><i class="bi bi-phone me-2"></i>Minhas Instâncias</h4>
-                <button class="btn btn-sm btn-outline-secondary" id="btnRefreshRecipients" type="button">
-                    <i class="bi bi-arrow-repeat me-1"></i> Atualizar contatos/grupos
-                </button>
-            </div>
             <div class="row g-4">
                 <% instances.forEach(instance => { %>
                     <div class="col-md-6 col-lg-4">
-                        <div class="card-instance" data-nome="<%= instance.nome_sessao %>" data-apikey="<%= instance.apikey %>">
+                        <div
+                            class="card-instance"
+                            data-nome="<%= instance.nome_sessao %>"
+                            data-apikey="<%= instance.apikey %>"
+                            data-numero="<%= instance.numero || '' %>"
+                            data-status="<%= instance.status || 'disconnected' %>"
+                        >
 
                             <!-- Header: foto + info -->
                             <div class="top-row mb-3">
@@ -59,12 +64,13 @@
                                         src="/api/session/avatar/<%= instance.apikey %>?t=<%= Date.now() %>"
                                         alt="Foto de perfil"
                                         class="instance-avatar"
+                                        data-fallback-src="/images/image.png"
                                     >
                                     <div class="flex-grow-1 overflow-hidden">
-                                        <h5 class="text-primary mb-1 text-truncate">📱 <%= instance.nome_sessao %></h5>
-                                        <div class="small-muted text-truncate">🔑 <%= instance.apikey %></div>
+                                        <h5 class="text-primary mb-1 text-truncate instancia_nome">📱 <%= instance.nome_sessao %></h5>
+                                        <div class="small-muted text-truncate instancia_apikey">🔑 <%= instance.apikey %></div>
                                         <% if (instance.numero) { %>
-                                            <div class="small-muted">📞 <strong><%= instance.numero %></strong></div>
+                                            <div class="small-muted instancia_numero">📞 <strong><%= instance.numero %></strong></div>
                                         <% } %>
                                     </div>
                                 </div>
@@ -82,9 +88,9 @@
                             <p class="mb-3">
                                 📊 Status:
                                 <% if (instance.status === 'connected') { %>
-                                    <span class="status-connected-badge"><i class="bi bi-check-circle-fill"></i> Conectado</span>
+                                    <span class="status-connected-badge badge_status_instancia"><i class="bi bi-check-circle-fill"></i> Conectado</span>
                                 <% } else { %>
-                                    <span class="status-disconnected-badge"><i class="bi bi-x-circle-fill"></i> Desconectado</span>
+                                    <span class="status-disconnected-badge badge_status_instancia"><i class="bi bi-x-circle-fill"></i> Desconectado</span>
                                 <% } %>
                             </p>
 
@@ -92,14 +98,14 @@
                             <div class="row row-cols-2 g-2">
                                 <% if (instance.status !== 'connected') { %>
                                     <div class="col">
-                                        <button class="btn-generate btn btn-sm btn-success w-100" data-id="<%= instance.id %>">
+                                        <button class="btn-generate btn btn-sm btn-success w-100" data-apikey="<%= instance.apikey %>">
                                             <i class="bi bi-plug-fill me-1"></i><span class="btn-text">Conectar</span>
                                             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                         </button>
                                     </div>
                                 <% } else { %>
                                     <div class="col">
-                                        <button class="btn-restart btn btn-sm btn-success w-100" data-id="<%= instance.id %>">
+                                        <button class="btn-restart btn btn-sm btn-success w-100" data-apikey="<%= instance.apikey %>">
                                             <i class="bi bi-arrow-repeat me-1"></i><span class="btn-text">Reiniciar</span>
                                             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                         </button>
@@ -107,21 +113,15 @@
                                 <% } %>
 
                                 <div class="col">
-                                    <button class="btn-disconnect btn btn-sm btn-danger w-100" data-id="<%= instance.id %>">
+                                    <button class="btn-disconnect btn btn-sm btn-danger w-100" data-apikey="<%= instance.apikey %>">
                                         <i class="bi bi-power me-1"></i><span class="btn-text">Desconectar</span>
                                         <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                     </button>
                                 </div>
 
                                 <div class="col">
-                                    <button class="btn-config btn btn-sm btn-secondary w-100" data-id="<%= instance.id %>">
+                                    <button class="btn-config btn btn-sm btn-secondary w-100" data-apikey="<%= instance.apikey %>">
                                         <i class="bi bi-gear me-1"></i><span class="btn-text">Configuração</span>
-                                    </button>
-                                </div>
-
-                                <div class="col">
-                                    <button class="btn-enviar btn btn-sm btn-primary w-100" data-id="<%= instance.id %>" data-apikey="<%= instance.apikey %>">
-                                        <i class="bi bi-send me-1"></i><span class="btn-text">Enviar msg</span>
                                     </button>
                                 </div>
                             </div>
@@ -129,317 +129,6 @@
                         </div>
                     </div>
                 <% }) %>
-            </div>
-        </section>
-
-        <!-- ─── Envio de Mensagem ───────────────────────────────────── -->
-        <section class="mb-5" id="messageStudioSection">
-            <h4 class="text-primary mb-3"><i class="bi bi-send me-2"></i>Envio de Mensagem</h4>
-            <div class="data-panel">
-                <form id="messageStudioForm">
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small-muted">Instância</label>
-                            <select id="msgInstanceSelect" class="form-select"></select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small-muted">Tipo de mensagem</label>
-                            <select id="messageType" class="form-select">
-                                <option value="text">Texto</option>
-                                <option value="image">Imagem</option>
-                                <option value="video">Vídeo</option>
-                                <option value="audio">Áudio</option>
-                                <option value="document">Documento</option>
-                                <option value="location">Localização</option>
-                                <option value="poll">Enquete</option>
-                                <option value="sticker">Sticker</option>
-                                <option value="contact">Contato (vCard)</option>
-                                <option value="reaction">Reação</option>
-                                <option value="typing">Digitando</option>
-                                <option value="mark-read">Marcar como lido</option>
-                                <option value="list">Lista</option>
-                                <option value="buttons">Botões</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small-muted">Delay (ms)</label>
-                            <input type="number" id="messageDelay" class="form-control" value="1200" min="0">
-                        </div>
-                    </div>
-
-                    <!-- Destinos -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small-muted">Modo de destino</label>
-                            <select id="targetMode" class="form-select">
-                                <option value="selected">Selecionados</option>
-                                <option value="manual">Manual (JIDs)</option>
-                                <option value="mixed">Misto</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small-muted d-flex justify-content-between">
-                                <span>Contatos / Grupos</span>
-                            </label>
-                            <select id="targetMultiSelect" class="form-select" multiple style="height:120px;"></select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small-muted">JIDs manuais (um por linha)</label>
-                            <textarea id="manualTargets" class="form-control" rows="4" placeholder="5521999999999&#10;5511888888888"></textarea>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 mb-3">
-                        <div class="col-auto">
-                            <div class="form-check form-check-inline">
-                                <input type="checkbox" id="messageUseQueue" class="form-check-input">
-                                <label for="messageUseQueue" class="form-check-label small-muted">Usar fila</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Campos dinâmicos por tipo -->
-                    <div id="messageTypeFields">
-
-                        <div class="message-type-fields" data-type="text">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Texto</label>
-                                <textarea id="fieldText" class="form-control" rows="3" placeholder="Olá! 😊"></textarea>
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" id="fieldLinkPreview" class="form-check-input">
-                                <label for="fieldLinkPreview" class="form-check-label small-muted">Link preview</label>
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="image">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">URL ou base64 da imagem</label>
-                                <input type="text" id="fieldImage" class="form-control" placeholder="https://...">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Legenda</label>
-                                <input type="text" id="fieldImageCaption" class="form-control">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="video">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">URL ou base64 do vídeo</label>
-                                <input type="text" id="fieldVideo" class="form-control" placeholder="https://...">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Legenda</label>
-                                <input type="text" id="fieldVideoCaption" class="form-control">
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" id="fieldGifPlayback" class="form-check-input">
-                                <label for="fieldGifPlayback" class="form-check-label small-muted">GIF</label>
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="audio">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">URL ou base64 do áudio</label>
-                                <input type="text" id="fieldAudio" class="form-control" placeholder="https://...">
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" id="fieldPtt" class="form-check-input" checked>
-                                <label for="fieldPtt" class="form-check-label small-muted">PTT (mensagem de voz)</label>
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="document">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">URL ou base64 do documento</label>
-                                <input type="text" id="fieldDocument" class="form-control" placeholder="https://...">
-                            </div>
-                            <div class="row g-2">
-                                <div class="col">
-                                    <label class="form-label small-muted">Nome do arquivo</label>
-                                    <input type="text" id="fieldFileName" class="form-control" placeholder="arquivo.pdf">
-                                </div>
-                                <div class="col">
-                                    <label class="form-label small-muted">Mimetype</label>
-                                    <input type="text" id="fieldMimeType" class="form-control" placeholder="application/pdf">
-                                </div>
-                            </div>
-                            <div class="mb-2 mt-2">
-                                <label class="form-label small-muted">Legenda</label>
-                                <input type="text" id="fieldDocumentCaption" class="form-control">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="location">
-                            <div class="row g-2 mb-2">
-                                <div class="col">
-                                    <label class="form-label small-muted">Latitude</label>
-                                    <input type="number" id="fieldLatitude" class="form-control" step="any" placeholder="-23.5505">
-                                </div>
-                                <div class="col">
-                                    <label class="form-label small-muted">Longitude</label>
-                                    <input type="number" id="fieldLongitude" class="form-control" step="any" placeholder="-46.6333">
-                                </div>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Nome do local</label>
-                                <input type="text" id="fieldLocationName" class="form-control" placeholder="São Paulo">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Endereço</label>
-                                <input type="text" id="fieldLocationAddress" class="form-control" placeholder="Av. Paulista, 1000">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="poll">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Pergunta</label>
-                                <input type="text" id="fieldPollName" class="form-control" placeholder="Qual o melhor framework?">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Opções (uma por linha)</label>
-                                <textarea id="fieldPollOptions" class="form-control" rows="4" placeholder="Express&#10;Fastify&#10;NestJS"></textarea>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Máx. selecionáveis</label>
-                                <input type="number" id="fieldPollSelectableCount" class="form-control" value="1" min="0">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="sticker">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">URL ou base64 do sticker</label>
-                                <input type="text" id="fieldSticker" class="form-control" placeholder="https://...">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="contact">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Nome do contato</label>
-                                <input type="text" id="fieldContactName" class="form-control" placeholder="João Silva">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">vCard</label>
-                                <textarea id="fieldContactVcard" class="form-control" rows="5" placeholder="BEGIN:VCARD&#10;VERSION:3.0&#10;FN:João Silva&#10;TEL:+5521999999999&#10;END:VCARD"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="reaction">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">ID da mensagem</label>
-                                <input type="text" id="fieldReactionMessageId" class="form-control" placeholder="ABCD1234...">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Emoji</label>
-                                <input type="text" id="fieldReactionEmoji" class="form-control" placeholder="👍">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="typing">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Status</label>
-                                <select id="fieldTyping" class="form-select">
-                                    <option value="true">Digitando</option>
-                                    <option value="false">Parado</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="mark-read">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">ID da mensagem (opcional)</label>
-                                <input type="text" id="fieldMarkReadMessageId" class="form-control" placeholder="Deixe vazio para marcar todo o chat">
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="list">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">JSON do listMessage</label>
-                                <textarea id="fieldListJson" class="form-control font-monospace" rows="6" placeholder='{"buttonText":"Ver opções","sections":[{"title":"Seção","rows":[{"rowId":"op1","title":"Opção 1"}]}]}'></textarea>
-                            </div>
-                        </div>
-
-                        <div class="message-type-fields d-none" data-type="buttons">
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Texto</label>
-                                <input type="text" id="fieldButtonsText" class="form-control" placeholder="Escolha uma opção:">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">Rodapé</label>
-                                <input type="text" id="fieldButtonsFooter" class="form-control" placeholder="Flash API">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small-muted">JSON dos botões</label>
-                                <textarea id="fieldButtonsJson" class="form-control font-monospace" rows="4" placeholder='[{"buttonId":"btn1","buttonText":{"displayText":"Opção 1"}}]'></textarea>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-send me-1"></i> Enviar
-                        </button>
-                        <button type="button" id="btnClearMessageForm" class="btn btn-secondary">
-                            <i class="bi bi-x-circle me-1"></i> Limpar
-                        </button>
-                    </div>
-                </form>
-
-                <div id="messageStudioResult" class="result-box mt-3 d-none"></div>
-            </div>
-        </section>
-
-        <!-- ─── Gerenciador de Grupos ────────────────────────────────── -->
-        <section class="mb-5">
-            <h4 class="text-primary mb-3"><i class="bi bi-people me-2"></i>Gerenciador de Grupos</h4>
-            <div class="data-panel">
-                <form id="groupManagerForm">
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small-muted">Instância</label>
-                            <select id="groupInstanceSelect" class="form-select"></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small-muted">Ação</label>
-                            <select id="groupAction" class="form-select">
-                                <option value="info">Informações do grupo</option>
-                                <option value="create">Criar grupo</option>
-                                <option value="add-participant">Adicionar participante</option>
-                                <option value="remove-participant">Remover participante</option>
-                                <option value="promote">Promover a admin</option>
-                                <option value="demote">Rebaixar admin</option>
-                                <option value="update-subject">Atualizar nome</option>
-                                <option value="update-description">Atualizar descrição</option>
-                                <option value="leave">Sair do grupo</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small-muted">JID do grupo</label>
-                            <input type="text" id="groupJid" class="form-control" placeholder="1234567890@g.us">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small-muted">Participantes (um por linha)</label>
-                            <textarea id="groupParticipants" class="form-control" rows="3" placeholder="5521999999999&#10;5511888888888"></textarea>
-                        </div>
-                    </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small-muted">Novo nome do grupo</label>
-                            <input type="text" id="groupSubject" class="form-control" placeholder="Nome do grupo">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small-muted">Nova descrição</label>
-                            <input type="text" id="groupDescription" class="form-control" placeholder="Descrição do grupo">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-gear me-1"></i> Executar
-                    </button>
-                </form>
-                <div id="groupManagerResult" class="result-box mt-3 d-none"></div>
             </div>
         </section>
 
@@ -477,11 +166,36 @@
                 <form id="form-config-Instance">
                     <div class="modal-body">
 
+                        <div class="data-panel p-3 mb-3">
+                            <h6 class="text-primary mb-2">Informações da Instância</h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <div class="small-muted">ID da sessão</div>
+                                    <div id="info-instancia-apikey" class="fw-semibold">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small-muted">Status atual</div>
+                                    <div id="info-instancia-status" class="fw-semibold">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small-muted">Nome da sessão</div>
+                                    <div id="info-instancia-nome" class="fw-semibold">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small-muted">Número</div>
+                                    <div id="info-instancia-numero" class="fw-semibold">-</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label text-secondary">🔗 URL Webhook</label>
                             <div class="input-group">
                                 <span class="input-group-text border-primary border-2">URL:</span>
                                 <input type="text" id="webhook-url" class="form-control border-primary border-2" placeholder="https://meuwebhook.com/api/receber">
+                                <button type="button" id="btn-testar-webhook" class="btn btn-outline-info">
+                                    <i class="bi bi-broadcast me-1"></i> Testar webhook
+                                </button>
                             </div>
                             <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" id="webhook-status">
@@ -595,20 +309,8 @@
         </div>
     </div>
 
-    <!-- ─── Footer ───────────────────────────────────────────────── -->
-    <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark dashboard-footer">
-        <div class="container">
-            <p class="mb-2">🔗 Links úteis:</p>
-            <div class="d-flex justify-content-center flex-wrap gap-3 mb-3">
-                <a href="https://documenter.getpostman.com/view/28738840/2sBXqJLgmv" target="_blank" class="text-secondary text-decoration-none">📦 Postman</a>
-                <a href="https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI" target="_blank" class="text-secondary text-decoration-none">💬 WhatsApp</a>
-                <a href="/api-docs" target="_blank" class="text-secondary text-decoration-none">📄 API Docs</a>
-                <a href="https://github.com/clsshbr2/FlashApi" target="_blank" class="text-secondary text-decoration-none">🐙 GitHub</a>
-                <a href="https://hub.docker.com/r/flashconect/flash-api" target="_blank" class="text-secondary text-decoration-none">🐳 Docker Hub</a>
-            </div>
-            <small class="text-muted">© <%= new Date().getFullYear() %> Flash API. Todos os direitos reservados.</small>
-        </div>
-    </footer>
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="containerNotificacoes" style="z-index: 1080;"></div>
+
 
     <script src="/js/user.js"></script>
 </body>
