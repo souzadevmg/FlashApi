@@ -11,7 +11,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8087/api",
+      "url": "http://localhost:3000/api",
       "description": "Servidor de Beta"
     }
   ],
@@ -1526,24 +1526,6 @@
         "responses": {
           "200": {
             "description": "Lista de sessões"
-          }
-        }
-      }
-    },
-    "/session/reconnect": {
-      "post": {
-        "summary": "Forçar reconexão da sessão",
-        "tags": [
-          "Sessões"
-        ],
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Reconexão iniciada com sucesso"
           }
         }
       }
