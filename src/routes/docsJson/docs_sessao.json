@@ -134,24 +134,6 @@
       }
     }
   },
-  "/session/reconnect": {
-    "post": {
-      "summary": "Forçar reconexão da sessão",
-      "tags": [
-        "Sessões"
-      ],
-      "security": [
-        {
-          "ApiKeyAuth": []
-        }
-      ],
-      "responses": {
-        "200": {
-          "description": "Reconexão iniciada com sucesso"
-        }
-      }
-    }
-  },
   "/session/health": {
     "get": {
       "summary": "Verificar saúde do sistema de sessões",
