@@ -1,40 +1,31 @@
-import Database from '../config/database.js';
+
+import { execute } from '../config/database.js';
 import logger from '../utils/logger.js';
 
 // Instância singleton do banco
-const db = new Database();
 
 class Chats {
 
-  static async getchats(key) {
+  static async getMessages(key) {
     try {
-      const getchats = await db.execute(`SELECT * FROM mensagens WHERE sessao_id = ?`, [key]);
-      return getchats
+      const { rows } = await execute(`SELECT * FROM mensagens WHERE sessao_id = $1`, [key]);
+      return rows || [];
     } catch (error) {
       logger.error('Erro ao buscar mensagens: ', error)
       return []
     }
   }
 
-  static async getchat(key, id) {
+  static async getMessage(key, id) {
     try {
-      const [getchat] = await db.execute(`SELECT * FROM mensagens WHERE sessao_id = ? AND mensagem_id = ?`, [key, id]);
-      return getchat
+      const { rows } = await execute(`SELECT * FROM mensagens WHERE sessao_id = $1 AND mensagem_id = $2`, [key, id]);
+      return rows[0] || null;
     } catch (error) {
       logger.error('Erro ao buscar mensagem: ', error)
       return null
     }
   }
 
-  static async salvachat(key, dados) {
-    try {
-      await db.execute(`INSERT INTO mensagens (sessao_id, mensagem_id, remoteJid, fromMe, isgrupo, participant, conteudo_mensagem) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
-        [key, dados.mensagem_id, dados.remoteJid, dados.fromMe, dados.isgrupo, dados.participant, dados.message]);
-    } catch (error) {
-      logger.error('Erro ao salvar mensagem: ', error)
-      return null
-    }
-  }
 }
 
 export default Chats;
