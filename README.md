@@ -47,7 +47,7 @@
 - ✅ **Cache com Redis** — Sessões e filas em memória
 - ✅ **Documentação Swagger e Postman** — Integração interativa
 - ✅ **Suporte a Proxy** — Rotear conexões por proxy HTTP
-- ✅ **Painel Web** — Interface visual para gerenciar sessões e enviar mensagens
+- ✅ **Painel Web** — Interface visual para gerenciar sessões
 
 ---
 
@@ -187,7 +187,7 @@ DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=SUA_SENHA
 DB_DATABASE=flashapi
-DB_CONNECTION_LIMIT=100
+DB_CONNECTION_LIMIT=10
 QUEUELIMIT=0
 
 # ─── Redis ─────────────────────────────────────────────────
