@@ -77,8 +77,8 @@ app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Adapter: connect-redis v8 uses redis v4 API ({ EX: n }), ioredis uses positional args
 const ioredisAdapter = {
