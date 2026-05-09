@@ -29,6 +29,42 @@ router.get("/list", authenticateApiKey, async (req, res) => {
   }
 });
 
+router.get("/avatar/:apikey/:jid", async (req, res) => {
+  try {
+    const apiKey = req.params.apikey;
+    const jid = req.params.jid;
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        message: "ApiKey é obrigatória",
+      });
+    }
+    if (!jid) {
+      return res.status(400).json({
+        success: false,
+        message: "JID é obrigatório",
+      });
+    }
+    const sock = BaileysService.getSocket(apiKey);
+
+    if (!sock?.user?.id) {
+      return res.sendFile(path.resolve("public/images/image.png"));
+    }
+
+    const url = await sock.profilePictureUrl(jid, "image");
+
+    const response = await axios.get(url, {
+      responseType: "stream",
+      timeout: 5000,
+    });
+
+    res.setHeader("Content-Type", "image/jpeg");
+    response.data.pipe(res);
+  } catch {
+    return res.sendFile(path.resolve("public/images/image.png"));
+  }
+});
+
 router.post("/profile", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
