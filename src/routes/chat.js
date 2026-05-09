@@ -944,7 +944,6 @@ router.post("/send-list", authenticateApiKey, async (req, res) => {
       const msg = generateWAMessageFromContent(jid, payloadList, {
         userJid: sock.user.id,
       });
-      console.log(msg);
       const send = await sock.relayMessage(jid, msg.message, {
         messageId: msg.key.id,
         additionalNodes: BaileysService.BIZ_NATIVE_LIST,
