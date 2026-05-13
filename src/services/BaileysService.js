@@ -749,7 +749,7 @@ class BaileysService {
 
       const phoneNumber = sock?.user?.id?.split(":")[0];
       const sessaoDB = await Session.findById(sessionId);
-
+      this.sockets.set(sessionId, sock);
       try {
         const foto = await sock.profilePictureUrl(`${phoneNumber}@s.whatsapp.net`);
         sessionData.url_imagem = foto;
@@ -806,10 +806,7 @@ class BaileysService {
       }
 
       // Verificar se a mensagem é de um contato com LID e criar mapeamento se necessário
-      if (
-        (message?.key?.remoteJidAlt && message.key.remoteJidAlt.endsWith("@lid")) ||
-        (remoteJid && remoteJid.endsWith("@lid"))
-      ) {
+      if ((message?.key?.remoteJidAlt && message.key.remoteJidAlt.endsWith("@lid")) || (remoteJid && remoteJid.endsWith("@lid"))) {
         const lidId =
           message.key.remoteJidAlt && message.key.remoteJidAlt.endsWith("@lid")
             ? message.key.remoteJidAlt.split("@")[0]
@@ -1109,7 +1106,7 @@ class BaileysService {
         message.sticker = await this.prepareMedia(sessionId, message.sticker.url);
       }
 
-      const result = await sock.sendMessage(jid, message);
+      const result = await sock.sendMessage(jid, message, { quoted: message.quoted || undefined });
       await sock.sendPresenceUpdate("paused", jid);
       logger.info(`📤 Mensagem enviada: ${sessionId} -> ${jid}`);
       return result;
