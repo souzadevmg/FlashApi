@@ -203,4 +203,47 @@ router.post("/unblock", authenticateApiKey, async (req, res) => {
   }
 });
 
+//Lid to Jid Mapping
+router.post("/lid-to-jid", authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId = req.headers["apikey"];
+    const { lid } = req.body;
+
+    if (!lid) {
+      return res.status(400).json({
+        success: false,
+        message: "LID é obrigatório",
+      });
+    }
+
+    if (!BaileysService.isSessionConnected(sessionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Sessão não está conectada",
+      });
+    }
+    const lidlimpo = lid.split("@")[0];
+    const mapping = await BaileysService.redis.get(`lid-mapping:${sessionId}:${lidlimpo}`);
+    if (!mapping) {
+      return res.status(404).json({
+        success: false,
+        message: "Nenhum mapeamento encontrado para o LID fornecido",
+      });
+    }
+    return res.json({
+      success: true,
+      data: {
+        lid,
+        jid: mapping,
+      },
+    });
+  } catch (error) {
+    logger.error("Erro ao mapear LID para JID:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Erro interno do servidor",
+    });
+  }
+});
+
 export default router;
