@@ -840,7 +840,7 @@ class BaileysService {
           : (message.key.remoteJid = message.key.remoteJid);
       }
 
-      console.log(`[wa][${sessionId}] mensagem recebida type=${messageType} text="${text}"`);
+      // console.log(`[wa][${sessionId}] mensagem recebida type=${messageType} text="${text}"`);
       await this.emitEvent(sessionId, "message_received", {
         message,
       });
