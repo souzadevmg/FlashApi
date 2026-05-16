@@ -6,6 +6,7 @@ import MessageQueueService from "../services/MessageQueueService.js";
 import logger from "../utils/logger.js";
 import Chats from "../models/chats.js";
 import { downloadMediaMessage, generateWAMessageFromContent, prepareWAMessageMedia, proto, WAProto } from "@whiskeysockets/baileys";
+import axios from "axios";
 
 const router = express.Router();
 
@@ -607,8 +608,25 @@ router.post("/send-sticker", authenticateApiKey, async (req, res) => {
       const grupos = await sock.groupMetadata(to);
       mentions.push(...grupos.participants.map((p) => p.id));
     }
+    let stickerData;
+
+    if (sticker.startsWith("http")) {
+      const response = await axios.get(sticker, {
+        responseType: "arraybuffer",
+      });
+
+      stickerData = Buffer.from(response.data);
+    } else if (sticker.startsWith("data:")) {
+      const base64 = sticker.replace(/^data:image\/\w+;base64,/, "");
+
+      stickerData = Buffer.from(base64, "base64");
+    } else {
+      // base64 puro
+      stickerData = Buffer.from(sticker, "base64");
+    }
+
     const message = {
-      sticker: { url: sticker },
+      sticker: stickerData,
       quoted: quoted,
     };
 
