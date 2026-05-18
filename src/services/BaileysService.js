@@ -82,6 +82,7 @@ class BaileysService {
   static chatsFlushTimers = new Map();
   static chatsFlushInProgress = new Map();
   static sessionDeleteInFlight = new Map();
+  static restoreSessionsInFlight = null;
   static SESSIONS_STATS_CACHE_KEY = "cache:sessions:stats";
   static SESSIONS_STATS_CACHE_TTL_SECONDS = 120;
 
@@ -93,26 +94,54 @@ class BaileysService {
     logger.info("[wa] initializing BaileysService");
 
     // Restaurar sessões ativas do banco
-    await this.restoreActiveSessions();
+    await this.restoreActiveSessions("startup");
 
     logger.info("[wa] BaileysService initialized");
   }
 
-  static async restoreActiveSessions() {
-    try {
-      const sessions = await Session.findByApiKey();
-      logger.info(`[wa] restoring sessions count=${sessions.length}`);
-
-      for (const session of sessions) {
-        await Session.update(session.apikey, { status: "disconnected" });
-        logger.info(`[wa][${session.apikey}] restore wait=2000ms`);
-        await this.delay(2000);
-        logger.info(`[wa][${session.apikey}] restore start`);
-        await this.createSession(session.apikey, session.numero, false);
-      }
-    } catch (error) {
-      logger.error("[wa] restore sessions error:", error);
+  static async restoreActiveSessions(reason = "manual") {
+    if (this.restoreSessionsInFlight) {
+      logger.info(`[wa] restore skipped reason=${reason} in_flight=true`);
+      return this.restoreSessionsInFlight;
     }
+
+    const runRestore = async () => {
+      try {
+        const sessions = await Session.findByApiKey();
+        logger.info(`[wa] restoring sessions reason=${reason} count=${sessions.length}`);
+
+        for (const session of sessions) {
+          try {
+            const inMemorySession = await this.redis.get(`sessao:${session.apikey}`);
+            const hasSocket = this.sockets.has(session.apikey);
+            const isAlreadyConnected = hasSocket && inMemorySession?.status === "connected";
+
+            if (isAlreadyConnected) {
+              logger.info(`[wa][${session.apikey}] restore skip already_connected=true`);
+              continue;
+            }
+
+            await Session.update(session.apikey, { status: "disconnected" });
+            logger.info(`[wa][${session.apikey}] restore wait=2000ms`);
+            await this.delay(2000);
+            logger.info(`[wa][${session.apikey}] restore start`);
+            await this.createSession(session.apikey, session.numero, false);
+          } catch (error) {
+            logger.error(`[wa][${session.apikey}] restore item error:`, error);
+          }
+        }
+
+        return true;
+      } catch (error) {
+        logger.error(`[wa] restore sessions error reason=${reason}:`, error);
+        return false;
+      } finally {
+        this.restoreSessionsInFlight = null;
+      }
+    };
+
+    this.restoreSessionsInFlight = runRestore();
+    return this.restoreSessionsInFlight;
   }
 
   static async createSession(sessionId, phoneNumber = null, type = "qrcode", limitqr = true) {
