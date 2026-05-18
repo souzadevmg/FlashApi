@@ -7,8 +7,26 @@ import logger from "../utils/logger.js";
 import Chats from "../models/chats.js";
 import { downloadMediaMessage, generateWAMessageFromContent, prepareWAMessageMedia, proto, WAProto } from "@whiskeysockets/baileys";
 import axios from "axios";
+import { Sticker } from "wa-sticker-formatter";
 
 const router = express.Router();
+
+//Criar sticker a partir de uma URL ou base64 usando wa-sticker-formatter
+async function createSticker(input) {
+  try {
+    const sticker = new Sticker(input, {
+      pack: "Flash API",
+      author: "Store",
+      type: "full",
+      quality: 100,
+    });
+
+    return await sticker.toBuffer();
+  } catch (error) {
+    console.error("Erro ao criar sticker:", error);
+    return false;
+  }
+}
 
 router.post("/send-text", authenticateApiKey, async (req, res) => {
   try {
@@ -610,23 +628,15 @@ router.post("/send-sticker", authenticateApiKey, async (req, res) => {
     }
     let stickerData;
 
-    if (sticker.startsWith("http")) {
-      const response = await axios.get(sticker, {
-        responseType: "arraybuffer",
+    const stickerBuffer = await createSticker(sticker);
+    if (!stickerBuffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Não foi possível criar o sticker. Verifique o formato da entrada.",
       });
-
-      stickerData = Buffer.from(response.data);
-    } else if (sticker.startsWith("data:")) {
-      const base64 = sticker.replace(/^data:image\/\w+;base64,/, "");
-
-      stickerData = Buffer.from(base64, "base64");
-    } else {
-      // base64 puro
-      stickerData = Buffer.from(sticker, "base64");
     }
-
     const message = {
-      sticker: stickerData,
+      sticker: stickerBuffer,
       quoted: quoted,
     };
 
