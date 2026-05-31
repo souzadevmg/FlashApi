@@ -57,3 +57,4 @@ swagger_full.json
 package-lock.json
 examples/
 package-lock.json
+.env
