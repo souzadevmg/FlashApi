@@ -14,6 +14,7 @@
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
     "@whiskeysockets/baileys": "github:clsshbr2/Baileys",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
@@ -38,6 +39,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "systeminformation": "^5.27.10",
+    "wa-sticker-formatter": "^4.4.4",
     "undici": "^7.16.0",
     "uuid": "^9.0.1",
     "ws": "^8.14.2"
