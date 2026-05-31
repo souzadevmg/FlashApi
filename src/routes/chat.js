@@ -8,13 +8,28 @@ import Chats from "../models/chats.js";
 import { downloadMediaMessage, generateWAMessageFromContent, prepareWAMessageMedia, proto, WAProto } from "@whiskeysockets/baileys";
 import axios from "axios";
 import { Sticker } from "wa-sticker-formatter";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import fs from "fs";
+import os from "os";
+import path from "path";
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const router = express.Router();
 
 //Criar sticker a partir de uma URL ou base64 usando wa-sticker-formatter
 async function createSticker(input) {
   try {
-    const sticker = new Sticker(input, {
+    let imageBuffer;
+
+    if (typeof input === "string" && input.startsWith("data:")) {
+      const base64Data = input.split(",")[1];
+      imageBuffer = Buffer.from(base64Data, "base64");
+    } else {
+      imageBuffer = input;
+    }
+
+    const sticker = new Sticker(imageBuffer, {
       pack: "Flash API",
       author: "Store",
       type: "full",
@@ -28,6 +43,24 @@ async function createSticker(input) {
   }
 }
 
+// Converter áudio para formato Opus usando ffmpeg
+async function converterParaOpus(buffer) {
+  const input = path.join(os.tmpdir(), `${Date.now()}.mp3`);
+  const output = path.join(os.tmpdir(), `${Date.now()}.ogg`);
+
+  await fs.promises.writeFile(input, buffer);
+
+  await new Promise((resolve, reject) => {
+    ffmpeg(input).audioCodec("libopus").format("ogg").on("end", resolve).on("error", reject).save(output);
+  });
+
+  const result = await fs.promises.readFile(output);
+
+  fs.unlink(input, () => {});
+  fs.unlink(output, () => {});
+
+  return result;
+}
 router.post("/send-text", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
@@ -297,10 +330,28 @@ router.post("/send-audio", authenticateApiKey, async (req, res) => {
       mentions.push(...grupos.participants.map((p) => p.id));
     }
 
+    let buffer;
+
+    if (audio.startsWith("data:audio")) {
+      const base64 = audio.split(",")[1];
+      buffer = Buffer.from(base64, "base64");
+    } else {
+      const response = await axios.get(audio, {
+        responseType: "arraybuffer",
+      });
+
+      buffer = Buffer.from(response.data);
+    }
+
+    if (ptt) {
+      buffer = await converterParaOpus(buffer);
+    }
+
     const message = {
-      audio: { url: audio },
+      audio: buffer,
+      mimetype: ptt ? "audio/ogg; codecs=opus" : "audio/mpeg",
       ptt,
-      quoted: quoted,
+      quoted,
     };
 
     if (mentions && mentions.length > 0) {
