@@ -35,6 +35,13 @@ import Redis from "ioredis";
 import { pipeline } from "stream";
 import usePostgresAuthState from "./usePostgresAuthStore.js";
 
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+console.log("FFmpeg:", ffmpegInstaller.path);
+
 class BaileysService {
   constructor() {
     this.globalWebSocketService = null;
