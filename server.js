@@ -23,8 +23,7 @@ import { RedisStore } from "connect-redis";
 import redis from "./src/services/redis.js";
 
 import config from "./src/config/env.js";
-import swaggerOptions from "./src/config/swagger.js";
-import GlobalWebSocketService from "./src/services/GlobalWebSocketService.js";
+import WebSocketService from "./src/services/WebSocketService.js";
 
 import logger from "./src/utils/logger.js";
 
@@ -40,19 +39,9 @@ import { execSync } from "child_process";
 import modifyTable from "./src/config/verificardb.js";
 import BaileysService from "./src/services/BaileysService.js";
 import Session from "./src/models/Session.js";
-import { startMultiQueueWorker } from "./src/utils/multiWorker.js";
+import { checkAndInitDatabase } from "./gerardb.js";
+import { startWorkers } from "./src/services/workers/index.js";
 
-// Gerar arquivo swagger completo
-fs.writeFileSync("swagger_full.json", JSON.stringify(swaggerOptions.definition, null, 2));
-logger.info("Arquivo swagger_full.json gerado com sucesso");
-
-try {
-  // Executar o comando para converter para Postman
-  execSync("openapi2postmanv2 -s swagger_full.json -o postman_collection.json -p", { stdio: "inherit" });
-  logger.info("Arquivo postman_collection.json gerado com sucesso");
-} catch (error) {
-  logger.error("Erro ao gerar coleção Postman:", error);
-}
 
 const app = express();
 
@@ -78,8 +67,9 @@ app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.set("trust proxy", 1);
 
-// Adapter: connect-redis v8 uses redis v4 API ({ EX: n }), ioredis uses positional args
+//Usar redis como cache
 const ioredisAdapter = {
   get: (key) => redis.client.get(key),
   set: (key, val, opts) => (opts?.EX ? redis.client.set(key, val, "EX", opts.EX) : redis.client.set(key, val)),
@@ -92,7 +82,7 @@ const ioredisAdapter = {
 app.use(
   session({
     store: new RedisStore({ client: ioredisAdapter }),
-    secret: config.manager_secret,
+    secret: config.manager_senha_admin,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -103,9 +93,6 @@ app.use(
   }),
 );
 
-// Swagger documentation
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
 app.use("/api/session", sessionRoutes);
@@ -118,52 +105,10 @@ app.use("/manager", managerRoutes);
 
 // WebSocket server
 const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 200 * 1024 * 1024 });
-const globalWebSocketService = new GlobalWebSocketService(wss);
+const WebSocket = new WebSocketService(wss);
 
-// Connect BaileysService with GlobalWebSocketService
-BaileysService.setGlobalWebSocketService(globalWebSocketService);
-
-let restoreFromRecoveryAttempts = 0;
-let restoreFromRecoveryTimer = null;
-
-const scheduleRestoreAfterRecovery = async (reason = "infra_recovered") => {
-  const maxAttempts = 6;
-
-  if (restoreFromRecoveryTimer) {
-    clearTimeout(restoreFromRecoveryTimer);
-    restoreFromRecoveryTimer = null;
-  }
-
-  const restored = await BaileysService.restoreActiveSessions(reason);
-  if (restored) {
-    restoreFromRecoveryAttempts = 0;
-    logger.info(`[wa] restauração de sessões concluída após recuperação (${reason})`);
-    return;
-  }
-
-  restoreFromRecoveryAttempts += 1;
-  if (restoreFromRecoveryAttempts >= maxAttempts) {
-    logger.error(`[wa] falha ao restaurar sessões após recuperação (${reason})`);
-    return;
-  }
-
-  const delay = Math.min(restoreFromRecoveryAttempts * 5000, 30000);
-  logger.warn(
-    `[wa] restauração pendente após recuperação (${reason}), nova tentativa em ${delay}ms (${restoreFromRecoveryAttempts}/${maxAttempts})`,
-  );
-  restoreFromRecoveryTimer = setTimeout(() => {
-    scheduleRestoreAfterRecovery(reason).catch((error) => {
-      logger.error("[wa] erro ao agendar restauração após recuperação:", error);
-    });
-  }, delay);
-};
-
-process.on("flashapi:redis-recovered", () => {
-  logger.info("[wa] evento de recuperação do Redis recebido, restaurando sessões");
-  scheduleRestoreAfterRecovery("redis_recovered").catch((error) => {
-    logger.error("[wa] erro na restauração pós-recuperação do Redis:", error);
-  });
-});
+// Conexão websocket
+BaileysService.SetWebSocketService(WebSocket);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -183,42 +128,17 @@ app.get("/", (req, res) => {
 // Initialize database and start server
 async function startServer() {
   try {
-    logger.info("✅ Iniciando Flash API - WhatsApp Multi-Session");
-    // Initialize BaileysService and restore sessions
-    startMultiQueueWorker();
-    await BaileysService.initialize();
-
     server.listen(PORT, "0.0.0.0", async () => {
       logger.info(`🚀 Flash API rodando na porta ${PORT}`);
-      logger.info(`📚 Documentação: http://localhost:${PORT}/api-docs`);
+      //Criar banco de dados
+      await checkAndInitDatabase();
 
-      if (config.enableGlobalWebsocket) {
-        logger.info(`🔗 WebSocket Global: ws://localhost:${PORT}`);
-      } else {
-        logger.info(`🔗 WebSocket Global: DESABILITADO`);
-      }
+      logger.info("✅ Iniciando Flash API - WhatsApp Multi-Session");
+      startWorkers()
 
-      if (config.enableGlobalWebhook) {
-        logger.info(`📡 Webhook Global: HABILITADO (${config.globalWebhookUrl || "URL não configurada"})`);
-      } else {
-        logger.info(`📡 Webhook Global: DESABILITADO`);
-      }
 
-      logger.info(`🔑 API Key Global: ${config.globalApiKey.substring(0, 10)}...`);
-
-      const stats = await BaileysService.getSessionsStats();
-      logger.info(
-        `📱 Sessões ativas: ${stats.stats.connected} conectadas, ${stats.stats.connecting} conectando, ${stats.stats.total} total`,
-      );
-
-      logger.info("🎯 Recursos disponíveis:");
-      logger.info("   📤 Envio de mensagens (texto, imagem, vídeo, áudio, documento, localização, enquete)");
-      logger.info("   👥 Gerenciamento de grupos (criar, adicionar/remover participantes, promover/rebaixar)");
-      logger.info("   📞 Gerenciamento de contatos (verificar, bloquear/desbloquear)");
-      logger.info("   ⚙️  Configurações de sessão (webhook, auto-reply, auto-read, ignorar grupos)");
-      logger.info("   📊 Fila de mensagens com delay personalizado");
-      logger.info("   💾 Store persistente MySQL para mensagens, contatos, chats e grupos");
-      logger.info("   🔄 Reconexão automática e health check");
+      //iniciando serviços da baileys
+      BaileysService.initialize();
     });
   } catch (error) {
     logger.error(error);
@@ -229,18 +149,12 @@ async function startServer() {
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
-  logger.info("SIGTERM recebido, encerrando servidor...");
-  server.close(() => {
-    logger.info("Servidor encerrado");
-    process.exit(0);
-  });
+  server.close(() => process.exit(0)); // fecha conexões antes de sair
 });
 
 process.on("SIGINT", () => {
-  logger.info("SIGINT recebido, encerrando servidor...");
-  process.exit(0);
+  process.exit(0); // sai na hora, sem fechar nada
 });
-
 startServer();
 
 export default { app, server, wss };

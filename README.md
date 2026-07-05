@@ -174,7 +174,6 @@ CHAVE_SECRET_SESSION_MANAGER=TROQUE-POR-UMA-CHAVE-SEGURA
 # ─── Webhook Global ────────────────────────────────────────
 ENABLE_GLOBAL_WEBHOOK=false
 GLOBAL_WEBHOOK_URL=https://seu-servidor.com/webhook
-GLOBAL_WEBHOOK_SECRET=TROQUE-POR-UMA-CHAVE-SEGURA
 
 # ─── WebSocket Global ──────────────────────────────────────
 ENABLE_WEBSOCKET=true

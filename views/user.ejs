@@ -68,18 +68,16 @@
                                     >
                                     <div class="flex-grow-1 overflow-hidden">
                                         <h5 class="text-primary mb-1 text-truncate instancia_nome">📱 <%= instance.nome_sessao %></h5>
-                                        <div class="small-muted text-truncate instancia_apikey">🔑 <%= instance.apikey %></div>
+                                        <div class="small-muted text-truncate instancia_apikey">🔑 <%= instance.apikey.slice(0, 6) %>***</div>
                                         <% if (instance.numero) { %>
                                             <div class="small-muted instancia_numero">📞 <strong><%= instance.numero %></strong></div>
                                         <% } %>
                                     </div>
                                 </div>
                                 <div class="meta mt-1">
-                                    <button class="btn copiar-btn" data-copy="<%= instance.nome_sessao %>" title="Copiar nome" aria-label="Copiar nome">
-                                        <i class="bi bi-clipboard"></i>
-                                    </button>
                                     <button class="btn copiar-btn" data-copy="<%= instance.apikey %>" title="Copiar APIKey" aria-label="Copiar APIKey">
-                                        <i class="bi bi-clipboard-data"></i>
+                                         <i class="bi bi-clipboard"></i>
+                                        Copiar API Key
                                     </button>
                                 </div>
                             </div>

@@ -6,18 +6,66 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { execute } from "../config/database.js";
+import redis, { KEYS } from "../services/redis.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Instância singleton do banco
 let vezes = 0;
 class Session {
+
   static async addsessao(dados) {
-    const addsessao = await execute(
-      "INSERT INTO sessao (apikey, nome_sessao, rejeitar_ligacoes, ignorar_grupos) VALUES ($1, $2, $3, $4)",
-      [dados.uuid, dados.finalNomeSessao, 0, 1],
-    );
-    return addsessao.rowCount > 0;
+    try {
+      const dadosInsert = {
+        nome_sessao: dados.nome_sessao,
+        apikey: dados.apikey,
+        numero: dados.numero,
+        webhook_url: dados.webhook_url,
+        webhook_status: dados.webhook_status,
+        events: JSON.stringify(dados.events),
+        leitura_automatica: dados.leitura_automatica,
+        rejeitar_ligacoes: dados.rejeitar_ligacoes,
+        msg_rejectcalls: dados.msg_rejectcalls,
+        ignorar_grupos: dados.ignorar_grupos
+      };
+
+      const colunas = Object.keys(dadosInsert);
+      const valores = Object.values(dadosInsert);
+
+      const placeholders = colunas
+        .map((_, i) => `$${i + 1}`)
+        .join(", ");
+
+      const sql = `INSERT INTO sessao (${colunas.join(", ")}) VALUES (${placeholders}) RETURNING *`
+      const addsessao = await execute(sql, valores);
+
+      //Adicionar proxy
+      try {
+
+        const proxy = {
+          sessao_id: dados.apikey,
+          protocol: dados?.proxy?.protocol || "",
+          username: dados?.proxy?.username || "",
+          password: dados?.proxy?.password || "",
+          host: dados?.proxy?.host || "",
+          port: dados?.proxy?.port || "",
+          active: dados?.proxy?.active || false,
+        }
+        const proxyValues = Object.values(proxy)
+        const proxyColunas = Object.keys(proxy)
+        const placeholdersProxy = proxyColunas
+          .map((_, i) => `$${i + 1}`)
+          .join(", ");
+
+        const sqlProxy = `INSERT INTO proxy (${proxyColunas.join(", ")}) VALUES (${placeholdersProxy}) RETURNING *`
+        await execute(sqlProxy, proxyValues);
+      } catch (error) { console.log(error) }
+      return addsessao;
+
+    } catch (error) {
+      return false
+    }
+
   }
 
   static async findById(id) {
@@ -30,7 +78,7 @@ class Session {
     return rows[0] || null;
   }
 
-  static async findByApiKey() {
+  static async findAllSessao() {
     const { rows } = await execute("SELECT * FROM sessao ORDER BY created_at DESC", []);
     return rows || [];
   }
@@ -67,18 +115,29 @@ class Session {
     return upsessao.rowCount > 0;
   }
 
+  //Deletar uma sessão
   static async delete(id, sessaodelete = true) {
-    if (sessaodelete) {
-      await execute(`DELETE FROM sessao WHERE apikey = $1`, [id]);
-      await execute(`DELETE FROM wa_session_keys WHERE session_id = $1`, [id]);
+    try {
+      if (sessaodelete) {
+        await execute(`DELETE FROM sessao WHERE apikey = $1`, [id]);
+      }
+      await execute(`DELETE FROM wa_session_keys WHERE sessao_id = $1`, [id]);
+      await execute(`DELETE FROM chats WHERE sessao_id = $1`, [id]);
+      await execute(`DELETE FROM contatos WHERE sessao_id = $1`, [id]);
+      await execute(`DELETE FROM grupos WHERE sessao_id = $1`, [id]);
+      await execute(`DELETE FROM mensagens WHERE sessao_id = $1`, [id]);
+      await execute(`DELETE FROM proxy WHERE sessao_id = $1`, [id]);
+      await BaileysService.DeleteSessao(id)
+      try { const sock = BaileysService.sockets.get(id); sock.end(); } catch (error) { }
+      await execute(`UPDATE sessao SET status = $1`, ['desconnected'])
+
+    } catch (error) {
+      logger.error('Erro ao deletar sessão: ')
+      logger.error(error)
+    } finally {
+      return true;
     }
 
-    await execute(`DELETE FROM chats WHERE sessao_id = $1`, [id]);
-    await execute(`DELETE FROM contatos WHERE sessao_id = $1`, [id]);
-    await execute(`DELETE FROM grupos WHERE sessao_id = $1`, [id]);
-    await execute(`DELETE FROM mensagens WHERE sessao_id = $1`, [id]);
-    await execute(`DELETE FROM proxy WHERE sessao_id = $1`, [id]);
-    return true;
   }
 
   static async setProxy(session, proxy) {
@@ -101,64 +160,40 @@ class Session {
     return rows[0] || null;
   }
 
-  // static async saveKeys(sessionId, upserts) {
-  //   // vezes++
-  //   // console.log("Salvando chaves para sessão:", sessionId, "vezes:", vezes, "total de dados:", Object.values(upserts || {}).reduce((sum, { ids }) => sum + (ids?.length || 0), 0));
-  //   // return
-  //   const keysToSave = [];
+  static async GetCreds(session) {
+    const { rows } = await execute(`SELECT value_json FROM wa_session_keys WHERE sessao_id = $1`, [session]);
+    return rows[0] || null;
+  }
 
-  //   for (const [type, data] of Object.entries(upserts || {})) {
-  //     const ids = data?.ids || [];
-  //     const values = data?.values || [];
+  static async setCreds(session, value_json) {
+    try {
+      /** @type {import("@whiskeysockets/baileys").WASocket} */
+      const sock = BaileysService.sockets.get(session);
+      const { rows } = await execute(`SELECT value_json, key_id FROM wa_session_keys WHERE sessao_id = $1 AND key_id = $2`, [session, 'creds']);
+      if (rows.length > 0) {
+        if (sock) { }
+        await this.delete(session, false)
+        try { sock.end(); } catch (error) { /*ignore*/ }
+      }
+      const teste = await execute(
+        `INSERT INTO wa_session_keys (value_json, sessao_id, key_id) VALUES ($1, $2, $3)`,
+        [JSON.stringify(value_json), session, 'creds'],
+      );
 
-  //     for (let i = 0; i < ids.length; i++) {
-  //       keysToSave.push({
-  //         sessionId,
-  //         type,
-  //         id: ids[i],
-  //         value: values[i], // ideal: JSON/string já pronta
-  //       });
-  //     }
-  //   }
+      if (teste.rowCount > 0) {
+        try { BaileysService.createSession(session, null) } catch (error) { /*ignore*/ }
+        return { success: true, message: "Sessão injetada com susesso" }
+      } else {
+        return { success: false, message: "Erro ao injetar sessão" }
+      }
+    } catch (error) {
+      return { success: false, message: "Erro ao injetar sessão", error }
+    }
 
-  //   if (keysToSave.length === 0) return;
+  }
 
-  //   const CHUNK_SIZE = 1000; // comece com 500-1000; ajuste conforme tempo/CPU
-  //   for (let offset = 0; offset < keysToSave.length; offset += CHUNK_SIZE) {
-  //     const chunk = keysToSave.slice(offset, offset + CHUNK_SIZE);
 
-  //     // 5 colunas por registro
-  //     const params = [];
-  //     const valuesSql = chunk
-  //       .map((k, idx) => {
-  //         const base = idx * 4;
-  //         // updated_at vai em CURRENT_TIMESTAMP, então não precisa param pra ele
-  //         params.push(k.sessionId, k.type, k.id, k.value);
-  //         return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, CURRENT_TIMESTAMP)`;
-  //       })
-  //       .join(",\n");
 
-  //     const sql = `
-  //     INSERT INTO wa_session_keys (
-  //       session_id,
-  //       key_type,
-  //       key_id,
-  //       value_json,
-  //       updated_at
-  //     )
-  //     VALUES
-  //     ${valuesSql}
-  //     ON CONFLICT (session_id, key_type, key_id)
-  //     DO UPDATE SET
-  //       value_json = EXCLUDED.value_json,
-  //       updated_at = CURRENT_TIMESTAMP
-  //   `;
-
-  //     await db.execute(sql, params);
-  //   }
-  // }
-
-  // redis: seu client já existente
 }
 
 export default Session;

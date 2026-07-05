@@ -1,6 +1,6 @@
 {
   "name": "baileys-multi-session-api",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "API Multi-Sessão WhatsApp usando Baileys com configuração global via .env",
   "main": "server.js",
   "type": "module",
@@ -29,6 +29,7 @@
     "ioredis": "^5.8.2",
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
+    "link-preview-js": "^3.2.0",
     "moment-timezone": "^0.6.0",
     "node-cache": "^5.1.2",
     "pg": "^8.16.3",

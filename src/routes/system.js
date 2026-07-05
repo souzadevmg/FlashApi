@@ -1,7 +1,6 @@
 import express from 'express';
 import globalAuth from '../middleware/globalAuth.js';
 import BaileysService from '../services/BaileysService.js';
-import GlobalWebhookService from '../services/GlobalWebhookService.js';
 import Store from '../models/Store.js';
 import config from '../config/env.js';
 import logger from '../utils/logger.js';
@@ -15,13 +14,9 @@ const SYSTEM_STATUS_CACHE_TTL_SECONDS = 120;
 
 router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
-    try {
-      const cachedStatus = await BaileysService.redis.get(SYSTEM_STATUS_CACHE_KEY);
-      if (cachedStatus) {
-        return res.json(cachedStatus);
-      }
-    } catch (cacheError) {
-      logger.warn('Falha ao ler cache do status do sistema:', cacheError);
+    const cachedStatus = await BaileysService.redis.get(SYSTEM_STATUS_CACHE_KEY);
+    if (cachedStatus) {
+      return res.json(cachedStatus);
     }
 
     const [
@@ -39,9 +34,9 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
       usersInfo,
       currentTime
     ] = await Promise.all([
-      BaileysService.getSessionsStats(),
-      GlobalWebhookService.getWebhookInfo(),
-      null,
+      Promise.resolve(null),
+      Promise.resolve(null),
+      Promise.resolve(null), // poolStatus
       si.cpu().catch(() => null),
       si.currentLoad().catch(() => null),
       si.mem().catch(() => null),
@@ -51,13 +46,7 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
       si.processes().catch(() => null),
       si.networkInterfaces().catch(() => []),
       si.users().catch(() => []),
-      (async () => {
-        try {
-          return await si.time();
-        } catch (error) {
-          return null;
-        }
-      })()
+      si.time().catch(() => null)
     ]);
 
     const memoryUsage = process.memoryUsage();
@@ -186,7 +175,7 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
         dados: poolStatus
       }
     };
-    
+
     const response = {
       success: true,
       data: {
@@ -195,7 +184,6 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
           uptime: process.uptime(),
           memory: processMemory,
           version: config.apiversao,
-          environment: config.nodeEnv,
           host,
           runtime,
           process: processStats,
@@ -244,13 +232,12 @@ router.get('/status', globalAuth.authenticateGlobalApiKey, async (req, res) => {
 
 router.get('/config', globalAuth.authenticateGlobalApiKey, async (req, res) => {
   try {
-    const sessoes = await Session.findByApiKey();
+    const sessoes = await Session.findAllSessao();
     res.json({
       success: true,
       data: {
         features: {
-          globalWebhook: config.enableGlobalWebhook,
-          globalWebsocket: config.enableGlobalWebsocket
+          ...config
         },
         version: config.apiversao,
         instacias: sessoes.length

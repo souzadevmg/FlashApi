@@ -3,6 +3,7 @@ import path from "path";
 import { WAProto as proto, initAuthCreds, BufferJSON } from "@whiskeysockets/baileys";
 import { execute, getDbClient } from "../config/database.js";
 import BaileysService from "./BaileysService.js";
+import redis, { KEYS } from "./redis.js";
 
 export default async function usePostgresAuthState(sessionID, saveOnlyCreds = false) {
   // parametro para informar ao script para salvar apenas a key creds no DB
@@ -48,7 +49,7 @@ export default async function usePostgresAuthState(sessionID, saveOnlyCreds = fa
         rawData = await getAuthKey(sessionID, key, client);
       }
 
-      const parsedData = JSON.parse(rawData, BufferJSON.reviver);
+      const parsedData = JSON.parse(JSON.stringify(rawData), BufferJSON.reviver);
       return parsedData;
     } catch (error) {
       console.log("❌ readData", error.message);
@@ -151,18 +152,21 @@ async function runQuery(query, params = [], client = null) {
   return execute(query, params);
 }
 
-async function insertOrUpdateAuthKey(botId, keyId, keyJson, client = null) {
+export async function insertOrUpdateAuthKey(botId, keyId, keyJson, client = null) {
   if (keyId.includes("lid-mapping") && keyId.includes("_reverse")) {
-    const id = keyId.split("-")[2].split("_")[0];
+    const lid = keyId.split("-")[2].split("_")[0];
+    const pn = keyJson.replace(/"/g, "").trim();
     try {
-        BaileysService.redis.set(`lid-mapping:${botId}:${id}`, keyJson.replace(/"/g, "").trim());
-    } catch (error) {}
+      const sessionId = botId
+      const type = "lid_map"
+      redis.lidMap.lpush(KEYS().queue_util(), JSON.stringify({ sessionId, type, lid, pn }));
+    } catch (error) { }
   }
   if (keyId.includes("lid-mapping")) return;
   const query = `
-        INSERT INTO wa_session_keys (session_id, key_id, value_json, updated_at)
+        INSERT INTO wa_session_keys (sessao_id, key_id, value_json, updated_at)
         VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (session_id, key_id)
+        ON CONFLICT (sessao_id, key_id)
         DO UPDATE SET
           value_json = EXCLUDED.value_json,
           updated_at = NOW()
@@ -183,13 +187,16 @@ async function bulkUpsertAuthKeys(botId, items, client, chunkSize = 250) {
       // 🔥 tratar lid-mapping
       if (item.keyId.includes("lid-mapping")) {
         if (item.keyId.includes("_reverse")) {
-           const id = item.keyId.split("-")[2].split("_")[0];
+          const lid = item.keyId.split("-")[2].split("_")[0];
 
-          if (id) {
+          if (lid) {
             try {
-                await BaileysService.redis.set(`lid-mapping:${botId}:${id}`, item.keyJson.replace(/"/g, "").trim());
-            } catch (error) {}
-            
+              const pn = item.keyJson.replace(/"/g, "").trim()
+              const sessionId = botId
+              const type = "lid_map"
+              redis.lidMap.lpush(KEYS().queue_util(), JSON.stringify({ sessionId, type, lid, pn }));
+            } catch (error) { }
+
           }
         }
         continue; // não salva no banco
@@ -209,9 +216,9 @@ async function bulkUpsertAuthKeys(botId, items, client, chunkSize = 250) {
     if (values.length === 0) continue;
 
     const query = `
-      INSERT INTO wa_session_keys (session_id, key_id, value_json, updated_at)
+      INSERT INTO wa_session_keys (sessao_id, key_id, value_json, updated_at)
       VALUES ${values.join(",")}
-      ON CONFLICT (session_id, key_id)
+      ON CONFLICT (sessao_id, key_id)
       DO UPDATE SET
         value_json = EXCLUDED.value_json,
         updated_at = NOW()
@@ -222,14 +229,14 @@ async function bulkUpsertAuthKeys(botId, items, client, chunkSize = 250) {
 }
 
 async function bulkDeleteAuthKeys(botId, keyIds, client) {
-  const query = `DELETE FROM wa_session_keys WHERE session_id = $1 AND key_id = ANY($2::text[])`;
+  const query = `DELETE FROM wa_session_keys WHERE sessao_id = $1 AND key_id = ANY($2::text[])`;
   await client.query(query, [botId, keyIds]);
 }
 
 // Função que busca um registro na tabela wa_session_keys
 async function getAuthKey(botId, keyId, client = null) {
   // Faz a consulta na tabela wa_session_keys
-  const query = `SELECT value_json FROM wa_session_keys WHERE session_id = $1 AND key_id = $2`;
+  const query = `SELECT value_json FROM wa_session_keys WHERE sessao_id = $1 AND key_id = $2`;
   const { rows } = await runQuery(query, [botId, keyId], client);
 
   // Retorna o conteúdo do value_json ou null, caso não tenha encontrado nenhum registro
@@ -239,6 +246,6 @@ async function getAuthKey(botId, keyId, client = null) {
 // Função que deleta um registro da tabela wa_session_keys
 async function deleteAuthKey(botId, keyId, client = null) {
   // Faz a exclusão na tabela wa_session_keys
-  const query = `DELETE FROM wa_session_keys WHERE session_id = $1 AND key_id = $2`;
+  const query = `DELETE FROM wa_session_keys WHERE sessao_id = $1 AND key_id = $2`;
   await runQuery(query, [botId, keyId], client);
 }

@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         alert("Valor para copiar não encontrado.");
         return;
       }
-      navigator.clipboard.writeText(valorCopiar).then(  () => {
+      navigator.clipboard.writeText(valorCopiar).then(() => {
         alert("Valor copiado para a área de transferência.");
 
       }).catch((err) => {
@@ -235,7 +235,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const intervalId = setInterval(async () => {
           const status = await verificarStatusSessao(sessionId);
-          console.log("Status verificado:", status);
           if (status && status.status === "connected") {
             modal.hide();
             clearInterval(intervalId);

@@ -1,130 +1,105 @@
 CREATE TABLE IF NOT EXISTS chats (
-  id SERIAL PRIMARY KEY,
-  sessao_id VARCHAR(255) NOT NULL,
-  jid VARCHAR(255) NOT NULL,
-  nome VARCHAR(255),
-  eh_grupo BOOLEAN DEFAULT FALSE,
-  mensagens_nao_lidas INT DEFAULT 0,
-  ultima_mensagem BIGINT,
-  arquivado BOOLEAN DEFAULT FALSE,
-  fixado BOOLEAN DEFAULT FALSE,
-  silenciado_ate BIGINT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (sessao_id, jid)
+    "sessao_id" VARCHAR(255) NOT NULL,
+    "jid" VARCHAR(255) NOT NULL,
+    "nome" VARCHAR(255) NULL,
+    "eh_grupo" BOOLEAN NULL DEFAULT false,
+    "mensagens_nao_lidas" INTEGER NULL DEFAULT 0,
+    "arquivado" BOOLEAN NULL DEFAULT false,
+    "fixado" BOOLEAN NULL DEFAULT false,
+    "silenciado_ate" BIGINT NULL,
+    "dados" JSON NULL,
+    "created_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "chats_sessao_id_jid_key" UNIQUE ("sessao_id", "jid")
 );
-
-DROP INDEX IF EXISTS idx_sessao_id_chats;
-DROP INDEX IF EXISTS idx_ultima_mensagem;
-CREATE INDEX idx_sessao_id_chats ON chats (sessao_id);
-CREATE INDEX idx_ultima_mensagem ON chats (ultima_mensagem);
 
 CREATE TABLE IF NOT EXISTS contatos (
-  id SERIAL PRIMARY KEY,
-  sessao_id VARCHAR(255) NOT NULL,
-  jid VARCHAR(255) NOT NULL,
-  nome VARCHAR(255),
-  apelido VARCHAR(255),
-  nome_verificado VARCHAR(255),
-  url_imagem TEXT,
-  status_contato TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (sessao_id, jid)
+    "sessao_id" VARCHAR(255) NOT NULL,
+    "jid" VARCHAR(255) NOT NULL,
+    "nome" VARCHAR(255) NULL,
+    "apelido" VARCHAR(255) NULL,
+    "nome_verificado" VARCHAR(255) NULL,
+    "url_imagem" TEXT NULL,
+    "status_contato" TEXT NULL,
+    "created_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "contatos_sessao_id_jid_key" UNIQUE ("sessao_id", "jid")
 );
-
-DROP INDEX IF EXISTS idx_sessao_id_contatos;
-CREATE INDEX idx_sessao_id_contatos ON contatos (sessao_id);
 
 CREATE TABLE IF NOT EXISTS grupos (
-  id SERIAL PRIMARY KEY,
-  sessao_id VARCHAR(255) NOT NULL,
-  jid VARCHAR(255) NOT NULL,
-  assunto VARCHAR(255),
-  dono_assunto VARCHAR(255),
-  data_assunto BIGINT,
-  data_criacao BIGINT,
-  dono_grupo VARCHAR(255),
-  descricao_grupo TEXT,
-  dono_descricao VARCHAR(255),
-  id_descricao VARCHAR(255),
-  restrito_mensagens BOOLEAN DEFAULT FALSE,
-  apenas_admins BOOLEAN DEFAULT FALSE,
-  tamanho_grupo INT DEFAULT 0,
-  participantes JSON,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (sessao_id, jid)
+    "sessao_id" VARCHAR(255) NOT NULL,
+    "jid" VARCHAR(255) NOT NULL,
+    "assunto" VARCHAR(255) NULL,
+    "dono_assunto" VARCHAR(255) NULL,
+    "data_assunto" BIGINT NULL,
+    "data_criacao" BIGINT NULL,
+    "dono_grupo" VARCHAR(255) NULL,
+    "descricao_grupo" TEXT NULL,
+    "dono_descricao" VARCHAR(255) NULL,
+    "id_descricao" VARCHAR(255) NULL,
+    "restrito_mensagens" BOOLEAN NULL DEFAULT false,
+    "apenas_admins" BOOLEAN NULL DEFAULT false,
+    "tamanho_grupo" INTEGER NULL DEFAULT 0,
+    "participantes" JSON NULL,
+    "created_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "grupos_sessao_id_jid_key" UNIQUE ("sessao_id", "jid")
 );
-
-DROP INDEX IF EXISTS idx_sessao_id_grupos;
-CREATE INDEX idx_sessao_id_grupos ON grupos (sessao_id);
-
-CREATE TABLE IF NOT EXISTS mensagens (
-  id SERIAL PRIMARY KEY,
-  sessao_id VARCHAR(255) NOT NULL,
-  mensagem_id VARCHAR(255) NOT NULL,
-  remoteJid VARCHAR(255) NOT NULL,
-  fromMe BOOLEAN DEFAULT FALSE,
-  isgrupo BOOLEAN DEFAULT FALSE,
-  participant VARCHAR(255),
-  tipo_mensagem VARCHAR(50) DEFAULT 'text',
-  conteudo_mensagem JSON,
-  timestamp BIGINT,
-  status VARCHAR(10) DEFAULT 'received',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT status_enum CHECK (status IN ('received','sent','delivered','read')),
-  UNIQUE (sessao_id, mensagem_id)
-);
-
-DROP INDEX IF EXISTS idx_sessao_id_mensagens;
-DROP INDEX IF EXISTS idx_remote_jid;
-DROP INDEX IF EXISTS idx_timestamp;
-
-CREATE INDEX idx_sessao_id_mensagens ON mensagens (sessao_id);
-CREATE INDEX idx_remote_jid ON mensagens (remoteJid);
-CREATE INDEX idx_timestamp ON mensagens (timestamp);
 
 CREATE TABLE IF NOT EXISTS sessao (
-  id SERIAL PRIMARY KEY,
-  apikey VARCHAR(255) NOT NULL UNIQUE,
-  numero VARCHAR(20),
-  nome_sessao VARCHAR(100) NOT NULL,
-  status VARCHAR(20) DEFAULT 'disconnected',
-  qrcode TEXT,
-  webhook_url VARCHAR(500),
-  ignorar_grupos BOOLEAN DEFAULT FALSE,
-  leitura_automatica BOOLEAN DEFAULT FALSE,
-  resposta_automatica BOOLEAN DEFAULT FALSE,
-  mensagem_automatica TEXT,
-  rejeitar_ligacoes BOOLEAN DEFAULT TRUE,
-  msg_rejectcalls TEXT,
-  active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  webhook_status INT DEFAULT 0,
-  events JSON,
-  CONSTRAINT sessao_status_enum CHECK (status IN ('disconnected','connecting','connected','qr_ready','reconnecting'))
+  "apikey" VARCHAR(255) NOT NULL,
+  "numero" VARCHAR(20) NULL,
+  "nome_sessao" VARCHAR(100) NOT NULL,
+  "status" VARCHAR(20) NULL DEFAULT 'disconnected'::character varying ,
+  "qrcode" TEXT NULL,
+  "webhook_url" VARCHAR(500) NULL,
+  "ignorar_grupos" BOOLEAN NULL DEFAULT false ,
+  "leitura_automatica" BOOLEAN NULL DEFAULT false ,
+  "resposta_automatica" BOOLEAN NULL DEFAULT false ,
+  "mensagem_automatica" TEXT NULL,
+  "rejeitar_ligacoes" BOOLEAN NULL DEFAULT true ,
+  "msg_rejectcalls" TEXT NULL,
+  "active" BOOLEAN NULL DEFAULT true ,
+  "created_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ,
+  "updated_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ,
+  "webhook_status" INTEGER NULL DEFAULT 0 ,
+  "events" JSON NULL,
+  "code" VARCHAR(50) NULL,
+  CONSTRAINT "sessao_pkey" PRIMARY KEY ("apikey"),
+  CONSTRAINT "sessao_apikey_key" UNIQUE ("apikey")
+);
+
+CREATE TABLE IF NOT EXISTS mensagens ( 
+  "sessao_id" VARCHAR(255) NOT NULL,
+  "mensagem_id" VARCHAR(255) NOT NULL,
+  "remotejid" VARCHAR(255) NOT NULL,
+  "fromme" BOOLEAN NULL DEFAULT false ,
+  "isgrupo" BOOLEAN NULL DEFAULT false ,
+  "participant" VARCHAR(255) NULL,
+  "tipo_mensagem" VARCHAR(50) NULL DEFAULT 'text'::character varying ,
+  "conteudo_mensagem" JSON NULL,
+  "timestamp" BIGINT NULL,
+  "status" VARCHAR(10) NULL DEFAULT 'received'::character varying ,
+  "created_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ,
+  CONSTRAINT "mensagens_sessao_id_mensagem_id_key" UNIQUE ("sessao_id", "mensagem_id")
 );
 
 CREATE TABLE IF NOT EXISTS proxy (
-  id SERIAL PRIMARY KEY,
-  host VARCHAR(255) NOT NULL,
-  port INT NOT NULL,
-  protocol VARCHAR(20) NOT NULL,
-  username VARCHAR(255) NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  sessao_id VARCHAR(255) NOT NULL UNIQUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "sessao_id" VARCHAR(255) NOT NULL,
+    "host" VARCHAR(255) NOT NULL,
+    "port" INTEGER NOT NULL,
+    "protocol" VARCHAR(20) NOT NULL,
+    "username" VARCHAR(255) NOT NULL,
+    "password" VARCHAR(255) NOT NULL,
+    "created_at" TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    "active" BOOLEAN NULL,
+    CONSTRAINT "proxy_sessao_id_key" UNIQUE ("sessao_id")
 );
 
 CREATE TABLE IF NOT EXISTS wa_session_keys (
-  id BIGSERIAL PRIMARY KEY,
-  session_id TEXT NOT NULL,
-  key_id TEXT NOT NULL,
-  value_json TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT unique_session_key
-  UNIQUE (session_id, key_id)
+    sessao_id VARCHAR(255) NOT NULL,
+    key_id TEXT NOT NULL,
+    value_json JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT wa_session_keys_session_key_unique UNIQUE (sessao_id, key_id)
 );
