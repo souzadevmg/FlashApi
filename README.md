@@ -1,6 +1,6 @@
 ﻿<h1 align="center">Flash Api</h1>
 
-<div align="center"><img src="./public/images/banner.jpg"></div>
+<div align="center"><img src="./public/images/banner.png"></div>
 
 <p align="center">
   API robusta para gerenciamento de múltiplas sessões do WhatsApp utilizando <b>Baileys</b>.
@@ -53,12 +53,12 @@
 
 ## 📋 Requisitos
 
-| Componente   | Versão mínima |
-|--------------|--------------|
-| Node.js      | 20+          |
-| PostgreSQL   | 16           |
-| Redis        | 7            |
-| npm          | 9+           |
+| Componente | Versão mínima |
+| ---------- | ------------- |
+| Node.js    | 20+           |
+| PostgreSQL | 16            |
+| Redis      | 7             |
+| npm        | 9+            |
 
 > Para usar com Docker, apenas **Docker** e **Docker Compose** são necessários.
 
@@ -305,17 +305,17 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 #### 2. Ajuste o `server.js` para carregar o certificado
 
 ```javascript
-import https from 'https';
-import fs from 'fs';
-import app from './index.js';
+import https from "https";
+import fs from "fs";
+import app from "./index.js";
 
 const options = {
-  key: fs.readFileSync('./certs/key.pem'),
-  cert: fs.readFileSync('./certs/cert.pem'),
+  key: fs.readFileSync("./certs/key.pem"),
+  cert: fs.readFileSync("./certs/cert.pem"),
 };
 
 https.createServer(options, app).listen(3000, () => {
-  console.log('Servidor HTTPS rodando na porta 3000');
+  console.log("Servidor HTTPS rodando na porta 3000");
 });
 ```
 
@@ -347,29 +347,33 @@ Todos os exemplos usam `axios`. Substitua `SUA_API_KEY` pela apikey da sessão (
 ### Criar Sessão
 
 ```javascript
-const axios = require('axios');
+const axios = require("axios");
 
-const BASE_URL = 'http://localhost:3000';
-const API_KEY = 'SUA_GLOBAL_API_KEY';
+const BASE_URL = "http://localhost:3000";
+const API_KEY = "SUA_GLOBAL_API_KEY";
 
 async function criarSessao() {
-  const { data } = await axios.post(`${BASE_URL}/api/session/create_sessao`, {
-    nome_sessao: 'minha-sessao',
-    numero: '5521999999999',
-    criar_sessao: true,
-    gerar_qrcode: true,
-    webhook_status: false,
-    webhookUrl: '',
-    events: ['message_received', 'connection_update']
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: API_KEY }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/session/create_sessao`,
+    {
+      nome_sessao: "minha-sessao",
+      numero: "5521999999999",
+      criar_sessao: true,
+      gerar_qrcode: true,
+      webhook_status: false,
+      webhookUrl: "",
+      events: ["message_received", "connection_update"],
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: API_KEY },
+    },
+  );
 
   if (data.success) {
-    console.log('Sessão criada!');
-    console.log('Nome:   ', data.dados.name);
-    console.log('ApiKey: ', data.dados.apikey);
-    console.log('QRCode: ', data.dados.qrcode); // base64
+    console.log("Sessão criada!");
+    console.log("Nome:   ", data.dados.name);
+    console.log("ApiKey: ", data.dados.apikey);
+    console.log("QRCode: ", data.dados.qrcode); // base64
   }
 }
 
@@ -382,14 +386,18 @@ criarSessao().catch(console.error);
 
 ```javascript
 async function reconectar(apikeySessao) {
-  const { data } = await axios.put(`${BASE_URL}/api/session/conectar_sessao`, {}, {
-    headers: { apikey: apikeySessao }
-  });
+  const { data } = await axios.put(
+    `${BASE_URL}/api/session/conectar_sessao`,
+    {},
+    {
+      headers: { apikey: apikeySessao },
+    },
+  );
 
   if (data.success) {
-    console.log('QR Code:', data.qrcode);
+    console.log("QR Code:", data.qrcode);
   } else {
-    console.log('Sessão já conectada ou QR desnecessário.');
+    console.log("Sessão já conectada ou QR desnecessário.");
   }
 }
 ```
@@ -401,9 +409,9 @@ async function reconectar(apikeySessao) {
 ```javascript
 async function status(apikeySessao) {
   const { data } = await axios.get(`${BASE_URL}/api/session/status`, {
-    headers: { apikey: apikeySessao }
+    headers: { apikey: apikeySessao },
   });
-  console.log('Status:', data);
+  console.log("Status:", data);
 }
 ```
 
@@ -413,17 +421,21 @@ async function status(apikeySessao) {
 
 ```javascript
 async function enviarTexto(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-text`, {
-    to: '5521999999999',
-    text: 'Olá! 😄 Tudo bem?',
-    linkPreview: false,
-    delay: 1200,
-    useQueue: false
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-text`,
+    {
+      to: "5521999999999",
+      text: "Olá! 😄 Tudo bem?",
+      linkPreview: false,
+      delay: 1200,
+      useQueue: false,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Enviado:', data);
+  console.log("Enviado:", data);
 }
 ```
 
@@ -433,16 +445,20 @@ async function enviarTexto(apikeySessao) {
 
 ```javascript
 async function enviarImagem(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-image`, {
-    to: '5521999999999',
-    image: 'https://exemplo.com/imagem.jpg', // URL ou base64
-    caption: 'Veja esta imagem! 🖼️',
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-image`,
+    {
+      to: "5521999999999",
+      image: "https://exemplo.com/imagem.jpg", // URL ou base64
+      caption: "Veja esta imagem! 🖼️",
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Imagem enviada:', data);
+  console.log("Imagem enviada:", data);
 }
 ```
 
@@ -452,16 +468,20 @@ async function enviarImagem(apikeySessao) {
 
 ```javascript
 async function enviarVideo(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-video`, {
-    to: '5521999999999',
-    video: 'https://exemplo.com/video.mp4', // URL ou base64
-    caption: 'Confira este vídeo! 🎬',
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-video`,
+    {
+      to: "5521999999999",
+      video: "https://exemplo.com/video.mp4", // URL ou base64
+      caption: "Confira este vídeo! 🎬",
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Vídeo enviado:', data);
+  console.log("Vídeo enviado:", data);
 }
 ```
 
@@ -471,16 +491,20 @@ async function enviarVideo(apikeySessao) {
 
 ```javascript
 async function enviarAudio(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-audio`, {
-    to: '5521999999999',
-    audio: 'https://exemplo.com/audio.mp3', // URL ou base64
-    ptt: true, // true = mensagem de voz (microfone), false = arquivo de áudio
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-audio`,
+    {
+      to: "5521999999999",
+      audio: "https://exemplo.com/audio.mp3", // URL ou base64
+      ptt: true, // true = mensagem de voz (microfone), false = arquivo de áudio
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Áudio enviado:', data);
+  console.log("Áudio enviado:", data);
 }
 ```
 
@@ -490,17 +514,21 @@ async function enviarAudio(apikeySessao) {
 
 ```javascript
 async function enviarDocumento(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-document`, {
-    to: '5521999999999',
-    document: 'https://exemplo.com/arquivo.pdf', // URL ou base64
-    fileName: 'contrato.pdf',
-    caption: 'Segue o documento em anexo.',
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-document`,
+    {
+      to: "5521999999999",
+      document: "https://exemplo.com/arquivo.pdf", // URL ou base64
+      fileName: "contrato.pdf",
+      caption: "Segue o documento em anexo.",
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Documento enviado:', data);
+  console.log("Documento enviado:", data);
 }
 ```
 
@@ -510,18 +538,22 @@ async function enviarDocumento(apikeySessao) {
 
 ```javascript
 async function enviarLocalizacao(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-location`, {
-    to: '5521999999999',
-    latitude: -23.5505,
-    longitude: -46.6333,
-    name: 'São Paulo',
-    address: 'Av. Paulista, 1000 - Bela Vista, São Paulo - SP',
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-location`,
+    {
+      to: "5521999999999",
+      latitude: -23.5505,
+      longitude: -46.6333,
+      name: "São Paulo",
+      address: "Av. Paulista, 1000 - Bela Vista, São Paulo - SP",
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Localização enviada:', data);
+  console.log("Localização enviada:", data);
 }
 ```
 
@@ -531,17 +563,21 @@ async function enviarLocalizacao(apikeySessao) {
 
 ```javascript
 async function enviarEnquete(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-poll`, {
-    to: '5521999999999',
-    name: 'Qual é o seu framework favorito?',
-    values: ['Express', 'Fastify', 'NestJS', 'Hapi'],
-    selectableCount: 1, // 0 = múltipla escolha
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-poll`,
+    {
+      to: "5521999999999",
+      name: "Qual é o seu framework favorito?",
+      values: ["Express", "Fastify", "NestJS", "Hapi"],
+      selectableCount: 1, // 0 = múltipla escolha
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Enquete enviada:', data);
+  console.log("Enquete enviada:", data);
 }
 ```
 
@@ -553,21 +589,28 @@ Envia uma mensagem com até 3 botões de resposta rápida.
 
 ```javascript
 async function enviarBotoes(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-buttons`, {
-    to: '5521999999999',
-    text: 'Como podemos te ajudar hoje?',
-    footer: 'Flash Api — Suporte',
-    buttons: [
-      { buttonId: 'btn1', buttonText: { displayText: '📦 Meu pedido' } },
-      { buttonId: 'btn2', buttonText: { displayText: '💳 Pagamento' } },
-      { buttonId: 'btn3', buttonText: { displayText: '🙋 Falar com atendente' } }
-    ],
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-buttons`,
+    {
+      to: "5521999999999",
+      text: "Como podemos te ajudar hoje?",
+      footer: "Flash Api — Suporte",
+      buttons: [
+        { buttonId: "btn1", buttonText: { displayText: "📦 Meu pedido" } },
+        { buttonId: "btn2", buttonText: { displayText: "💳 Pagamento" } },
+        {
+          buttonId: "btn3",
+          buttonText: { displayText: "🙋 Falar com atendente" },
+        },
+      ],
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Botões enviados:', data);
+  console.log("Botões enviados:", data);
 }
 ```
 
@@ -579,34 +622,50 @@ Envia uma lista de opções organizadas em seções (menu interativo).
 
 ```javascript
 async function enviarLista(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-list`, {
-    to: '5521999999999',
-    text: 'Escolha uma opção do nosso cardápio:',
-    footer: 'Flash Api',
-    title: 'Cardápio Digital',
-    buttonText: 'Ver opções',
-    sections: [
-      {
-        title: '🍔 Lanches',
-        rows: [
-          { rowId: 'lanche1', title: 'X-Burguer', description: 'Pão, carne, queijo e salada' },
-          { rowId: 'lanche2', title: 'X-Frango',  description: 'Pão, frango grelhado e maionese' }
-        ]
-      },
-      {
-        title: '🥤 Bebidas',
-        rows: [
-          { rowId: 'beb1', title: 'Coca-Cola 350ml', description: 'Gelada' },
-          { rowId: 'beb2', title: 'Suco de Laranja',  description: 'Natural, 500ml' }
-        ]
-      }
-    ],
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-list`,
+    {
+      to: "5521999999999",
+      text: "Escolha uma opção do nosso cardápio:",
+      footer: "Flash Api",
+      title: "Cardápio Digital",
+      buttonText: "Ver opções",
+      sections: [
+        {
+          title: "🍔 Lanches",
+          rows: [
+            {
+              rowId: "lanche1",
+              title: "X-Burguer",
+              description: "Pão, carne, queijo e salada",
+            },
+            {
+              rowId: "lanche2",
+              title: "X-Frango",
+              description: "Pão, frango grelhado e maionese",
+            },
+          ],
+        },
+        {
+          title: "🥤 Bebidas",
+          rows: [
+            { rowId: "beb1", title: "Coca-Cola 350ml", description: "Gelada" },
+            {
+              rowId: "beb2",
+              title: "Suco de Laranja",
+              description: "Natural, 500ml",
+            },
+          ],
+        },
+      ],
+      delay: 1200,
+    },
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Lista enviada:', data);
+  console.log("Lista enviada:", data);
 }
 ```
 
@@ -618,37 +677,47 @@ Mensagem interativa com cabeçalho, corpo, rodapé e botões nativos (NativeFlow
 
 ```javascript
 async function enviarInterativa(apikeySessao) {
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-interactiveMessage`, {
-    to: '5521999999999',
-    header: {
-      text: '🚀 Flash Api',
-      // image: "link ou base64",
-      // video: "link ou base64",
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-interactiveMessage`,
+    {
+      to: "5521999999999",
+      header: {
+        text: "🚀 Flash Api",
+        // image: "link ou base64",
+        // video: "link ou base64",
+      },
+      body: {
+        text: "Selecione uma das opções abaixo para continuar:",
+      },
+      footer: {
+        text: "Powered by Flash Api",
+      },
+      nativeFlowMessage: {
+        buttons: [
+          {
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({
+              display_text: "✅ Confirmar",
+              id: "confirmar",
+            }),
+          },
+          {
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({
+              display_text: "❌ Cancelar",
+              id: "cancelar",
+            }),
+          },
+        ],
+      },
+      delay: 1200,
     },
-    body: {
-      text: 'Selecione uma das opções abaixo para continuar:'
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
     },
-    footer: {
-      text: 'Powered by Flash Api'
-    },
-    nativeFlowMessage: {
-      buttons: [
-        {
-          name: 'quick_reply',
-          buttonParamsJson: JSON.stringify({ display_text: '✅ Confirmar', id: 'confirmar' })
-        },
-        {
-          name: 'quick_reply',
-          buttonParamsJson: JSON.stringify({ display_text: '❌ Cancelar', id: 'cancelar' })
-        }
-      ]
-    },
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+  );
 
-  console.log('Interativa enviada:', data);
+  console.log("Interativa enviada:", data);
 }
 ```
 
@@ -658,38 +727,54 @@ async function enviarInterativa(apikeySessao) {
 async function enviarInterativaLista(apikeySessao) {
   const sections = [
     {
-      title: 'Opções',
+      title: "Opções",
       rows: [
-        { id: 'op1', title: 'Suporte Técnico',  description: 'Problemas com o sistema' },
-        { id: 'op2', title: 'Financeiro',        description: 'Cobranças e pagamentos' },
-        { id: 'op3', title: 'Comercial',         description: 'Novos planos e ofertas' }
-      ]
-    }
+        {
+          id: "op1",
+          title: "Suporte Técnico",
+          description: "Problemas com o sistema",
+        },
+        {
+          id: "op2",
+          title: "Financeiro",
+          description: "Cobranças e pagamentos",
+        },
+        {
+          id: "op3",
+          title: "Comercial",
+          description: "Novos planos e ofertas",
+        },
+      ],
+    },
   ];
 
-  const { data } = await axios.post(`${BASE_URL}/api/chat/send-interactiveMessage`, {
-    to: '5521999999999',
-    type: 'button',
-    header: { type: 'text', text: 'Central de Atendimento' },
-    body: { text: 'Com qual departamento você deseja falar?' },
-    footer: { text: 'Flash Api — SAC' },
-    nativeFlowMessage: {
-      buttons: [
-        {
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: 'Escolha um departamento',
-            sections
-          })
-        }
-      ]
+  const { data } = await axios.post(
+    `${BASE_URL}/api/chat/send-interactiveMessage`,
+    {
+      to: "5521999999999",
+      type: "button",
+      header: { type: "text", text: "Central de Atendimento" },
+      body: { text: "Com qual departamento você deseja falar?" },
+      footer: { text: "Flash Api — SAC" },
+      nativeFlowMessage: {
+        buttons: [
+          {
+            name: "single_select",
+            buttonParamsJson: JSON.stringify({
+              title: "Escolha um departamento",
+              sections,
+            }),
+          },
+        ],
+      },
+      delay: 1200,
     },
-    delay: 1200
-  }, {
-    headers: { 'Content-Type': 'application/json', apikey: apikeySessao }
-  });
+    {
+      headers: { "Content-Type": "application/json", apikey: apikeySessao },
+    },
+  );
 
-  console.log('Interativa com lista enviada:', data);
+  console.log("Interativa com lista enviada:", data);
 }
 ```
 
@@ -700,11 +785,11 @@ async function enviarInterativaLista(apikeySessao) {
 Conecte ao WebSocket em `/ws` para receber eventos em tempo real.
 
 ```javascript
-const WebSocket = require('ws');
+const WebSocket = require("ws");
 
-const BASE_WS  = 'ws://localhost:3000/ws';
-const API_KEY  = 'SUA_API_KEY';
-const MODO     = 'client'; // 'global' (GLOBAL_WEBSOCKET_SECRET) ou 'client' (apikey da sessão)
+const BASE_WS = "ws://localhost:3000/ws";
+const API_KEY = "SUA_API_KEY";
+const MODO = "client"; // 'global' (GLOBAL_WEBSOCKET_SECRET) ou 'client' (apikey da sessão)
 
 function connectWebSocket() {
   const ws = new WebSocket(BASE_WS, [], {
@@ -712,56 +797,56 @@ function connectWebSocket() {
       apikey: API_KEY,
       modo: MODO,
       events: JSON.stringify([
-        'connection_update',
-        'qr_updated',
-        'message_received',
-        'message_update',
-        'chats_set',
-        'chats_update',
-        'contacts_set',
-        'contacts_update',
-        'groups_update',
-        'group_participants_update',
-        'presence_update',
-        'call',
-        'messaging_history_set'
-      ])
-    }
+        "connection_update",
+        "qr_updated",
+        "message_received",
+        "message_update",
+        "chats_set",
+        "chats_update",
+        "contacts_set",
+        "contacts_update",
+        "groups_update",
+        "group_participants_update",
+        "presence_update",
+        "call",
+        "messaging_history_set",
+      ]),
+    },
   });
 
   // Ping a cada 60 segundos para manter a conexão
   ws.onopen = () => {
-    console.log('✅ Conectado ao WebSocket');
-    setInterval(() => ws.send(JSON.stringify({ type: 'ping' })), 60000);
+    console.log("✅ Conectado ao WebSocket");
+    setInterval(() => ws.send(JSON.stringify({ type: "ping" })), 60000);
   };
 
   ws.onmessage = ({ data }) => {
     const msg = JSON.parse(data);
 
     switch (msg.type) {
-      case 'welcome':
-        console.log('Bem-vindo! ClientId:', msg.clientId);
+      case "welcome":
+        console.log("Bem-vindo! ClientId:", msg.clientId);
         break;
 
-      case 'pong':
+      case "pong":
         // confirmação de ping — pode ignorar
         break;
 
-      case 'event':
-        if (msg.event === 'message_received') {
+      case "event":
+        if (msg.event === "message_received") {
           const { from, message } = msg.data;
           console.log(`Nova mensagem de ${from}:`, message);
         }
-        if (msg.event === 'qr_updated') {
-          console.log('Novo QR Code gerado:', msg.data.qrcode);
+        if (msg.event === "qr_updated") {
+          console.log("Novo QR Code gerado:", msg.data.qrcode);
         }
-        if (msg.event === 'connection_update') {
-          console.log('Status da conexão:', msg.data.status);
+        if (msg.event === "connection_update") {
+          console.log("Status da conexão:", msg.data.status);
         }
         break;
 
-      case 'error':
-        console.error('Erro WebSocket:', msg.message);
+      case "error":
+        console.error("Erro WebSocket:", msg.message);
         break;
     }
   };
@@ -772,13 +857,14 @@ function connectWebSocket() {
     setTimeout(connectWebSocket, 5000);
   };
 
-  ws.onerror = (err) => console.error('Erro:', err.message);
+  ws.onerror = (err) => console.error("Erro:", err.message);
 }
 
 connectWebSocket();
 ```
 
 > **Modos disponíveis:**
+>
 > - `global` — autentica com `GLOBAL_WEBSOCKET_SECRET` do `.env` e recebe eventos de **todas** as sessões
 > - `client` — autentica com a `apikey` da instância e recebe eventos apenas daquela sessão
 
@@ -791,8 +877,8 @@ Configure uma URL de Webhook ao criar ou editar uma sessão para receber eventos
 ### Eventos disponíveis
 
 | Evento                      | Descrição                                    |
-|-----------------------------|----------------------------------------------|
-| `presence_update`           | Atualização de presença (online/offline)      |
+| --------------------------- | -------------------------------------------- |
+| `presence_update`           | Atualização de presença (online/offline)     |
 | `qr_updated`                | Novo QR Code gerado                          |
 | `connection_update`         | Status da conexão alterado                   |
 | `chats_set`                 | Lista inicial de chats carregada             |
@@ -825,24 +911,24 @@ Configure uma URL de Webhook ao criar ou editar uma sessão para receber eventos
 ### Exemplo de servidor para receber Webhooks (Node.js)
 
 ```javascript
-const express = require('express');
+const express = require("express");
 const app = express();
 app.use(express.json());
 
-app.post('/webhook', (req, res) => {
+app.post("/webhook", (req, res) => {
   const { event, sessionId, data } = req.body;
 
   console.log(`[${sessionId}] Evento: ${event}`);
 
-  if (event === 'message_received') {
-    console.log('Mensagem de:', data.from);
-    console.log('Conteúdo:',   data.content);
+  if (event === "message_received") {
+    console.log("Mensagem de:", data.from);
+    console.log("Conteúdo:", data.content);
   }
 
   res.sendStatus(200); // SEMPRE responda 200 para confirmar o recebimento
 });
 
-app.listen(4000, () => console.log('Webhook server rodando na porta 4000'));
+app.listen(4000, () => console.log("Webhook server rodando na porta 4000"));
 ```
 
 ---
@@ -851,66 +937,66 @@ app.listen(4000, () => console.log('Webhook server rodando na porta 4000'));
 
 ### 🔐 Sessões
 
-| Método | Endpoint                               | Descrição                          |
-|--------|----------------------------------------|------------------------------------|
-| POST   | `/api/session/create_sessao`           | Criar nova sessão                  |
-| PUT    | `/api/session/conectar_sessao`         | Reconectar sessão / gerar QR Code  |
-| PUT    | `/api/session/restart`                 | Reiniciar sessão                   |
-| GET    | `/api/session/status`                  | Status da sessão                   |
-| GET    | `/api/session/list`                    | Listar todas as sessões            |
-| POST   | `/api/session/reconnect`               | Forçar reconexão                   |
-| DELETE | `/api/session/delete/:sessionId`       | Deletar sessão                     |
+| Método | Endpoint                         | Descrição                         |
+| ------ | -------------------------------- | --------------------------------- |
+| POST   | `/api/session/create_sessao`     | Criar nova sessão                 |
+| PUT    | `/api/session/conectar_sessao`   | Reconectar sessão / gerar QR Code |
+| PUT    | `/api/session/restart`           | Reiniciar sessão                  |
+| GET    | `/api/session/status`            | Status da sessão                  |
+| GET    | `/api/session/list`              | Listar todas as sessões           |
+| POST   | `/api/session/reconnect`         | Forçar reconexão                  |
+| DELETE | `/api/session/delete/:sessionId` | Deletar sessão                    |
 
 ### 💬 Chat
 
-| Método | Endpoint                                | Descrição                              |
-|--------|-----------------------------------------|----------------------------------------|
-| POST   | `/api/chat/send-text`                   | Enviar texto                           |
-| POST   | `/api/chat/send-image`                  | Enviar imagem                          |
-| POST   | `/api/chat/send-video`                  | Enviar vídeo                           |
-| POST   | `/api/chat/send-audio`                  | Enviar áudio                           |
-| POST   | `/api/chat/send-document`               | Enviar documento                       |
-| POST   | `/api/chat/send-location`               | Enviar localização                     |
-| POST   | `/api/chat/send-poll`                   | Enviar enquete                         |
-| POST   | `/api/chat/send-sticker`                | Enviar sticker                         |
-| POST   | `/api/chat/send-contact`                | Enviar contato (vCard)                 |
-| POST   | `/api/chat/send-reaction`               | Enviar reação                          |
-| POST   | `/api/chat/send-buttons`                | Enviar botões                          |
-| POST   | `/api/chat/send-list`                   | Enviar lista interativa                |
-| POST   | `/api/chat/send-interactiveMessage`     | Enviar mensagem interativa (NativeFlow)|
-| POST   | `/api/chat/send-carouselMessage`        | Enviar carrossel                       |
-| POST   | `/api/chat/mark-read`                   | Marcar mensagem como lida             |
-| POST   | `/api/chat/send-typing`                 | Enviar status de digitando             |
+| Método | Endpoint                            | Descrição                               |
+| ------ | ----------------------------------- | --------------------------------------- |
+| POST   | `/api/chat/send-text`               | Enviar texto                            |
+| POST   | `/api/chat/send-image`              | Enviar imagem                           |
+| POST   | `/api/chat/send-video`              | Enviar vídeo                            |
+| POST   | `/api/chat/send-audio`              | Enviar áudio                            |
+| POST   | `/api/chat/send-document`           | Enviar documento                        |
+| POST   | `/api/chat/send-location`           | Enviar localização                      |
+| POST   | `/api/chat/send-poll`               | Enviar enquete                          |
+| POST   | `/api/chat/send-sticker`            | Enviar sticker                          |
+| POST   | `/api/chat/send-contact`            | Enviar contato (vCard)                  |
+| POST   | `/api/chat/send-reaction`           | Enviar reação                           |
+| POST   | `/api/chat/send-buttons`            | Enviar botões                           |
+| POST   | `/api/chat/send-list`               | Enviar lista interativa                 |
+| POST   | `/api/chat/send-interactiveMessage` | Enviar mensagem interativa (NativeFlow) |
+| POST   | `/api/chat/send-carouselMessage`    | Enviar carrossel                        |
+| POST   | `/api/chat/mark-read`               | Marcar mensagem como lida               |
+| POST   | `/api/chat/send-typing`             | Enviar status de digitando              |
 
 ### 📇 Contatos
 
-| Método | Endpoint                    | Descrição                |
-|--------|-----------------------------|--------------------------|
-| GET    | `/api/contact/list`         | Listar contatos          |
-| GET    | `/api/contact/profile`      | Obter perfil do contato  |
-| POST   | `/api/contact/check`        | Verificar número         |
+| Método | Endpoint               | Descrição               |
+| ------ | ---------------------- | ----------------------- |
+| GET    | `/api/contact/list`    | Listar contatos         |
+| GET    | `/api/contact/profile` | Obter perfil do contato |
+| POST   | `/api/contact/check`   | Verificar número        |
 
 ### 👥 Grupos
 
-| Método | Endpoint                              | Descrição                       |
-|--------|---------------------------------------|---------------------------------|
-| GET    | `/api/group/list`                     | Listar grupos                   |
-| GET    | `/api/group/info`                     | Informações do grupo            |
-| POST   | `/api/group/create`                   | Criar grupo                     |
-| POST   | `/api/group/add-participant`          | Adicionar participante          |
-| POST   | `/api/group/remove-participant`       | Remover participante            |
-| PUT    | `/api/group/promote-participant`      | Promover a administrador        |
-| PUT    | `/api/group/demote-participant`       | Rebaixar administrador          |
-| PUT    | `/api/group/update-subject`           | Atualizar nome do grupo         |
-| PUT    | `/api/group/update-description`       | Atualizar descrição             |
-| POST   | `/api/group/leave`                    | Sair do grupo                   |
+| Método | Endpoint                         | Descrição                |
+| ------ | -------------------------------- | ------------------------ |
+| GET    | `/api/group/list`                | Listar grupos            |
+| GET    | `/api/group/info`                | Informações do grupo     |
+| POST   | `/api/group/create`              | Criar grupo              |
+| POST   | `/api/group/add-participant`     | Adicionar participante   |
+| POST   | `/api/group/remove-participant`  | Remover participante     |
+| PUT    | `/api/group/promote-participant` | Promover a administrador |
+| PUT    | `/api/group/demote-participant`  | Rebaixar administrador   |
+| PUT    | `/api/group/update-subject`      | Atualizar nome do grupo  |
+| PUT    | `/api/group/update-description`  | Atualizar descrição      |
+| POST   | `/api/group/leave`               | Sair do grupo            |
 
 ### 🔧 Sistema
 
-| Método | Endpoint              | Descrição                    |
-|--------|-----------------------|------------------------------|
-| GET    | `/api/system/info`    | Informações do sistema       |
-| GET    | `/api/system/health`  | Health check                 |
+| Método | Endpoint             | Descrição              |
+| ------ | -------------------- | ---------------------- |
+| GET    | `/api/system/info`   | Informações do sistema |
+| GET    | `/api/system/health` | Health check           |
 
 ---
 
@@ -930,27 +1016,27 @@ Acesse o painel web em `http://localhost:3000` (ou seu domínio).
 
 ## 📚 Documentação Interativa
 
-| Recurso           | URL                                     |
-|-------------------|-----------------------------------------|
-| Swagger UI        | `http://localhost:3000/api-docs`        |
-| Coleção Postman   | `http://localhost:3000/postman_collection.json` |
+| Recurso         | URL                                             |
+| --------------- | ----------------------------------------------- |
+| Swagger UI      | `http://localhost:3000/api-docs`                |
+| Coleção Postman | `http://localhost:3000/postman_collection.json` |
 
 ---
 
 ## 🛠 Tecnologias
 
-| Tecnologia     | Uso                                    |
-|----------------|----------------------------------------|
-| Node.js 20+    | Runtime JavaScript                     |
-| Express        | Framework HTTP                         |
-| Baileys        | Biblioteca WhatsApp Web                |
-| PostgreSQL 16  | Banco de dados relacional              |
-| Redis 7        | Cache e filas de mensagens             |
-| WebSocket (ws) | Comunicação em tempo real              |
-| Swagger        | Documentação interativa da API         |
-| Pino           | Logger estruturado                     |
-| Helmet         | Headers de segurança HTTP              |
-| Docker         | Containerização                        |
+| Tecnologia     | Uso                            |
+| -------------- | ------------------------------ |
+| Node.js 20+    | Runtime JavaScript             |
+| Express        | Framework HTTP                 |
+| Baileys        | Biblioteca WhatsApp Web        |
+| PostgreSQL 16  | Banco de dados relacional      |
+| Redis 7        | Cache e filas de mensagens     |
+| WebSocket (ws) | Comunicação em tempo real      |
+| Swagger        | Documentação interativa da API |
+| Pino           | Logger estruturado             |
+| Helmet         | Headers de segurança HTTP      |
+| Docker         | Containerização                |
 
 ---
 
