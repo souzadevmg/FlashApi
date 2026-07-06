@@ -1,1084 +1,846 @@
-﻿<h1 align="center">Flash Api</h1>
+﻿<div align="center">
 
-<div align="center"><img src="./public/images/banner.png"></div>
+<img src="./public/images/banner.png" alt="Flash API Banner" width="100%">
 
-<p align="center">
-  API robusta para gerenciamento de múltiplas sessões do WhatsApp utilizando <b>Baileys</b>.
-</p>
+# ⚡ Flash API
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=node.js&logoColor=white">
-  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white">
-  <img src="https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white">
-  <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white">
-</p>
+### API REST Multi-Sessão para WhatsApp, construída sobre o Baileys
+
+Gerencie centenas de instâncias do WhatsApp de forma independente, com autenticação por API Key, Webhooks, WebSocket, painel administrativo e persistência em PostgreSQL + Redis.
+
+<br>
+
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4.x-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![Baileys](https://img.shields.io/badge/Baileys-WhiskeySockets-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://github.com/WhiskeySockets/Baileys)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](#-licença)
+[![Version](https://img.shields.io/badge/version-1.0.6-blueviolet?style=for-the-badge)](https://github.com/clsshbr2/FlashApi/releases/tag/v1.0.6)
+
+</div>
 
 ---
 
-## Índice
+## 📚 Sumário
 
-- [Funcionalidades](#-funcionalidades)
-- [Requisitos](#-requisitos)
-- [Instalação Manual](#-instalação-manual)
-- [Instalação com Docker](#-instalação-com-docker)
-- [Configuração do .env](#️-configuração-do-env)
-- [Configurar SSL HTTPS](#-configurar-ssl-https)
-- [Uso — Exemplos de Código](#-uso--exemplos-de-código)
-- [WebSocket](#-websocket)
+- [Sobre o Projeto](#-sobre-o-projeto)
+- [Principais Recursos](#-principais-recursos)
+- [Arquitetura](#-arquitetura)
+- [Fluxo de Funcionamento](#-fluxo-de-funcionamento)
+- [Estrutura de Pastas](#-estrutura-de-pastas)
+- [Tecnologias e Dependências](#-tecnologias-e-dependências)
+- [Pré-requisitos](#-pré-requisitos)
+- [Instalação](#-instalação)
+  - [Instalação Manual](#instalação-manual)
+  - [Instalação com Docker](#instalação-com-docker)
+- [Variáveis de Ambiente](#-variáveis-de-ambiente)
+- [Scripts Disponíveis](#-scripts-disponíveis)
+- [Como Executar](#-como-executar)
+- [Painel Administrativo (Manager)](#-painel-administrativo-manager)
+- [Referência da API](#-referência-da-api)
+  - [Autenticação](#autenticação)
+  - [Sessões](#sessões)
+  - [Mensagens (Chat)](#mensagens-chat)
+  - [Contatos](#contatos)
+  - [Grupos](#grupos)
+  - [Configurações](#configurações)
+  - [Sistema](#sistema)
+- [Exemplos de Uso](#-exemplos-de-uso)
 - [Webhooks](#-webhooks)
-- [Endpoints](#-endpoints)
-- [Painel de Controle](#-painel-de-controle)
-- [Tecnologias](#-tecnologias)
-- [Suporte e Comunidade](#-suporte-e-comunidade)
+- [WebSocket](#-websocket)
+- [Coleção Postman](#-coleção-postman)
+- [Limitações Conhecidas](#-limitações-conhecidas)
+- [Roadmap](#-roadmap)
+- [FAQ](#-faq)
+- [Contribuindo](#-contribuindo)
+- [Licença](#-licença)
 
 ---
 
-## ✨ Funcionalidades
+## 🧭 Sobre o Projeto
 
-- ✅ **Multi-Sessão** — Controle diversas instâncias do WhatsApp simultaneamente
-- ✅ **Autenticação com API Key** — Segurança integrada com chave de acesso
-- ✅ **Conexão via QR Code** — Fácil autenticação de dispositivos
-- ✅ **Webhooks** — Receba notificações em tempo real
-- ✅ **WebSocket** — Comunicação bidirecional em tempo real
-- ✅ **Envio de Mensagens** — Texto, imagem, vídeo, áudio, documento, localização, enquete, botões, listas e mensagens interativas
-- ✅ **Gestão de Contatos** — Consulta e gerenciamento de contatos
-- ✅ **Gestão de Grupos** — Criação e administração de grupos
-- ✅ **Persistência com PostgreSQL 16** — Banco de dados estruturado
-- ✅ **Cache com Redis** — Sessões e filas em memória
-- ✅ **Documentação Swagger e Postman** — Integração interativa
-- ✅ **Suporte a Proxy** — Rotear conexões por proxy HTTP
-- ✅ **Painel Web** — Interface visual para gerenciar sessões
+**Flash API** é uma API RESTful escrita em **Node.js (ESM)** que expõe o protocolo do WhatsApp Web através da biblioteca [**Baileys**](https://github.com/WhiskeySockets/Baileys), permitindo criar e administrar **múltiplas sessões (instâncias) de WhatsApp** simultaneamente através de uma **API Key** exclusiva por sessão.
+
+O projeto foi pensado para cenários de **multi-tenant/multi-atendimento**, oferecendo:
+
+- Criação de sessões via QR Code ou pareamento por número de telefone;
+- Persistência de credenciais e chaves da sessão em **PostgreSQL**;
+- Fila e cache de alta performance com **Redis**;
+- Notificações em tempo real via **Webhook HTTP** e/ou **WebSocket**;
+- Um **painel web (Manager)** para acompanhar e administrar as sessões visualmente.
+
+> ⚠️ Este projeto não é afiliado, endossado ou de qualquer forma oficialmente conectado ao WhatsApp Inc./Meta. Use com responsabilidade e em conformidade com os Termos de Serviço do WhatsApp.
 
 ---
 
-## 📋 Requisitos
+## ✨ Principais Recursos
 
-| Componente | Versão mínima |
-| ---------- | ------------- |
-| Node.js    | 20+           |
-| PostgreSQL | 16            |
-| Redis      | 7             |
-| npm        | 9+            |
-
-> Para usar com Docker, apenas **Docker** e **Docker Compose** são necessários.
+| Recurso                                    | Descrição                                                                                                                                                                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔀 **Multi-Sessão**                        | Crie e opere múltiplas instâncias do WhatsApp de forma isolada, cada uma com sua própria `apikey`.                                                                                                             |
+| 🔑 **Autenticação em 2 níveis**            | `GLOBAL_API_KEY` para operações administrativas (criar/listar/remover sessões) e `apikey` por sessão para operações de mensageria.                                                                             |
+| 📱 **Conexão via QR Code ou Pairing Code** | Suporte a conexão tradicional por QR Code ou por número de telefone.                                                                                                                                           |
+| 💬 **Envio completo de mensagens**         | Texto, imagem, vídeo, áudio (convertido para Opus/OGG automaticamente via `ffmpeg`), documento, localização, contato, figurinha (sticker), reação, enquete, listas, botões, mensagens interativas e carrossel. |
+| 👥 **Gestão de Grupos**                    | Criar, listar, atualizar participantes/descrição/assunto, configurar permissões e gerar/revogar links de convite.                                                                                              |
+| 👤 **Gestão de Contatos**                  | Listagem, verificação de números no WhatsApp, bloqueio/desbloqueio e conversão de LID para JID.                                                                                                                |
+| 🔔 **Webhooks configuráveis**              | Webhook global (via `.env`) ou por sessão, com lista de eventos customizável e tentativas de reenvio configuráveis.                                                                                            |
+| 🔌 **WebSocket nativo**                    | Canal bidirecional (`/ws`) para consumo de eventos em tempo real sem long-polling.                                                                                                                             |
+| 🗄️ **Persistência híbrida**                | PostgreSQL para dados estruturados (sessões, mensagens, contatos, grupos) e Redis para sessões, cache e filas de credenciais/chaves.                                                                           |
+| 🖥️ **Painel Web (Manager)**                | Dashboard EJS com login de administrador/usuário para visualizar e operar sessões sem usar a API diretamente.                                                                                                  |
+| 🌍 **Suporte a Proxy**                     | Roteamento de conexões por proxy HTTP/HTTPS/SOCKS4/SOCKS5 por sessão.                                                                                                                                          |
+| 🧹 **Auto-limpeza de sessões**             | Remoção automática de sessões desconectadas após um tempo configurável.                                                                                                                                        |
+| 🐳 **Docker-ready**                        | `Dockerfile` e `docker-compose.yml` prontos, orquestrando API + PostgreSQL + Redis.                                                                                                                            |
+| 📬 **Coleção Postman**                     | `postman_collection.json` incluso, pronto para importar e testar todos os endpoints.                                                                                                                           |
 
 ---
 
-## 🚀 Instalação Manual
+## 🏗️ Arquitetura
 
-### 1. Clone o repositório
+A Flash API segue uma arquitetura em camadas (routes → services → models → banco de dados), com Redis atuando como camada de cache/sessão e barramento de filas entre a API e o worker que processa as credenciais do Baileys.
+
+```mermaid
+flowchart TB
+    Client["Cliente / Integração<br/>(App, CRM, Chatbot)"] -->|HTTP + Header apikey| API[Express API]
+
+    subgraph FlashAPI["Flash API (Node.js)"]
+        API --> MW["Middlewares<br/>auth.js / globalAuth.js / helmet / cors"]
+        MW --> Routes["Rotas<br/>session · chat · contact · group · config · system"]
+        Routes --> Services["Services<br/>BaileysService · messageService · buttonsService"]
+        Services --> Baileys["@whiskeysockets/baileys<br/>(conexão WhatsApp Web)"]
+        Services --> WSService["WebSocketService"]
+        Manager["Manager Web (EJS)<br/>/manager/*"] --> Routes
+    end
+
+    Services <-->|sessões, filas, cache| Redis[(Redis)]
+    Services <-->|sessões, mensagens, grupos, contatos| Postgres[(PostgreSQL)]
+
+    WSService -->|eventos em tempo real| WSClients["Clientes WebSocket<br/>/ws"]
+    Services -->|POST evento| Webhook["Webhook externo<br/>(HTTP callback)"]
+    Baileys <-->|Protocolo WhatsApp Web| WhatsApp(["WhatsApp"])
+```
+
+---
+
+## 🔄 Fluxo de Funcionamento
+
+Fluxo típico de criação e uso de uma sessão:
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário/Integração
+    participant A as Flash API
+    participant B as Baileys Service
+    participant W as WhatsApp
+
+    U->>A: POST /api/session/create_sessao (GLOBAL_API_KEY)
+    A-->>U: 200 OK (apikey da nova sessão)
+
+    U->>A: PUT /api/session/conectar_sessao (apikey)
+    A->>B: createSession(apikey)
+    B->>W: Solicita QR Code / Pairing Code
+    W-->>B: Envia QR Code
+    B-->>A: QR Code gerado
+    A-->>U: 200 OK (QR Code / status)
+
+    U->>W: Escaneia o QR Code no app do WhatsApp
+    W-->>B: connection.update (open)
+    B->>A: Sessão conectada (status: connected)
+    A-->>U: Webhook/WebSocket: connection_update
+
+    U->>A: POST /api/chat/send-text (apikey da sessão)
+    A->>B: sendMessage()
+    B->>W: Envia mensagem via protocolo WhatsApp Web
+    W-->>U: Mensagem entregue ao destinatário
+```
+
+---
+
+## 🗂️ Estrutura de Pastas
+
+```text
+FlashApi/
+├── Dockerfile                  # Imagem Docker da API
+├── docker-compose.yml          # Orquestração: API + PostgreSQL + Redis
+├── gerardb.js                  # Inicializa/valida o banco de dados na subida do servidor
+├── nodemon.json                # Configuração do hot-reload em desenvolvimento
+├── package.json                # Dependências e scripts npm
+├── postman_collection.json     # Coleção Postman com todos os endpoints
+├── server.js                   # Ponto de entrada da aplicação (Express + WebSocket)
+│
+├── public/                     # Arquivos estáticos servidos pela API
+│   ├── css/                    # Estilos do painel Manager
+│   ├── images/                 # Imagens (banner, avatar padrão etc.)
+│   └── js/                     # Scripts front-end do painel
+│
+├── views/                      # Views EJS do painel administrativo (Manager)
+│   ├── index.ejs
+│   ├── user.ejs
+│   └── dashboard.ejs
+│
+├── supabase/
+│   └── migrations/
+│       └── postgres.sql        # Schema SQL de referência das tabelas
+│
+└── src/
+    ├── config/
+    │   ├── env.js               # Carrega e normaliza todas as variáveis de ambiente
+    │   ├── database.js          # Conexão/execução de queries no banco
+    │   └── verificardb.js       # Verificação/atualização incremental de colunas/tabelas
+    │
+    ├── middleware/
+    │   ├── auth.js               # Autenticação por apikey de sessão
+    │   └── globalAuth.js         # Autenticação por GLOBAL_API_KEY (rotas administrativas)
+    │
+    ├── models/
+    │   ├── ApiKey.js
+    │   ├── Session.js
+    │   ├── Contatos.js
+    │   ├── Grupos.js
+    │   ├── Message.js
+    │   ├── chats.js
+    │   └── Store.js
+    │
+    ├── routes/
+    │   ├── session.js            # Ciclo de vida das sessões (criar, conectar, status, deletar…)
+    │   ├── chat.js                # Envio de mensagens e leitura de conversas
+    │   ├── contact.js             # Contatos: listar, checar, bloquear
+    │   ├── group.js               # Grupos: criar, administrar, convites
+    │   ├── config.js              # Configurações da sessão (webhook, proxy, dados gerais)
+    │   ├── system.js              # Status/monitoramento do sistema
+    │   └── manager.js             # Login e dashboard do painel web
+    │
+    ├── services/
+    │   ├── BaileysService.js       # Núcleo de integração com o Baileys (conexão, eventos, QR)
+    │   ├── WebSocketService.js     # Broadcast de eventos via WebSocket
+    │   ├── messageService.js       # Montagem/envio de mensagens (mídia, texto, localização…)
+    │   ├── buttonsService.js       # Botões, listas, mensagens interativas e carrossel
+    │   ├── redis.js                # Cliente Redis (ioredis)
+    │   ├── usePostgresAuthStore.js # Auth store do Baileys persistido em PostgreSQL
+    │   └── workers/                # Workers assíncronos (ex.: processamento de filas)
+    │
+    └── utils/
+        ├── logger.js               # Logger (pino) com formatação amigável
+        └── prepareMedia.js         # Normalização de mídia (URL, base64, buffer)
+```
+
+---
+
+## 🧰 Tecnologias e Dependências
+
+### Core
+
+| Tecnologia                                                           | Uso                                           |
+| -------------------------------------------------------------------- | --------------------------------------------- |
+| [Node.js 20+](https://nodejs.org/)                                   | Runtime JavaScript (ESM — `"type": "module"`) |
+| [Express 4](https://expressjs.com/)                                  | Framework HTTP/REST                           |
+| [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) | Cliente WhatsApp Web (multi-device)           |
+| [ws](https://github.com/websockets/ws)                               | Servidor WebSocket nativo                     |
+| [EJS](https://ejs.co/)                                               | Template engine do painel Manager             |
+| [PostgreSQL](https://www.postgresql.org/) (`pg`)                     | Banco de dados relacional principal           |
+| [Redis](https://redis.io/) (`ioredis`)                               | Cache, sessões e filas                        |
+
+### Bibliotecas de apoio
+
+| Categoria           | Pacotes                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| Segurança           | `helmet`, `cors`, `bcrypt`, `jsonwebtoken`, `express-session`, `connect-redis`                    |
+| Validação           | `joi`                                                                                             |
+| Mídia               | `@ffmpeg-installer/ffmpeg`, `fluent-ffmpeg`*, `wa-sticker-formatter`, `qrcode`, `qrcode-terminal` |
+| HTTP/Proxy          | `axios`, `https-proxy-agent`, `undici`, `link-preview-js`                                         |
+| Documentação/Testes | `swagger-jsdoc`, `swagger-ui-express`, `@apidevtools/swagger-parser`                              |
+| Utilitários         | `uuid`, `moment-timezone`, `node-cache`, `systeminformation`, `pino`, `pino-pretty`               |
+| Dev                 | `nodemon`, `prettier`, `prettier-plugin-ejs`                                                      |
+
+<sub>* `fluent-ffmpeg` é utilizado no código-fonte para conversão de áudio para Opus/OGG — recomenda-se adicioná-lo explicitamente ao `package.json` caso não esteja listado na sua versão local.</sub>
+
+---
+
+## ✅ Pré-requisitos
+
+| Componente              | Versão mínima             |
+| ----------------------- | ------------------------- |
+| Node.js                 | 20+                       |
+| npm                     | 9+                        |
+| PostgreSQL              | 16+                       |
+| Redis                   | 7+                        |
+| Docker + Docker Compose | _(opcional, recomendado)_ |
+
+---
+
+## 📦 Instalação
+
+### Instalação Manual
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/clsshbr2/FlashApi.git
+cd FlashApi
+
+# 2. Instale as dependências
+npm install
+
+# 3. Copie e configure o arquivo de ambiente
+cp .env.example .env
+# edite o .env com seus dados de banco, redis, api key etc.
+
+# 4. Rode a migração/verificação inicial do banco (opcional — também roda no start)
+npm run migrate
+
+# 5. Suba o servidor
+npm start        # produção
+# ou
+npm run dev       # desenvolvimento (hot-reload com nodemon)
+```
+
+A API ficará disponível em `http://localhost:3000` (ou na `PORT` configurada).
+
+### Instalação com Docker
+
+O projeto já inclui um `docker-compose.yml` que sobe **API + PostgreSQL + Redis** de uma só vez:
 
 ```bash
 git clone https://github.com/clsshbr2/FlashApi.git
 cd FlashApi
-```
 
-### 2. Instale as dependências
-
-```bash
-npm install
-```
-
-### 3. Configure o arquivo `.env`
-
-```bash
-cp .env.example .env
-```
-
-Edite o arquivo `.env` com suas configurações. Consulte a seção [Configuração do .env](#️-configuração-do-env).
-
-### 4. Execute a migração do banco de dados
-
-```bash
-npm run migrate
-```
-
-> Isso executa `gerardb.js`, que conecta ao PostgreSQL e cria as tabelas automaticamente.
-
-### 5. Inicie o servidor
-
-```bash
-# Iniciar diretamente
-npm start
-
-# Ou com PM2 (recomendado para produção)
-npm install pm2 -g
-pm2 start npm --name flashapi -- start
-pm2 save
-pm2 startup
-```
-
-### 6. Atualizar para a versão mais recente
-
-```bash
-git reset --hard
-git pull origin main
-npm install
-npm run migrate
-pm2 restart flashapi
-```
-
----
-
-## 🐳 Instalação com Docker
-
-### Iniciar com Docker Compose (recomendado)
-
-O `docker-compose.yml` já inclui PostgreSQL e a API pré-configurados.
-
-```bash
-# Subir todos os serviços
 docker compose up -d
-
-# Ver logs
-docker compose logs -f flash-api
-
-# Parar
-docker compose down
 ```
 
-> Por padrão, a API ficará disponível em `http://localhost:3000`.
+> O `docker-compose.yml` já traz variáveis de ambiente padrão para desenvolvimento/teste. **Altere as senhas, `GLOBAL_API_KEY` e `SENHA_MANAGER_ADMIN` antes de usar em produção.**
 
-### Variáveis de ambiente no Docker
+Caso queira construir a imagem localmente ao invés de usar `flashconect/flash-api:v1.0.6`:
 
-Edite o bloco `environment` no `docker-compose.yml` ou crie um arquivo `.env` e referencie com `env_file: .env` no serviço `flash-api`.
-
----
-
-## ⚙️ Configuração do .env
-
-Copie `.env.example` para `.env` e ajuste os valores:
-
-```env
-# ─── Servidor ──────────────────────────────────────────────
-HOST=http://localhost:3000
-PORT=3000
-NODE_ENV=production
-LOG_LEVEL=info                  # fatal | error | warn | info | debug | trace
-BAILEYS_LOG_LEVEL=error
-PROTOCOLO=http                  # http | https
-VERSAO=1.0.4
-SYNC_SESSIONS=false
-
-# ─── CORS ──────────────────────────────────────────────────
-CORS_ORIGINS=*
-# Para restringir: CORS_ORIGINS=https://meusite.com,http://localhost:3000
-
-# ─── API Keys ──────────────────────────────────────────────
-GLOBAL_API_KEY=TROQUE-POR-UMA-CHAVE-SEGURA
-
-# ─── Manager (painel web) ──────────────────────────────────
-MANAGER=true
-CHAVE_SECRET_SESSION_MANAGER=TROQUE-POR-UMA-CHAVE-SEGURA
-
-# ─── Webhook Global ────────────────────────────────────────
-ENABLE_GLOBAL_WEBHOOK=false
-GLOBAL_WEBHOOK_URL=https://seu-servidor.com/webhook
-
-# ─── WebSocket Global ──────────────────────────────────────
-ENABLE_WEBSOCKET=true
-GLOBAL_WEBSOCKET_SECRET=TROQUE-POR-UMA-CHAVE-SEGURA
-
-# ─── Banco de Dados (PostgreSQL) ───────────────────────────
-DB_TYPE=postgres
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=SUA_SENHA
-DB_DATABASE=flashapi
-DB_CONNECTION_LIMIT=10
-QUEUELIMIT=0
-
-# ─── Redis ─────────────────────────────────────────────────
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASS=
-
-# ─── WhatsApp / Sessão ─────────────────────────────────────
-SESSION_PHONE_CLIENT=Flash_api
-SESSION_PHONE_NAME=Chrome       # Chrome | Firefox | Edge | Opera | Safari
-LIMITE_QRCODE=10
-
-# ─── Limpeza automática ────────────────────────────────────
-DELETE_TEMP_MENSAGE=true
-TEMP_MENSAGE=3600               # Segundos até deletar mensagens temporárias
-DELETE_SESAO_DISCONECT=true
-TEMP_DELETE_SESSAO=5            # Horas até deletar sessão desconectada
-
-# ─── Fuso horário ──────────────────────────────────────────
-TZ=America/Sao_Paulo
-
-# ─── Proxy (opcional) ──────────────────────────────────────
-PROXY_STATE=false
-PROXY_HOST=127.0.0.1
-PROXY_PORT=8080
-PROXY_PROTOCOL=http
-PROXY_USERNAME=usuario
-PROXY_PASSWORD=senha
+```bash
+docker build -t flash-api:local .
+docker run -d \
+  --name flash-api \
+  -p 3000:3000 \
+  --env-file .env \
+  flash-api:local
 ```
 
 ---
 
-## 🔒 Configurar SSL (HTTPS)
+## ⚙️ Variáveis de Ambiente
 
-Para habilitar HTTPS você tem duas opções: usar um **proxy reverso (Nginx/Caddy)** — recomendado — ou configurar certificados diretamente no servidor Node.js.
+Todas as variáveis abaixo devem ser definidas em um arquivo `.env` na raiz do projeto (veja `.env.example`).
+
+### Geral
+
+| Variável            | Padrão              | Descrição                                                                          |
+| ------------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `HOST`              | `localhost:3000`    | Host/URL onde a API é servida                                                      |
+| `PROTOCOLO`         | `http`              | Protocolo utilizado (`http` \| `https`)                                            |
+| `PORT`              | `3000`              | Porta da API                                                                       |
+| `LOG_LEVEL`         | `info`              | Nível de log da aplicação (`fatal`,`error`,`warn`,`info`,`debug`,`trace`,`silent`) |
+| `BAILEYS_LOG_LEVEL` | `LOG_LEVEL`         | Nível de log específico do Baileys                                                 |
+| `VERSAO`            | `1.0.4`             | Versão exibida pela API                                                            |
+| `SYNC_SESSIONS`     | `true`              | Sincroniza automaticamente todas as sessões salvas ao iniciar                      |
+| `TZ`                | `America/Sao_Paulo` | Timezone da aplicação                                                              |
+| `NODE_ENV`          | `development`       | Ambiente de execução (`development` \| `production`)                               |
+
+### CORS
+
+| Variável       | Padrão | Descrição                                                    |
+| -------------- | ------ | ------------------------------------------------------------ |
+| `CORS_ORIGINS` | `*`    | Origens permitidas, separadas por vírgula, ou `*` para todas |
+
+### Painel Administrativo (Manager)
+
+| Variável              | Padrão   | Descrição                                                     |
+| --------------------- | -------- | ------------------------------------------------------------- |
+| `MANAGER`             | `false`  | Habilita/desabilita o painel web em `/manager`                |
+| `LOGIN_MANAGER_ADMIN` | —        | Usuário administrador do painel                               |
+| `LOGIN_MANAGER_USER`  | —        | Usuário comum do painel                                       |
+| `SENHA_MANAGER_ADMIN` | `123456` | Senha do administrador (também usada como _secret_ da sessão) |
+
+### Sessão WhatsApp (padrão)
+
+| Variável               | Padrão      | Descrição                                                                    |
+| ---------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `SESSION_PHONE_CLIENT` | `Flash_api` | Nome do "dispositivo" exibido no WhatsApp                                    |
+| `SESSION_PHONE_NAME`   | `Chrome`    | Nome do "navegador" exibido (`Chrome`, `Firefox`, `Edge`, `Opera`, `Safari`) |
+
+### API Key Global
+
+| Variável         | Padrão               | Descrição                                                                                            |
+| ---------------- | -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `GLOBAL_API_KEY` | _(chave de exemplo)_ | Chave obrigatória para rotas administrativas (criar/listar/remover sessões). **Troque em produção.** |
+
+### Webhook Global
+
+| Variável                  | Padrão    | Descrição                                          |
+| ------------------------- | --------- | -------------------------------------------------- |
+| `ENABLE_GLOBAL_WEBHOOK`   | `false`   | Habilita envio de eventos para uma URL fixa global |
+| `GLOBAL_WEBHOOK_URL`      | `null`    | URL que receberá os eventos                        |
+| `GLOBAL_WEBHOOK_ATTEMPTS` | `4`       | Tentativas de reenvio em caso de falha             |
+| `GLOBAL_WEBHOOK_EVENTS`   | _(todos)_ | Lista de eventos enviados, separados por vírgula   |
+
+### WebSocket Global
+
+| Variável                  | Padrão               | Descrição                                      |
+| ------------------------- | -------------------- | ---------------------------------------------- |
+| `ENABLE_WEBSOCKET`        | `false`              | Habilita o broadcast global via WebSocket      |
+| `GLOBAL_WEBSOCKET_SECRET` | _(chave de exemplo)_ | Chave usada para autenticar clientes WebSocket |
+
+### Banco de Dados
+
+| Variável              | Padrão      | Descrição                                    |
+| --------------------- | ----------- | -------------------------------------------- |
+| `DB_TYPE`             | `postgres`  | Tipo de banco de dados                       |
+| `DB_HOST`             | `localhost` | Host do PostgreSQL                           |
+| `DB_PORT`             | `5432`      | Porta do PostgreSQL                          |
+| `DB_USER`             | `root`      | Usuário do banco                             |
+| `DB_PASSWORD`         | _(vazio)_   | Senha do banco                               |
+| `DB_DATABASE`         | `FlashApi`  | Nome do banco de dados                       |
+| `DB_CONNECTION_LIMIT` | `10`        | Máximo de conexões simultâneas               |
+| `QUEUELIMIT`          | `0`         | Limite da fila de conexões (`0` = ilimitado) |
+
+### Redis
+
+| Variável     | Padrão      | Descrição                 |
+| ------------ | ----------- | ------------------------- |
+| `REDIS_HOST` | `127.0.0.1` | Host do Redis             |
+| `REDIS_PORT` | `6379`      | Porta do Redis            |
+| `REDIS_PASS` | _(vazio)_   | Senha do Redis (opcional) |
+
+### QR Code
+
+| Variável        | Padrão | Descrição                                         |
+| --------------- | ------ | ------------------------------------------------- |
+| `LIMITE_QRCODE` | `10`   | Número máximo de QR Codes gerados simultaneamente |
+
+### Remoção Automática de Sessões
+
+| Variável                 | Padrão  | Descrição                                    |
+| ------------------------ | ------- | -------------------------------------------- |
+| `DELETE_SESAO_DISCONECT` | `false` | Remove automaticamente sessões desconectadas |
+| `TEMP_DELETE_SESSAO`     | `5`     | Tempo (em horas) até a remoção automática    |
+
+### Proxy (por sessão)
+
+| Variável                            | Padrão            | Descrição                                                                      |
+| ----------------------------------- | ----------------- | ------------------------------------------------------------------------------ |
+| `PROXY_STATE`                       | `false`           | Habilita uso de proxy nas conexões                                             |
+| `PROXY_PROTOCOL`                    | `http`            | Protocolo do proxy (`http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`) |
+| `PROXY_HOST`                        | —                 | Host/IP do proxy                                                               |
+| `PROXY_USERNAME`                    | —                 | Usuário do proxy                                                               |
+| `PROXY_PASSWORD`                    | —                 | Senha do proxy                                                                 |
+| `PROXY_PORT`                        | _(aleatória)_     | Porta fixa do proxy                                                            |
+| `PROXY_PORT_MIN` / `PROXY_PORT_MAX` | `10000` / `20000` | Faixa para geração de porta aleatória, caso `PROXY_PORT` não seja definida     |
 
 ---
 
-### Opção 1: Nginx como proxy reverso (recomendado)
+## 📜 Scripts Disponíveis
 
-Esta é a abordagem mais robusta para produção.
+| Comando           | Descrição                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `npm start`       | Executa `gerardb.js` (verifica/cria o banco) e então inicia `server.js` em modo produção   |
+| `npm run dev`     | Inicia o servidor com **nodemon**, reiniciando a cada alteração de arquivo                 |
+| `npm run migrate` | Executa apenas `gerardb.js`, útil para inicializar/atualizar o schema do banco manualmente |
+| `npm test`        | Placeholder — nenhum teste automatizado configurado ainda                                  |
 
-#### 1. Instale o Nginx e o Certbot
+---
 
-```bash
-sudo apt update
-sudo apt install nginx certbot python3-certbot-nginx -y
-```
-
-#### 2. Crie o arquivo de configuração do Nginx
-
-```bash
-sudo nano /etc/nginx/sites-available/flashapi
-```
-
-Cole o conteúdo abaixo (substitua `seudominio.com`):
-
-```nginx
-server {
-    listen 80;
-    server_name seudominio.com www.seudominio.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-}
-```
-
-#### 3. Ative o site e recarregue o Nginx
+## ▶️ Como Executar
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/flashapi /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+# Ambiente de desenvolvimento
+npm run dev
+
+# Ambiente de produção
+npm start
 ```
 
-#### 4. Obtenha o certificado SSL gratuito (Let's Encrypt)
+Ao subir, a API automaticamente:
 
-```bash
-sudo certbot --nginx -d seudominio.com -d www.seudominio.com
-```
+1. Verifica a conexão com o PostgreSQL e cria o banco/tabelas caso não existam (`gerardb.js` + `verificardb.js`);
+2. Inicializa os _workers_ internos (`startWorkers()`);
+3. Sincroniza as sessões salvas (se `SYNC_SESSIONS=true`);
+4. Inicia o servidor HTTP + WebSocket na porta configurada.
 
-O Certbot atualiza automaticamente o arquivo do Nginx para HTTPS e configura a renovação automática.
-
-#### 5. Atualize o `.env`
-
-```env
-HOST=https://seudominio.com
-PROTOCOLO=https
+```text
+🚀 Flash API rodando na porta 3000
+✅ Iniciando Flash API - WhatsApp Multi-Session
 ```
 
 ---
 
-### Opção 2: Certificado SSL diretamente no Node.js
+## 🖥️ Painel Administrativo (Manager)
 
-Use quando não há Nginx disponível (ex: ambiente de teste com certificado próprio).
+Quando `MANAGER=true`, um painel web fica disponível para login e acompanhamento visual das sessões:
 
-#### 1. Gere um certificado autoassinado (teste)
+| Rota                     | Descrição                                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `GET /manager/login`     | Tela de login                                                                                                  |
+| `POST /manager/login`    | Autenticação (usuário/senha definidos em `LOGIN_MANAGER_ADMIN` / `LOGIN_MANAGER_USER` / `SENHA_MANAGER_ADMIN`) |
+| `GET /manager/dashboard` | Dashboard com status das sessões (requer sessão autenticada)                                                   |
+| `GET /manager/logout`    | Encerra a sessão do painel                                                                                     |
 
-```bash
-mkdir certs
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout certs/key.pem \
-  -out certs/cert.pem \
-  -subj "/CN=localhost"
+A sessão do painel é persistida no **Redis** via `express-session` + `connect-redis`.
+
+---
+
+## 📖 Referência da API
+
+> Base URL padrão: `http://localhost:3000`
+> Formato de resposta padrão: `{ "success": boolean, "message": string, "data": object }`
+
+### Autenticação
+
+A Flash API utiliza **dois níveis de chave**, enviados no header HTTP:
+
+| Header                       | Uso                                                                       | Escopo     |
+| ---------------------------- | ------------------------------------------------------------------------- | ---------- |
+| `apikey: <GLOBAL_API_KEY>`   | Rotas administrativas (criar, listar, remover sessões, status do sistema) | Global     |
+| `apikey: <apikey-da-sessão>` | Rotas de mensageria/contatos/grupos de uma sessão específica              | Por sessão |
+
+```http
+POST /api/session/create_sessao HTTP/1.1
+Host: localhost:3000
+Content-Type: application/json
+apikey: SEU_GLOBAL_API_KEY
 ```
 
-#### 2. Ajuste o `server.js` para carregar o certificado
+> O header `apikey` também aceita `Authorization: Bearer <token>` ou `x-api-key` nas rotas globais.
+
+### Sessões
+
+Rotas em `src/routes/session.js`.
+
+| Método   | Endpoint                         | Auth    | Descrição                                                              |
+| -------- | -------------------------------- | ------- | ---------------------------------------------------------------------- |
+| `POST`   | `/api/session/create_sessao`     | Global  | Cria uma nova sessão (retorna a `apikey`)                              |
+| `PUT`    | `/api/session/conectar_sessao`   | Sessão  | Gera QR Code / inicia conexão (aceita `phoneNumber` para pairing code) |
+| `PUT`    | `/api/session/restart`           | Sessão  | Reinicia o socket da sessão                                            |
+| `GET`    | `/api/session/status`            | Sessão  | Retorna status atual da sessão                                         |
+| `GET`    | `/api/session/list`              | Global  | Lista todas as sessões e estatísticas                                  |
+| `GET`    | `/api/session/health`            | Global  | Health check da API                                                    |
+| `DELETE` | `/api/session/delete/:sessionId` | Global  | Remove definitivamente uma sessão                                      |
+| `DELETE` | `/api/session/desconect`         | Sessão  | Desconecta o WhatsApp da sessão (logout)                               |
+| `GET`    | `/api/session/avatar/:apikey`    | Pública | Retorna a foto de perfil do número conectado                           |
+| `POST`   | `/api/session/creds`             | Sessão  | Injeta credenciais/keys previamente exportadas                         |
+
+### Mensagens (Chat)
+
+Rotas em `src/routes/chat.js` — todas exigem o header `apikey` da sessão.
+
+| Método   | Endpoint                            | Descrição                                              |
+| -------- | ----------------------------------- | ------------------------------------------------------ |
+| `POST`   | `/api/chat/send-text`               | Envia mensagem de texto                                |
+| `POST`   | `/api/chat/send-image`              | Envia imagem (URL ou base64)                           |
+| `POST`   | `/api/chat/send-video`              | Envia vídeo                                            |
+| `POST`   | `/api/chat/send-audio`              | Envia áudio (convertido automaticamente para Opus/OGG) |
+| `POST`   | `/api/chat/send-document`           | Envia documento/arquivo                                |
+| `POST`   | `/api/chat/send-location`           | Envia localização (latitude/longitude)                 |
+| `POST`   | `/api/chat/send-contact`            | Envia cartão de contato (vCard)                        |
+| `POST`   | `/api/chat/send-sticker`            | Cria e envia figurinha a partir de imagem              |
+| `POST`   | `/api/chat/send-reaction`           | Reage a uma mensagem com emoji                         |
+| `POST`   | `/api/chat/send-poll`               | Cria uma enquete                                       |
+| `POST`   | `/api/chat/send-list`               | Envia lista de opções                                  |
+| `POST`   | `/api/chat/send-buttons`            | Envia mensagem com botões                              |
+| `POST`   | `/api/chat/send-interactiveMessage` | Envia mensagem interativa                              |
+| `POST`   | `/api/chat/send-carouselMessage`    | Envia carrossel de cards                               |
+| `POST`   | `/api/chat/typing`                  | Simula "digitando…" / "gravando áudio…"                |
+| `POST`   | `/api/chat/mark-read`               | Marca mensagens como lidas                             |
+| `GET`    | `/api/chat/messages`                | Lista mensagens de uma conversa                        |
+| `GET`    | `/api/chat/chats`                   | Lista conversas da sessão                              |
+| `DELETE` | `/api/chat/delete/:id_message`      | Apaga uma mensagem                                     |
+| `POST`   | `/api/chat/midiaToBase64`           | Converte mídia de uma mensagem recebida em base64      |
+
+### Contatos
+
+Rotas em `src/routes/contact.js`.
+
+| Método | Endpoint                           | Descrição                                |
+| ------ | ---------------------------------- | ---------------------------------------- |
+| `GET`  | `/api/contact/list`                | Lista contatos da sessão                 |
+| `GET`  | `/api/contact/avatar/:apikey/:jid` | Foto de perfil de um contato             |
+| `POST` | `/api/contact/check`               | Verifica se um número existe no WhatsApp |
+| `POST` | `/api/contact/block`               | Bloqueia/desbloqueia um contato          |
+| `POST` | `/api/contact/lid-to-jid`          | Converte identificador LID em JID        |
+
+### Grupos
+
+Rotas em `src/routes/group.js`.
+
+| Método | Endpoint                                    | Descrição                                                        |
+| ------ | ------------------------------------------- | ---------------------------------------------------------------- |
+| `GET`  | `/api/group/list`                           | Lista grupos da sessão                                           |
+| `POST` | `/api/group/info`                           | Detalhes de um grupo                                             |
+| `POST` | `/api/group/create`                         | Cria um novo grupo                                               |
+| `POST` | `/api/group/update-description`             | Atualiza a descrição do grupo                                    |
+| `POST` | `/api/group/ParticipantsUpdate`             | Adiciona/remove/promove/rebaixa participantes                    |
+| `POST` | `/api/group/leave`                          | Sai de um grupo                                                  |
+| `POST` | `/api/group/update-subject`                 | Atualiza o nome do grupo                                         |
+| `POST` | `/api/group/up-setting`                     | Atualiza configurações (quem pode enviar mensagens/editar dados) |
+| `GET`  | `/api/group/group-Invite/:groupJid`         | Gera link de convite                                             |
+| `GET`  | `/api/group/group-Invite-revogar/:groupJid` | Revoga o link de convite atual                                   |
+
+### Configurações
+
+Rotas em `src/routes/config.js`.
+
+| Método | Endpoint              | Descrição                                                                             |
+| ------ | --------------------- | ------------------------------------------------------------------------------------- |
+| `GET`  | `/api/config/session` | Retorna as configurações da sessão                                                    |
+| `PUT`  | `/api/config/config`  | Atualiza configurações gerais (leitura automática, rejeitar ligações, ignorar grupos) |
+| `PUT`  | `/api/config/webhook` | Atualiza URL/status do webhook da sessão                                              |
+| `PUT`  | `/api/config/proxy`   | Atualiza configuração de proxy da sessão                                              |
+
+### Sistema
+
+Rotas em `src/routes/system.js` (autenticação **global**).
+
+| Método | Endpoint             | Descrição                                                            |
+| ------ | -------------------- | -------------------------------------------------------------------- |
+| `GET`  | `/api/system/status` | Métricas de sistema (CPU, memória, uptime — via `systeminformation`) |
+| `GET`  | `/api/system/config` | Configurações globais atuais da API                                  |
+
+---
+
+## 💡 Exemplos de Uso
+
+### Criar uma sessão
+
+```bash
+curl -X POST http://localhost:3000/api/session/create_sessao \
+  -H "Content-Type: application/json" \
+  -H "apikey: SEU_GLOBAL_API_KEY" \
+  -d '{
+        "nome_sessao": "atendimento_vendas",
+        "leitura_automatica": false,
+        "rejeitar_ligacoes": true,
+        "ignorar_grupos": true,
+        "events": ["message_received", "connection_update"]
+      }'
+```
+
+### Conectar (gerar QR Code)
+
+```bash
+curl -X PUT http://localhost:3000/api/session/conectar_sessao \
+  -H "Content-Type: application/json" \
+  -H "apikey: APIKEY_DA_SESSAO"
+```
+
+### Enviar mensagem de texto
+
+```bash
+curl -X POST http://localhost:3000/api/chat/send-text \
+  -H "Content-Type: application/json" \
+  -H "apikey: APIKEY_DA_SESSAO" \
+  -d '{
+        "jid": "5511999999999",
+        "text": "Olá! Esta é uma mensagem enviada pela Flash API 🚀"
+      }'
+```
+
+### Enviar imagem por URL
+
+```bash
+curl -X POST http://localhost:3000/api/chat/send-image \
+  -H "Content-Type: application/json" \
+  -H "apikey: APIKEY_DA_SESSAO" \
+  -d '{
+        "jid": "5511999999999",
+        "image": "https://exemplo.com/imagem.jpg",
+        "caption": "Confira nossa novidade!"
+      }'
+```
+
+### Exemplo em Node.js (axios)
 
 ```javascript
-import https from "https";
-import fs from "fs";
-import app from "./index.js";
+import axios from "axios";
 
-const options = {
-  key: fs.readFileSync("./certs/key.pem"),
-  cert: fs.readFileSync("./certs/cert.pem"),
-};
-
-https.createServer(options, app).listen(3000, () => {
-  console.log("Servidor HTTPS rodando na porta 3000");
+const api = axios.create({
+  baseURL: "http://localhost:3000/api",
+  headers: { apikey: "APIKEY_DA_SESSAO" },
 });
-```
 
-#### 3. Atualize o `.env`
-
-```env
-HOST=https://localhost:3000
-PROTOCOLO=https
-```
-
----
-
-### Renovação automática do certificado (Let's Encrypt)
-
-O Certbot já configura um cronjob automático. Para verificar:
-
-```bash
-sudo certbot renew --dry-run
-```
-
----
-
-## 💻 Uso — Exemplos de Código
-
-Todos os exemplos usam `axios`. Substitua `SUA_API_KEY` pela apikey da sessão (ou pela `GLOBAL_API_KEY`).
-
----
-
-### Criar Sessão
-
-```javascript
-const axios = require("axios");
-
-const BASE_URL = "http://localhost:3000";
-const API_KEY = "SUA_GLOBAL_API_KEY";
-
-async function criarSessao() {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/session/create_sessao`,
-    {
-      nome_sessao: "minha-sessao",
-      numero: "5521999999999",
-      criar_sessao: true,
-      gerar_qrcode: true,
-      webhook_status: false,
-      webhookUrl: "",
-      events: ["message_received", "connection_update"],
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: API_KEY },
-    },
-  );
-
-  if (data.success) {
-    console.log("Sessão criada!");
-    console.log("Nome:   ", data.dados.name);
-    console.log("ApiKey: ", data.dados.apikey);
-    console.log("QRCode: ", data.dados.qrcode); // base64
-  }
-}
-
-criarSessao().catch(console.error);
-```
-
----
-
-### Reconectar / Obter QR Code
-
-```javascript
-async function reconectar(apikeySessao) {
-  const { data } = await axios.put(
-    `${BASE_URL}/api/session/conectar_sessao`,
-    {},
-    {
-      headers: { apikey: apikeySessao },
-    },
-  );
-
-  if (data.success) {
-    console.log("QR Code:", data.qrcode);
-  } else {
-    console.log("Sessão já conectada ou QR desnecessário.");
-  }
-}
-```
-
----
-
-### Verificar Status da Sessão
-
-```javascript
-async function status(apikeySessao) {
-  const { data } = await axios.get(`${BASE_URL}/api/session/status`, {
-    headers: { apikey: apikeySessao },
-  });
-  console.log("Status:", data);
-}
-```
-
----
-
-### Enviar Mensagem de Texto
-
-```javascript
-async function enviarTexto(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-text`,
-    {
-      to: "5521999999999",
-      text: "Olá! 😄 Tudo bem?",
-      linkPreview: false,
-      delay: 1200,
-      useQueue: false,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Enviado:", data);
-}
-```
-
----
-
-### Enviar Imagem
-
-```javascript
-async function enviarImagem(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-image`,
-    {
-      to: "5521999999999",
-      image: "https://exemplo.com/imagem.jpg", // URL ou base64
-      caption: "Veja esta imagem! 🖼️",
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Imagem enviada:", data);
-}
-```
-
----
-
-### Enviar Vídeo
-
-```javascript
-async function enviarVideo(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-video`,
-    {
-      to: "5521999999999",
-      video: "https://exemplo.com/video.mp4", // URL ou base64
-      caption: "Confira este vídeo! 🎬",
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Vídeo enviado:", data);
-}
-```
-
----
-
-### Enviar Áudio
-
-```javascript
-async function enviarAudio(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-audio`,
-    {
-      to: "5521999999999",
-      audio: "https://exemplo.com/audio.mp3", // URL ou base64
-      ptt: true, // true = mensagem de voz (microfone), false = arquivo de áudio
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Áudio enviado:", data);
-}
-```
-
----
-
-### Enviar Documento
-
-```javascript
-async function enviarDocumento(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-document`,
-    {
-      to: "5521999999999",
-      document: "https://exemplo.com/arquivo.pdf", // URL ou base64
-      fileName: "contrato.pdf",
-      caption: "Segue o documento em anexo.",
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Documento enviado:", data);
-}
-```
-
----
-
-### Enviar Localização
-
-```javascript
-async function enviarLocalizacao(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-location`,
-    {
-      to: "5521999999999",
-      latitude: -23.5505,
-      longitude: -46.6333,
-      name: "São Paulo",
-      address: "Av. Paulista, 1000 - Bela Vista, São Paulo - SP",
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Localização enviada:", data);
-}
-```
-
----
-
-### Enviar Enquete
-
-```javascript
-async function enviarEnquete(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-poll`,
-    {
-      to: "5521999999999",
-      name: "Qual é o seu framework favorito?",
-      values: ["Express", "Fastify", "NestJS", "Hapi"],
-      selectableCount: 1, // 0 = múltipla escolha
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Enquete enviada:", data);
-}
-```
-
----
-
-### Enviar Botões
-
-Envia uma mensagem com até 3 botões de resposta rápida.
-
-```javascript
-async function enviarBotoes(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-buttons`,
-    {
-      to: "5521999999999",
-      text: "Como podemos te ajudar hoje?",
-      footer: "Flash Api — Suporte",
-      buttons: [
-        { buttonId: "btn1", buttonText: { displayText: "📦 Meu pedido" } },
-        { buttonId: "btn2", buttonText: { displayText: "💳 Pagamento" } },
-        {
-          buttonId: "btn3",
-          buttonText: { displayText: "🙋 Falar com atendente" },
-        },
-      ],
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Botões enviados:", data);
-}
-```
-
----
-
-### Enviar Lista Interativa
-
-Envia uma lista de opções organizadas em seções (menu interativo).
-
-```javascript
-async function enviarLista(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-list`,
-    {
-      to: "5521999999999",
-      text: "Escolha uma opção do nosso cardápio:",
-      footer: "Flash Api",
-      title: "Cardápio Digital",
-      buttonText: "Ver opções",
-      sections: [
-        {
-          title: "🍔 Lanches",
-          rows: [
-            {
-              rowId: "lanche1",
-              title: "X-Burguer",
-              description: "Pão, carne, queijo e salada",
-            },
-            {
-              rowId: "lanche2",
-              title: "X-Frango",
-              description: "Pão, frango grelhado e maionese",
-            },
-          ],
-        },
-        {
-          title: "🥤 Bebidas",
-          rows: [
-            { rowId: "beb1", title: "Coca-Cola 350ml", description: "Gelada" },
-            {
-              rowId: "beb2",
-              title: "Suco de Laranja",
-              description: "Natural, 500ml",
-            },
-          ],
-        },
-      ],
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Lista enviada:", data);
-}
-```
-
----
-
-### Enviar Mensagem Interativa
-
-Mensagem interativa com cabeçalho, corpo, rodapé e botões nativos (NativeFlow). Ideal para menus e fluxos mais complexos.
-
-```javascript
-async function enviarInterativa(apikeySessao) {
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-interactiveMessage`,
-    {
-      to: "5521999999999",
-      header: {
-        text: "🚀 Flash Api",
-        // image: "link ou base64",
-        // video: "link ou base64",
-      },
-      body: {
-        text: "Selecione uma das opções abaixo para continuar:",
-      },
-      footer: {
-        text: "Powered by Flash Api",
-      },
-      nativeFlowMessage: {
-        buttons: [
-          {
-            name: "quick_reply",
-            buttonParamsJson: JSON.stringify({
-              display_text: "✅ Confirmar",
-              id: "confirmar",
-            }),
-          },
-          {
-            name: "quick_reply",
-            buttonParamsJson: JSON.stringify({
-              display_text: "❌ Cancelar",
-              id: "cancelar",
-            }),
-          },
-        ],
-      },
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Interativa enviada:", data);
-}
-```
-
-#### Exemplo com lista integrada na mensagem interativa (single_select)
-
-```javascript
-async function enviarInterativaLista(apikeySessao) {
-  const sections = [
-    {
-      title: "Opções",
-      rows: [
-        {
-          id: "op1",
-          title: "Suporte Técnico",
-          description: "Problemas com o sistema",
-        },
-        {
-          id: "op2",
-          title: "Financeiro",
-          description: "Cobranças e pagamentos",
-        },
-        {
-          id: "op3",
-          title: "Comercial",
-          description: "Novos planos e ofertas",
-        },
-      ],
-    },
-  ];
-
-  const { data } = await axios.post(
-    `${BASE_URL}/api/chat/send-interactiveMessage`,
-    {
-      to: "5521999999999",
-      type: "button",
-      header: { type: "text", text: "Central de Atendimento" },
-      body: { text: "Com qual departamento você deseja falar?" },
-      footer: { text: "Flash Api — SAC" },
-      nativeFlowMessage: {
-        buttons: [
-          {
-            name: "single_select",
-            buttonParamsJson: JSON.stringify({
-              title: "Escolha um departamento",
-              sections,
-            }),
-          },
-        ],
-      },
-      delay: 1200,
-    },
-    {
-      headers: { "Content-Type": "application/json", apikey: apikeySessao },
-    },
-  );
-
-  console.log("Interativa com lista enviada:", data);
-}
-```
-
----
-
-## 🌐 WebSocket
-
-Conecte ao WebSocket em `/ws` para receber eventos em tempo real.
-
-```javascript
-const WebSocket = require("ws");
-
-const BASE_WS = "ws://localhost:3000/ws";
-const API_KEY = "SUA_API_KEY";
-const MODO = "client"; // 'global' (GLOBAL_WEBSOCKET_SECRET) ou 'client' (apikey da sessão)
-
-function connectWebSocket() {
-  const ws = new WebSocket(BASE_WS, [], {
-    headers: {
-      apikey: API_KEY,
-      modo: MODO,
-      events: JSON.stringify([
-        "connection_update",
-        "qr_updated",
-        "message_received",
-        "message_update",
-        "chats_set",
-        "chats_update",
-        "contacts_set",
-        "contacts_update",
-        "groups_update",
-        "group_participants_update",
-        "presence_update",
-        "call",
-        "messaging_history_set",
-      ]),
-    },
+async function enviarMensagem() {
+  const { data } = await api.post("/chat/send-text", {
+    jid: "5511999999999",
+    text: "Mensagem enviada via Node.js 🎉",
   });
 
-  // Ping a cada 60 segundos para manter a conexão
-  ws.onopen = () => {
-    console.log("✅ Conectado ao WebSocket");
-    setInterval(() => ws.send(JSON.stringify({ type: "ping" })), 60000);
-  };
-
-  ws.onmessage = ({ data }) => {
-    const msg = JSON.parse(data);
-
-    switch (msg.type) {
-      case "welcome":
-        console.log("Bem-vindo! ClientId:", msg.clientId);
-        break;
-
-      case "pong":
-        // confirmação de ping — pode ignorar
-        break;
-
-      case "event":
-        if (msg.event === "message_received") {
-          const { from, message } = msg.data;
-          console.log(`Nova mensagem de ${from}:`, message);
-        }
-        if (msg.event === "qr_updated") {
-          console.log("Novo QR Code gerado:", msg.data.qrcode);
-        }
-        if (msg.event === "connection_update") {
-          console.log("Status da conexão:", msg.data.status);
-        }
-        break;
-
-      case "error":
-        console.error("Erro WebSocket:", msg.message);
-        break;
-    }
-  };
-
-  ws.onclose = ({ code, reason }) => {
-    console.log(`Conexão fechada — código: ${code}, motivo: ${reason}`);
-    // Reconectar após 5 segundos
-    setTimeout(connectWebSocket, 5000);
-  };
-
-  ws.onerror = (err) => console.error("Erro:", err.message);
+  console.log(data);
 }
 
-connectWebSocket();
+enviarMensagem();
 ```
 
-> **Modos disponíveis:**
->
-> - `global` — autentica com `GLOBAL_WEBSOCKET_SECRET` do `.env` e recebe eventos de **todas** as sessões
-> - `client` — autentica com a `apikey` da instância e recebe eventos apenas daquela sessão
+### Exemplo em Python (requests)
+
+```python
+import requests
+
+url = "http://localhost:3000/api/chat/send-text"
+headers = {"apikey": "APIKEY_DA_SESSAO"}
+payload = {
+    "jid": "5511999999999",
+    "text": "Mensagem enviada via Python 🐍"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
 
 ---
 
-## 📡 Webhooks
+## 🔔 Webhooks
 
-Configure uma URL de Webhook ao criar ou editar uma sessão para receber eventos via POST.
+Cada sessão pode ter seu próprio webhook (configurado via `PUT /api/config/webhook`), ou você pode habilitar um **webhook global** que recebe eventos de todas as sessões (`ENABLE_GLOBAL_WEBHOOK=true` + `GLOBAL_WEBHOOK_URL`).
 
-### Eventos disponíveis
-
-| Evento                      | Descrição                                    |
-| --------------------------- | -------------------------------------------- |
-| `presence_update`           | Atualização de presença (online/offline)     |
-| `qr_updated`                | Novo QR Code gerado                          |
-| `connection_update`         | Status da conexão alterado                   |
-| `chats_set`                 | Lista inicial de chats carregada             |
-| `message_received`          | Nova mensagem recebida                       |
-| `message_update`            | Mensagem editada ou status atualizado        |
-| `chats_update`              | Chats atualizados                            |
-| `contacts_set`              | Lista inicial de contatos carregada          |
-| `contacts_update`           | Contatos atualizados                         |
-| `groups_update`             | Metadados de grupos alterados                |
-| `group_participants_update` | Participantes do grupo adicionados/removidos |
-| `call_update`               | Chamada de voz/vídeo recebida                |
-| `messaging_history_set`     | Sincronização de histórico de mensagens      |
-
-### Payload de exemplo
+Formato do payload recebido:
 
 ```json
 {
-  "event": "message_received",
-  "sessionId": "minha-sessao",
-  "data": {
-    "id": "ABCD1234",
-    "from": "5511999999999@s.whatsapp.net",
-    "timestamp": 1700000000,
-    "type": "conversation",
-    "content": "Olá!"
-  }
+  "success": true,
+  "message": "Webhook recebido com sucesso!",
+  "received": {
+    "event": "messages_upsert",
+    "apikey": "83725a47-fc7a-404a-bbac-206d590bae8f",
+    "data": { "...": "..." }
+  },
+  "timestamp": "2026-07-05T12:00:00.000Z"
 }
 ```
 
-### Exemplo de servidor para receber Webhooks (Node.js)
+Principais eventos disponíveis (configuráveis via `GLOBAL_WEBHOOK_EVENTS` ou por sessão em `events`):
+
+`connection_update` · `qr_updated` · `creds_update` · `messages_upsert` · `messages_update` · `messages_delete` · `messages_reaction` · `message_receipt_update` · `chats_upsert` · `chats_update` · `chats_delete` · `contacts_upsert` · `contacts_update` · `groups_upsert` · `groups_update` · `group_participants_update` · `presence_update` · `call` · `labels_edit` · `blocklist_update` · entre outros.
+
+---
+
+## 🔌 WebSocket
+
+Além de webhooks, é possível consumir os mesmos eventos em tempo real via WebSocket:
 
 ```javascript
-const express = require("express");
-const app = express();
-app.use(express.json());
+const ws = new WebSocket("ws://localhost:3000/ws");
 
-app.post("/webhook", (req, res) => {
-  const { event, sessionId, data } = req.body;
+ws.onopen = () => {
+  console.log("Conectado ao WebSocket da Flash API");
+};
 
-  console.log(`[${sessionId}] Evento: ${event}`);
+ws.onmessage = (event) => {
+  const payload = JSON.parse(event.data);
+  console.log("Evento recebido:", payload);
+};
+```
 
-  if (event === "message_received") {
-    console.log("Mensagem de:", data.from);
-    console.log("Conteúdo:", data.content);
-  }
+Habilite com `ENABLE_WEBSOCKET=true` e proteja o canal com `GLOBAL_WEBSOCKET_SECRET`.
 
-  res.sendStatus(200); // SEMPRE responda 200 para confirmar o recebimento
-});
+---
 
-app.listen(4000, () => console.log("Webhook server rodando na porta 4000"));
+## 📬 Coleção Postman
+
+O repositório inclui `postman_collection.json` com todos os endpoints documentados e prontos para uso. Basta importar no Postman/Insomnia e configurar as variáveis de ambiente (`base_url`, `apikey`, `global_api_key`).
+
+---
+
+## ⚠️ Limitações Conhecidas
+
+- 🔸 Depende diretamente da engenharia reversa do protocolo WhatsApp Web feita pelo **Baileys** — mudanças no WhatsApp podem exigir atualização da dependência.
+- 🔸 Não é uma solução oficial/homologada pela Meta; o uso em desacordo com os Termos de Serviço do WhatsApp pode resultar em banimento do número.
+- 🔸 Conversão de áudio depende de `ffmpeg` (via `@ffmpeg-installer/ffmpeg`), o que pode aumentar o tempo de build da imagem Docker.
+- 🔸 Não há suíte de testes automatizados configurada (`npm test` é um placeholder).
+- 🔸 A geração de QR Code é limitada por sessão (`LIMITE_QRCODE`) para evitar rate-limit do WhatsApp.
+- 🔸 O painel Manager utiliza sessão simples com usuário/senha em variáveis de ambiente — recomenda-se reforçar a segurança (proxy reverso com HTTPS, IP allowlist) antes de expor publicamente.
+
+---
+
+## 🗺️ Roadmap
+
+> Sugestão de evolução com base na estrutura atual do projeto. Contribuições e PRs para itens abaixo são bem-vindas!
+
+- [ ] Documentação Swagger totalmente publicada em `/docs` (dependências já presentes no projeto)
+- [ ] Suíte de testes automatizados (unitários e de integração)
+- [ ] Suporte oficial a MySQL (variável `DB_TYPE` já prevê a opção)
+- [ ] Métricas exportáveis em formato Prometheus
+- [ ] Rate limiting configurável por sessão
+- [ ] Multi-idioma no painel Manager
+- [ ] Publicação de imagem Docker multiarch (amd64/arm64) no Docker Hub
+
+---
+
+## ❓ FAQ
+
+<details>
+<summary><b>Preciso pagar para usar a API oficial do WhatsApp?</b></summary>
+<br>
+Não. A Flash API utiliza o <b>Baileys</b>, que se conecta via WhatsApp Web (multi-device), sem custos oficiais do WhatsApp Business API. Ainda assim, o uso é por sua conta e risco quanto aos Termos de Serviço do WhatsApp.
+</details>
+
+<details>
+<summary><b>Quantas sessões posso criar simultaneamente?</b></summary>
+<br>
+Não há um limite fixo imposto pelo código além do <code>LIMITE_QRCODE</code> (limite de QR Codes simultâneos). A capacidade real depende dos recursos de CPU/RAM do servidor e da estabilidade da conexão com o WhatsApp.
+</details>
+
+<details>
+<summary><b>A API funciona sem PostgreSQL ou Redis?</b></summary>
+<br>
+Não. Ambos são obrigatórios: o PostgreSQL armazena sessões, mensagens, contatos e grupos; o Redis gerencia cache, sessão do painel Manager e a fila de chaves de autenticação do Baileys.
+</details>
+
+<details>
+<summary><b>Como eu recebo mensagens que chegam no WhatsApp?</b></summary>
+<br>
+Configure um <b>Webhook</b> (global ou por sessão) para receber os eventos via HTTP POST, ou conecte-se ao endpoint <code>/ws</code> para recebê-los via WebSocket em tempo real.
+</details>
+
+<details>
+<summary><b>Posso usar um número de WhatsApp Business?</b></summary>
+<br>
+Sim, o Baileys suporta contas padrão e Business. O comportamento pode variar conforme recursos exclusivos do WhatsApp Business (catálogo, mensagens automáticas nativas etc.).
+</details>
+
+<details>
+<summary><b>Como troco a senha padrão do painel Manager?</b></summary>
+<br>
+Altere as variáveis <code>LOGIN_MANAGER_ADMIN</code>, <code>LOGIN_MANAGER_USER</code> e <code>SENHA_MANAGER_ADMIN</code> no arquivo <code>.env</code> (ou no <code>docker-compose.yml</code>) antes de subir o serviço em produção.
+</details>
+
+---
+
+## 🤝 Contribuindo
+
+Contribuições são muito bem-vindas! Para colaborar:
+
+1. Faça um **fork** do projeto
+2. Crie uma branch para sua feature/correção: `git checkout -b feature/minha-feature`
+3. Faça commit das suas alterações: `git commit -m "feat: adiciona minha feature"`
+4. Envie para o seu fork: `git push origin feature/minha-feature`
+5. Abra um **Pull Request** descrevendo as mudanças
+
+**Boas práticas ao contribuir:**
+
+- Siga o estilo de código já utilizado no projeto (formatação com `prettier`, disponível via `devDependencies`).
+- Sempre que possível, atualize a documentação (`README.md`, `.env.example`, coleção Postman) junto das mudanças de código.
+- Descreva claramente o problema resolvido ou a funcionalidade adicionada no PR.
+- Evite incluir credenciais reais, tokens ou dados sensíveis em commits.
+
+Encontrou um bug ou tem uma sugestão? Abra uma **Issue** no repositório.
+
+---
+
+## 📄 Licença
+
+Este projeto está licenciado sob a licença **MIT** — conforme declarado em `package.json`. Consulte o arquivo `LICENSE` do repositório (ou adicione um, caso ainda não exista) para o texto completo.
+
+```
+MIT License — livre para uso, cópia, modificação e distribuição,
+mantendo o aviso de copyright original.
 ```
 
 ---
 
-## 🚀 Endpoints
+<div align="center">
 
-### 🔐 Sessões
+Feito com ⚡ para a comunidade open source.
 
-| Método | Endpoint                         | Descrição                         |
-| ------ | -------------------------------- | --------------------------------- |
-| POST   | `/api/session/create_sessao`     | Criar nova sessão                 |
-| PUT    | `/api/session/conectar_sessao`   | Reconectar sessão / gerar QR Code |
-| PUT    | `/api/session/restart`           | Reiniciar sessão                  |
-| GET    | `/api/session/status`            | Status da sessão                  |
-| GET    | `/api/session/list`              | Listar todas as sessões           |
-| POST   | `/api/session/reconnect`         | Forçar reconexão                  |
-| DELETE | `/api/session/delete/:sessionId` | Deletar sessão                    |
-
-### 💬 Chat
-
-| Método | Endpoint                            | Descrição                               |
-| ------ | ----------------------------------- | --------------------------------------- |
-| POST   | `/api/chat/send-text`               | Enviar texto                            |
-| POST   | `/api/chat/send-image`              | Enviar imagem                           |
-| POST   | `/api/chat/send-video`              | Enviar vídeo                            |
-| POST   | `/api/chat/send-audio`              | Enviar áudio                            |
-| POST   | `/api/chat/send-document`           | Enviar documento                        |
-| POST   | `/api/chat/send-location`           | Enviar localização                      |
-| POST   | `/api/chat/send-poll`               | Enviar enquete                          |
-| POST   | `/api/chat/send-sticker`            | Enviar sticker                          |
-| POST   | `/api/chat/send-contact`            | Enviar contato (vCard)                  |
-| POST   | `/api/chat/send-reaction`           | Enviar reação                           |
-| POST   | `/api/chat/send-buttons`            | Enviar botões                           |
-| POST   | `/api/chat/send-list`               | Enviar lista interativa                 |
-| POST   | `/api/chat/send-interactiveMessage` | Enviar mensagem interativa (NativeFlow) |
-| POST   | `/api/chat/send-carouselMessage`    | Enviar carrossel                        |
-| POST   | `/api/chat/mark-read`               | Marcar mensagem como lida               |
-| POST   | `/api/chat/send-typing`             | Enviar status de digitando              |
-
-### 📇 Contatos
-
-| Método | Endpoint               | Descrição               |
-| ------ | ---------------------- | ----------------------- |
-| GET    | `/api/contact/list`    | Listar contatos         |
-| GET    | `/api/contact/profile` | Obter perfil do contato |
-| POST   | `/api/contact/check`   | Verificar número        |
-
-### 👥 Grupos
-
-| Método | Endpoint                         | Descrição                |
-| ------ | -------------------------------- | ------------------------ |
-| GET    | `/api/group/list`                | Listar grupos            |
-| GET    | `/api/group/info`                | Informações do grupo     |
-| POST   | `/api/group/create`              | Criar grupo              |
-| POST   | `/api/group/add-participant`     | Adicionar participante   |
-| POST   | `/api/group/remove-participant`  | Remover participante     |
-| PUT    | `/api/group/promote-participant` | Promover a administrador |
-| PUT    | `/api/group/demote-participant`  | Rebaixar administrador   |
-| PUT    | `/api/group/update-subject`      | Atualizar nome do grupo  |
-| PUT    | `/api/group/update-description`  | Atualizar descrição      |
-| POST   | `/api/group/leave`               | Sair do grupo            |
-
-### 🔧 Sistema
-
-| Método | Endpoint             | Descrição              |
-| ------ | -------------------- | ---------------------- |
-| GET    | `/api/system/info`   | Informações do sistema |
-| GET    | `/api/system/health` | Health check           |
-
----
-
-## 🧠 Painel de Controle
-
-Acesse o painel web em `http://localhost:3000` (ou seu domínio).
-
-### Funcionalidades do painel
-
-- **Gerenciar sessões** — criar, conectar, reiniciar, deletar
-- **Envio de mensagens em lote** — para contatos e grupos selecionados, com suporte a todos os tipos de mensagem
-- **Gerenciador de grupos** — criar, adicionar/remover participantes, promover/rebaixar, atualizar nome e descrição
-- **Configuração de Webhook** — definir URL, ativar/desativar e selecionar eventos por sessão
-- **Session Lab** — recriar sessão com mesmo token e nome (restart + reconnect)
-
----
-
-## 📚 Documentação Interativa
-
-| Recurso         | URL                                             |
-| --------------- | ----------------------------------------------- |
-| Swagger UI      | `http://localhost:3000/api-docs`                |
-| Coleção Postman | `http://localhost:3000/postman_collection.json` |
-
----
-
-## 🛠 Tecnologias
-
-| Tecnologia     | Uso                            |
-| -------------- | ------------------------------ |
-| Node.js 20+    | Runtime JavaScript             |
-| Express        | Framework HTTP                 |
-| Baileys        | Biblioteca WhatsApp Web        |
-| PostgreSQL 16  | Banco de dados relacional      |
-| Redis 7        | Cache e filas de mensagens     |
-| WebSocket (ws) | Comunicação em tempo real      |
-| Swagger        | Documentação interativa da API |
-| Pino           | Logger estruturado             |
-| Helmet         | Headers de segurança HTTP      |
-| Docker         | Containerização                |
-
----
-
-## 🔐 Segurança
-
-- Autenticação via API Key por sessão e chave global
-- Helmet para headers de segurança HTTP
-- CORS configurável por origem
-- Validação de payload com Joi
-- Logs estruturados com Pino
-
----
-
-## ☕ Apoie este Projeto
-
-Este projeto é **open source** e feito com 💚 para a comunidade.
-
-Se ele te ajudou de alguma forma, considere fazer uma contribuição voluntária.
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Chave%20PIX-ba189cff--4540--49cb--a087--5a60231e9e77-9647FF?style=for-the-badge&logo=pix&logoColor=white" alt="PIX">
-</p>
-
-<p align="center">
-  📲 <strong>Chave PIX Aleatória:</strong><br>
-  <code>ba189cff-4540-49cb-a087-5a60231e9e77</code>
-</p>
-
----
-
-## 💬 Suporte e Comunidade
-
-Tem dúvidas, sugestões ou quer trocar ideias com outros usuários?
-
-<p align="center">
-  <a href="https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI" target="_blank">
-    <img src="https://img.shields.io/badge/Grupo%20de%20Suporte%20no%20WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp">
-  </a>
-</p>
-
-> 📣 **Link direto:** [`https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI`](https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI)
-
-- GitHub: [https://github.com/clsshbr2/FlashApi](https://github.com/clsshbr2/FlashApi)
-- Swagger local: `/api-docs`
-- Coleção Postman: `/postman_collection.json`
+</div>
