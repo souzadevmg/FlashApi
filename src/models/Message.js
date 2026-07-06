@@ -102,9 +102,15 @@ class Message {
             const values = [];
             const placeholders = [];
             let index = 1;
+            const vistos = new Set();
 
             for (const msg of mensagens) {
-
+                const key = `${msg.sessao_id}:${msg.mensagem_id}`;
+                if (vistos.has(key)) {
+                    logger.info(`MEssage duplicada ignorando: `, key)
+                    continue;
+                }
+                vistos.add(key);
                 const campos = [
                     msg.sessao_id,
                     msg.mensagem_id,
@@ -122,6 +128,7 @@ class Message {
                 );
                 values.push(...campos);
             }
+
             const sql = `
                 INSERT INTO mensagens (${colunas.join(", ")})
                 VALUES

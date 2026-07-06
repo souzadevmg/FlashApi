@@ -75,9 +75,15 @@ class Contato {
             const values = [];
             const placeholders = [];
             let index = 1;
+            const vistos = new Set();
 
             for (const msg of contatos) {
-
+                const key = `${msg.sessao_id}:${msg.jid}`;
+                if (vistos.has(key)) {
+                    logger.info(`Contatos duplicado ignorando: `, key)
+                    continue;
+                }
+                vistos.add(key);
                 const colunas = [
                     msg.sessao_id,
                     msg.jid,

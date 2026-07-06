@@ -108,7 +108,7 @@ async function flushMessages(sessionId) {
 
         // chegaram novas mensagens enquanto salvava?
         if (batch.length > 0) {
-            void flushMessages();
+            void flushMessages(sessionId);
         }
 
     }

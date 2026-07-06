@@ -74,9 +74,15 @@ class Chats {
       const values = [];
       const placeholders = [];
       let index = 1;
+      const vistos = new Set();
 
       for (const msg of chats) {
-
+        const key = `${msg.sessao_id}:${msg.jid}`;
+        if (vistos.has(key)) {
+          logger.info(`Chats duplicado ignorando: `, key)
+          continue;
+        }
+        vistos.add(key);
         const campos = [
           msg.sessao_id,
           msg.jid,
