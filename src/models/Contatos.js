@@ -61,6 +61,59 @@ class Contato {
         }
     }
 
+    static async SaveContatosBatch(contatos) {
+        try {
+
+            const colunas = [
+                "sessao_id",
+                "jid",
+                "nome",
+                "apelido",
+                "nome_verificado",
+                "url_imagem",
+                "status_contato"
+            ];
+            const values = [];
+            const placeholders = [];
+            let index = 1;
+
+            for (const msg of contatos) {
+
+                const colunas = [
+                    msg.sessao_id,
+                    msg.jid,
+                    msg.nome,
+                    msg.apelido,
+                    msg.nome_verificado,
+                    msg.url_imagem,
+                    msg.status_contato
+                ]
+                placeholders.push(
+                    `(${colunas.map(() => `$${index++}`).join(', ')})`
+                );
+
+                values.push(...colunas);
+            }
+            const sql = `
+            INSERT INTO contatos (${colunas.join(", ")})
+            VALUES 
+                ${placeholders.join(",\n")}
+                ON CONFLICT (sessao_id, jid)
+                DO UPDATE SET
+                    nome = COALESCE(EXCLUDED.nome, contatos.nome),
+                    apelido = COALESCE(EXCLUDED.apelido, contatos.apelido),
+                    nome_verificado = COALESCE(EXCLUDED.nome_verificado, contatos.nome_verificado),
+                    url_imagem = EXCLUDED.url_imagem,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING *;
+            `;
+            const result = await execute(sql, values);
+
+        } catch (error) {
+            logger.error("Erro ao salvar message: ", error)
+        }
+    }
+
 }
 
 export default Contato;

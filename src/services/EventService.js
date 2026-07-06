@@ -70,6 +70,7 @@ export const eventBaileys = async (sock, sessionId, saveCreds) => {
 
     sock.ev.on("messaging-history.status", (data) => {
         try {
+            console.log(data)
             WebSocketService.emitEvents(sessionId, "messaging_history_status", data);
         } catch (error) { }
 

@@ -433,7 +433,10 @@
 			botaoConectar.textContent = "Aguarde..."
 			const res = await fazerRequisicaoApi(`${apiurl}/session/conectar_sessao`, "PUT", null, apikey)
 			if (res.success) {
-				findSessao();
+				setTimeout(() => {
+					findSessao();
+				}, 300);
+
 				return mostrarNotificacao('sucesso', 'Sucesso', 'Qrcode gerado com sucesso');
 
 			} else {

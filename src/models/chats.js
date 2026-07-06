@@ -59,6 +59,63 @@ class Chats {
     }
   }
 
+  static async SaveChatsBatch(chats) {
+    try {
+
+      const colunas = [
+        "sessao_id",
+        "jid",
+        "nome",
+        "eh_grupo",
+        "mensagens_nao_lidas",
+        "arquivado",
+        "fixado",
+        "dados",
+      ];
+      const values = [];
+      const placeholders = [];
+      let index = 1;
+
+      for (const msg of chats) {
+
+        const campos = [
+          msg.sessao_id,
+          msg.jid,
+          msg.nome,
+          msg.eh_grupo,
+          msg.mensagens_nao_lidas,
+          msg.arquivado,
+          msg.fixado,
+          msg.dados
+        ]
+
+        placeholders.push(
+          `(${campos.map(() => `$${index++}`).join(", ")})`
+        );
+        values.push(...campos);
+      }
+      const sql = `
+        INSERT INTO chats (${colunas.join(", ")})
+        VALUES
+            ${placeholders.join(",\n")}
+              ON CONFLICT (sessao_id, jid)
+              DO UPDATE SET
+                dados = EXCLUDED.dados,
+                nome = EXCLUDED.nome,
+                eh_grupo = EXCLUDED.eh_grupo,
+                mensagens_nao_lidas = EXCLUDED.mensagens_nao_lidas,
+                arquivado = EXCLUDED.arquivado,
+                fixado = EXCLUDED.fixado
+              RETURNING *
+      `;
+
+      const result = await execute(sql, values);
+
+    } catch (error) {
+      logger.error("Erro ao salvar message: ", error)
+    }
+  }
+
   static async FindChatsAll({ sessionId, page = 1, limit = 50, search = "" }) {
     try {
 

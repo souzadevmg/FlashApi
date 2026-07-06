@@ -86,6 +86,60 @@ class Message {
         }
     }
 
+    static async SaveMessageBatch(mensagens) {
+        try {
+
+            const colunas = [
+                "sessao_id",
+                "mensagem_id",
+                "remotejid",
+                "fromme",
+                "isgrupo",
+                "participant",
+                "tipo_mensagem",
+                "conteudo_mensagem",
+                "status"
+            ];
+            const values = [];
+            const placeholders = [];
+            let index = 1;
+
+            for (const msg of mensagens) {
+
+                const campos = [
+                    msg.sessao_id,
+                    msg.mensagem_id,
+                    msg.remotejid,
+                    msg.fromme,
+                    msg.isgrupo,
+                    msg.participant,
+                    msg.tipo_mensagem,
+                    msg.conteudo_mensagem,
+                    msg.status
+                ]
+
+                placeholders.push(
+                    `(${campos.map(() => `$${index++}`).join(", ")})`
+                );
+                values.push(...campos);
+            }
+            const sql = `
+                INSERT INTO mensagens (${colunas.join(", ")})
+                VALUES
+                    ${placeholders.join(",\n")}
+                ON CONFLICT (sessao_id, mensagem_id)
+                DO UPDATE SET
+                    conteudo_mensagem = EXCLUDED.conteudo_mensagem
+                RETURNING *
+            `;
+
+            const result = await execute(sql, values);
+
+        } catch (error) {
+            logger.error("Erro ao salvar message: ", error)
+        }
+    }
+
 }
 
 export default Message;

@@ -15,7 +15,7 @@ import os from "os";
 import path from "path";
 import { sendMessage } from "../services/messageService.js";
 import { sendButton, sendCarousel, sendinteractiveMessage, sendList } from "../services/buttonsService.js";
-import Message from "../models/message.js";
+import Message from "../models/Message.js";
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const router = express.Router();

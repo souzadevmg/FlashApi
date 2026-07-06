@@ -1,7 +1,7 @@
 import { decryptPollVote, getKeyAuthor, jidNormalizedUser } from "@whiskeysockets/baileys";
 import BaileysService from "../BaileysService.js";
 import WebSocketService from "../WebSocketService.js";
-import Message from "../../models/message.js";
+import Message from "../../models/Message.js";
 import digestSync from "crypto-digest-sync";
 import logger from "../../utils/logger.js";
 
@@ -16,6 +16,7 @@ export const messagemap = async (sessionId, dados) => {
     const sessao = await BaileysService.redis.get(BaileysService.keys.sessao(sessionId))
 
     for (const msg of messages) {
+
         let message = JSON.parse(JSON.stringify(msg))
         if (sessao?.ignorar_grupos === true && message?.key?.remoteJid?.endsWith("@g.us")) continue; //Verificar se ta ativo ignorar grupos
         if (!message.key || message?.key?.remoteJid == "status@broadcast") continue; //Verificar se e evendo de status
@@ -27,6 +28,7 @@ export const messagemap = async (sessionId, dados) => {
             sessionId: sessionId,
             ...message
         }
+
         if (message.message?.pollCreationMessageV3 ||
             message.message?.pollCreationMessage ||
             message.message?.pollCreationMessageV2 ||
