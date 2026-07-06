@@ -37,7 +37,7 @@ const config = {
 
   // Global WebSocket
   enableGlobalWebsocket: process.env.ENABLE_WEBSOCKET === 'true',
-  globalWebsocketUrl: process.env.GLOBAL_WEBSOCKET_SECRET || "ASDASDSA55WQ88E55R8ER5T2QW5E5Q",
+  globalWebsocketSecret: process.env.GLOBAL_WEBSOCKET_SECRET || "ASDASDSA55WQ88E55R8ER5T2QW5E5Q",
 
   // Validation
   isProduction: process.env.NODE_ENV === 'production',

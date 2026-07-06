@@ -129,7 +129,7 @@ class Session {
       await execute(`DELETE FROM proxy WHERE sessao_id = $1`, [id]);
       await BaileysService.DeleteSessao(id)
       try { const sock = BaileysService.sockets.get(id); sock.end(); } catch (error) { }
-      await execute(`UPDATE sessao SET status = $1`, ['desconnected'])
+      await execute(`UPDATE sessao SET status = $1 WHERE apikey = $2`, ['desconnected', id])
 
     } catch (error) {
       logger.error('Erro ao deletar sessão: ')

@@ -44,6 +44,11 @@ export async function checkAndInitDatabase() {
     // Verifica se o database existe
     const res = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [DB_DATABASE]);
     if (res.rows.length === 0) {
+      const rex = /^[a-zA-Z0-9_]+$/
+      if (!rex.test(DB_DATABASE)) {
+        logger.error(`Nome do banco de dados "${DB_DATABASE}" não é permitido.`);
+        process.exit(1)
+      }
       await client.query(`CREATE DATABASE "${DB_DATABASE}"`);
       logger.info(`Banco "${DB_DATABASE}" criado.`);
     } else {
