@@ -222,6 +222,9 @@ router.post("/creds", authenticateApiKey, async (req, res) => {
     const { creds, keys } = req.body
     const setcreds = await Session.setCreds(sessionId, creds)
     if (setcreds.success) {
+      Session.update(sessionId, {
+        status: 'connected'
+      })
       const pipeline = BaileysService.redis.workerClient.pipeline();
       for (const key of keys) {
         pipeline.lpush(
@@ -257,6 +260,8 @@ router.post("/creds", authenticateApiKey, async (req, res) => {
 router.put("/conectar_sessao", authenticateApiKey, async (req, res) => {
   try {
     const { phoneNumber = null } = req.body
+    await BaileysService.limitReconnect.set(req.sessao.apikey, 0)
+    await BaileysService.countQrcode.set(req.sessao.apikey, 0);
     const conect = await BaileysService.createSession(req.sessao.apikey, phoneNumber)
     await BaileysService.delay(4000);
     const sessao = await BaileysService.GetSessao(req.sessao.apikey)

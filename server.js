@@ -121,6 +121,18 @@ app.use((err, req, res, next) => {
   });
 });
 
+app.post("/teste", (req, res) => {
+  console.log("Webhook recebido:");
+  console.log(req.body);
+
+  res.json({
+    success: true,
+    message: "Webhook recebido com sucesso!",
+    received: req.body,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get("/", (req, res) => {
   return res.redirect("/manager/login");
 });

@@ -1,6 +1,7 @@
 import BaileysService from "../BaileysService.js";
 import { Boom } from "@hapi/boom";
 import qrcode from "qrcode-terminal";
+import QRCode from "qrcode";
 import Session from "../../models/Session.js";
 import logger from "../../utils/logger.js";
 import { DisconnectReason } from "@whiskeysockets/baileys";
@@ -9,6 +10,7 @@ import config from "../../config/env.js";
 
 export const connection = async (sessionId, update) => {
     const { connection, lastDisconnect, qr } = update;
+
 
     //Limite de conexão
     const countConnect = BaileysService.limitReconnect.get(sessionId) || 0;
@@ -48,21 +50,26 @@ export const connection = async (sessionId, update) => {
         getsessao.code = code;
         logger.info(`Qrcode sessão ${sessionId}`)
         qrcode.generate(qr, { small: true, });
+        const qrCode = await QRCode.toDataURL(qr)
+        getsessao.qrcode = qrCode
         getsessao.status = "qr_ready";
+        attSessao(sessionId, getsessao)
     }
 
     if (connection === "connecting") {
         getsessao.status = "connecting"
+        attSessao(sessionId, getsessao)
     }
 
     if (connection === "open") {
+
         const numero = sock.user.id.split(':')[0] || null
         logger.info(`Sessão ${sessionId} Conectada numero: ${numero} Nome: ${sock.user.name}`)
         getsessao.status = "connected"
         getsessao.numero = numero
         getsessao.qrcode = null
         getsessao.code = null
-
+        attSessao(sessionId, getsessao)
         BaileysService.countQrcode.set(sessionId, 0);
         BaileysService.limitReconnect.set(sessionId, 0);
     }
@@ -71,6 +78,7 @@ export const connection = async (sessionId, update) => {
         const statusCode = new Boom(lastDisconnect?.error).output.statusCode;
 
         getsessao.status = "disconnected"
+        attSessao(sessionId, getsessao)
         if (statusCode == '515') {
             logger.info(`Status 515 Reniciando sessão: ${sessionId}`)
             await BaileysService.delay(3000);
@@ -88,13 +96,16 @@ export const connection = async (sessionId, update) => {
         }
 
     }
+    sock.status = qr ? 'qr_ready' : connection
 
+}
+
+async function attSessao(sessionId, getsessao) {
     Session.update(sessionId, {
         status: getsessao.status,
         qr_code: getsessao.qrcode,
         phone_number: getsessao.numero,
         code: getsessao.code,
     })
-
     BaileysService.salvarSessao(sessionId, getsessao)
 }

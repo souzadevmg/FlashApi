@@ -1,0 +1,76 @@
+# Configurações da API
+HOST=principal.eclipsessh.com
+PROTOCOLO=https # http | https
+PORT=3000
+NODE_ENV=development
+LOG_LEVEL=info # fatal | error | warn | info | debug | trace | silent 
+BAILEYS_LOG_LEVEL=error # fatal | error | warn | info | debug | trace | silent
+
+VERSAO=1.0.6
+SYNC_SESSIONS=true # true | false 
+
+CORS_ORIGINS=*
+# ou, se quiser limitar:
+# CORS_ORIGINS=https://meusite.com,http://localhost:3000
+
+MANAGER=true
+LOGIN_MANAGER_ADMIN=admin
+LOGIN_MANAGER_USER=user
+SENHA_MANAGER_ADMIN=95542362Cc@Cc
+# Se quiser desativar o manager basta bota false
+
+# Nome que aparece no whatsapp
+SESSION_PHONE_CLIENT=testeflash
+
+# Navegador Nome Opções disponivel: Chrome | Firefox | Edge | Opera | Safari
+SESSION_PHONE_NAME=Chrome
+
+# API Key Global (obrigatória para criar sessões)
+GLOBAL_API_KEY=ASDASDSA55WQ88E55R8ER5T2QW5E5Q
+
+# Webhook Global
+ENABLE_GLOBAL_WEBHOOK=false
+GLOBAL_WEBHOOK_URL="http://localhost:3001/teste"
+GLOBAL_WEBHOOK_ATTEMPTS=4
+GLOBAL_WEBHOOK_EVENTS: "connection_update,creds_update,messaging_history_set,messaging_history_status,chats_upsert,chats_update,lid_mapping_update,chats_delete,presence_update,contacts_upsert,contacts_update,messages_delete,messages_update,messages_media_update,messages_upsert,messages_reaction,message_receipt_update,groups_upsert,groups_update,group_participants_update,group_join_request,group_member_tag_update,blocklist_set,blocklist_update,call,labels_edit,labels_association,newsletter_reaction,newsletter_view,newsletter_participants_update,newsletter_settings_update,message_capping_update,chats_lock,settings_update"
+
+# WebSocket Global
+ENABLE_WEBSOCKET=false
+GLOBAL_WEBSOCKET_SECRET=ASDASDSA55WQ88E55R8ER5T2QW5E5Q
+
+# ✅ DATABASE CONFIGURATION 
+# postgres ou mysql
+DB_TYPE=postgres
+DB_HOST=easy.quickgestor.com #localhost
+DB_PORT=5439 #5432
+DB_USER=postgres
+DB_PASSWORD=mk9m7j469hgnpqheccfj #postgres
+DB_DATABASE=testelocal  #testeapiflash
+DB_CONNECTION_LIMIT=60
+QUEUELIMIT=0
+
+#REDIS
+REDIS_HOST=easy.quickgestor.com #127.0.0.1
+REDIS_PORT=5438 #6379
+REDIS_PASS=uplkioow56micbm0v48w
+
+# Limite de geração de qrcode 
+LIMITE_QRCODE=10
+
+TZ=America/Sao_Paulo
+
+DELETE_SESAO_DISCONECT=true # true ou false
+TEMP_DELETE_SESSAO=5 # 5 horas
+
+#Proxy
+PROXY_STATE=false
+PROXY_HOST=gw.dataimpulse.com
+PROXY_PROTOCOL=http
+PROXY_USERNAME=6ae87fbad6b60bce357f
+PROXY_PASSWORD=0af3ebb48684d467
+PROXY_PORT=823
+# ou
+# Não define PROXY_PORT para sortear entre 10000 e 20000
+# opcional:
+PROXY_PORT_MIN=10000        # mínimo do intervalo
+PROXY_PORT_MAX=20000        # máximo do intervalo

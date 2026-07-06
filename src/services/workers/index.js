@@ -2,6 +2,7 @@ import { startAuthKeyWorker } from "./startAuthKeyWorker.js";
 import { startChatsWorker } from "./startChatsWorker.js";
 import { startContatosWorker } from "./startContatosWorker.js";
 import { startMessageWorker } from "./startMessageWorker.js";
+import { startSessaoWorker } from "./startSessionsWorker.js";
 import { startUtilWorker } from "./startUtilWorker.js";
 
 const workers = [
@@ -10,6 +11,7 @@ const workers = [
     { fn: startContatosWorker, count: 4 },
     { fn: startUtilWorker, count: 4 },
     { fn: startChatsWorker, count: 4 },
+    { fn: startSessaoWorker, count: 1 },
 ];
 
 export function startWorkers() {

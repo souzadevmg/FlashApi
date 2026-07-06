@@ -15,6 +15,7 @@ import os from "os";
 import path from "path";
 import { sendMessage } from "../services/messageService.js";
 import { sendButton, sendCarousel, sendinteractiveMessage, sendList } from "../services/buttonsService.js";
+import Message from "../models/message.js";
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const router = express.Router();
@@ -485,7 +486,7 @@ router.get("/chats", authenticateApiKey, async (req, res) => {
 
 router.delete("/delete/:id_message", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers["apikey"];
+    const sessao = req.sessao;
     const { id_message } = req.params;
     if (!id_message) {
       return res.json({
@@ -495,7 +496,7 @@ router.delete("/delete/:id_message", authenticateApiKey, async (req, res) => {
       });
     }
 
-    const get_message = await Chats.getMessage(sessionId, id_message);
+    const get_message = await Message.getMessage(sessao.apikey, id_message);
 
     if (!get_message) {
       return res.json({
@@ -511,8 +512,17 @@ router.delete("/delete/:id_message", authenticateApiKey, async (req, res) => {
       fromMe: get_message.fromme ? true : false,
       participant: get_message.participant || undefined,
     };
+    /** @type {import("@whiskeysockets/baileys").WASocket} */
+    const sock = BaileysService.sockets.get(sessao.apikey)
+    if (!sock) {
+      return res.json({
+        success: false,
+        message: "Sessão não conectada",
+        data: [],
+      });
+    }
 
-    const delete_msg = await BaileysService.deleteMessage(sessionId, get_message.remotejid, key);
+    const delete_msg = await sock.sendMessage(get_message.remotejid, { delete: key });
     if (!delete_msg) {
       return res.json({
         success: false,

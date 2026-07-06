@@ -157,7 +157,7 @@ class Session {
 
   static async getProxy(session) {
     const { rows } = await execute(`SELECT host, port, protocol, username, password, active FROM proxy WHERE sessao_id = $1`, [session]);
-    return rows[0] || null;
+    return rows[0] || {};
   }
 
   static async GetCreds(session) {

@@ -24,21 +24,13 @@ export const eventBaileys = async (sock, sessionId, saveCreds) => {
         const unicos = new Map();
 
         for (const item of lista) {
-            const payload = {
-                ...item,
-                sessionId
-            };
+            const dados = JSON.parse(JSON.stringify(item))
+            dados.sessionId = sessionId
 
             if (type) {
-                item.type = type
+                dados.type = type
             }
-            const chave = `${sessionId}:${payload.id ?? payload.jid ?? payload.lid}`;
-            // Mantém apenas o último
-            unicos.set(chave, payload);
-        }
-
-        for (const payload of unicos.values()) {
-            pipeline.lpush(fila, JSON.stringify(payload));
+            pipeline.lpush(fila, JSON.stringify(dados));
         }
 
         await pipeline.exec();
@@ -59,12 +51,12 @@ export const eventBaileys = async (sock, sessionId, saveCreds) => {
         try {
             WebSocketService.emitEvents(sessionId, "messaging_history_set", data);
             const { contacts, chats, messages, lidPnMappings } = data
-
+            logger.info(`Sincronização iniciada contatos: ${contacts?.length ?? 0} chats: ${chats?.length ?? 0} message: ${messages?.length ?? 0} lid_map: ${lidPnMappings?.length ?? 0}`)
             await Promise.all([
-                enqueueList(contacts, KEYS().Store_contatos(), sessionId),
-                enqueueList(chats, KEYS().Store_chats(), sessionId),
-                enqueueList(messages, KEYS().Store_mensagens(), sessionId),
-                enqueueList(lidPnMappings, KEYS().queue_util(), sessionId, 'lid_map')
+                Array.isArray(contacts) ? enqueueList(contacts, KEYS().Store_contatos(), sessionId) : [],
+                Array.isArray(chats) ? enqueueList(chats, KEYS().Store_chats(), sessionId) : [],
+                Array.isArray(messages) ? enqueueList(messages, KEYS().Store_mensagens(), sessionId) : [],
+                Array.isArray(lidPnMappings) ? enqueueList(lidPnMappings, KEYS().queue_util(), sessionId, 'lid_map') : []
             ]);
 
 
@@ -122,7 +114,6 @@ export const eventBaileys = async (sock, sessionId, saveCreds) => {
     sock.ev.on("contacts.upsert", (data) => {
         try {
             WebSocketService.emitEvents(sessionId, "contacts_upsert", data);
-            logger.info(`Sincronizando ${data.length} contatos na sessão: ${sessionId}`)
             enqueueList(data, KEYS().Store_contatos(), sessionId)
         } catch (error) { }
     });

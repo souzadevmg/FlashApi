@@ -300,6 +300,7 @@ class Store {
   // ===== CONFIGURAÇÕES DE SESSÃO =====
   static async saveSessionConfig(sessionId, configData) {
     try {
+      console.log(configData)
       await execute(
         `
         UPDATE sessao SET 
@@ -318,7 +319,7 @@ class Store {
           configData.ignorar_grupos ? 1 : 0,
           configData.leitura_automatica ? 1 : 0,
           configData.rejeitar_ligacoes ? 1 : 0,
-          JSON.stringify(configData.events || {}),
+          JSON.stringify(configData.events || []),
           configData.webhook_status ? 1 : 0,
           configData.msg_rejectcalls,
           sessionId,

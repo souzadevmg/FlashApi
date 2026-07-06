@@ -120,6 +120,8 @@ code,
     font-family: var(--font-body);
 }
 
+
+
 .text-primary {
     color: var(--signal-orange) !important;
 }
@@ -547,6 +549,22 @@ body.login-page::before {
 /* ============================================================
    CARD DE INSTÂNCIA
    ============================================================ */
+
+#icon-card-webhook {
+    animation: bounce 1.2s infinite;
+}
+
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(5px);
+    }
+}
 
 .card-instance {
     position: relative;

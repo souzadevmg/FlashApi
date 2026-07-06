@@ -64,14 +64,14 @@ router.get("/dashboard", checkAuth, async (req, res) => {
 
     res.render("dashboard", { instances, userId, error: null });
   } else if (modo == "user") {
-    const getintacias = await Session.findById(userId);
+    const getinstacia = await Session.findById(userId);
 
-    if (!getintacias) {
+    if (!getinstacia) {
       req.session.error = { message: "Apikey invalida.", icon: "danger" };
       res.redirect("/manager/login");
       return;
     }
-    res.render("user", { instances: [getintacias], userId, error: null });
+    res.render("user", { apikey: userId, error: null });
   }
 });
 

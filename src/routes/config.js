@@ -44,14 +44,13 @@ router.put("/config", authenticateApiKey, async (req, res) => {
     const {
       ignoreGroups = false,
       autoRead = false,
-      msg_rejectcalls = null,
-      rejectCalls = false,
+      msg_rejectCall = null,
+      rejectCall = false,
     } = req.body;
-
     sessao.ignorar_grupos = ignoreGroups;
     sessao.leitura_automatica = autoRead;
-    sessao.msg_rejectcalls = msg_rejectcalls;
-    sessao.rejeitar_ligacoes = rejectCalls;
+    sessao.msg_rejectcalls = msg_rejectCall;
+    sessao.rejeitar_ligacoes = rejectCall;
 
     const success = await Store.saveSessionConfig(sessao.apikey, sessao);
     BaileysService.salvarSessao(sessao.apikey, sessao);
@@ -94,7 +93,7 @@ router.put("/webhook", authenticateApiKey, async (req, res) => {
     sessao.webhook_url = webhookUrl;
     sessao.events = events;
     sessao.webhook_status = status;
-
+    console.log(sessao)
     const success = await Store.saveSessionConfig(sessao.apikey, sessao);
     BaileysService.salvarSessao(sessao.apikey, sessao);
 
@@ -121,16 +120,23 @@ router.put("/proxy", authenticateApiKey, async (req, res) => {
   try {
     const sessao = req.sessao;
     const {
-      protocol,
-      username = "",
-      password = "",
-      host,
-      port,
+      protocol = "http",
+      username = "teste",
+      password = "teste",
+      host = "teste",
+      port = 8080,
       active = false,
     } = req.body;
     const requiredFields = ["protocol", "host", "port"];
 
-    const proxyConfig = { protocol, username, password, host, port, active };
+    const proxyConfig = {
+      protocol: protocol.trim() == '' ? 'http' : protocol,
+      username: username.trim() == '' ? 'teste' : username,
+      password: password.trim() == '' ? 'teste' : password,
+      host: host.trim() == '' ? '127.0.0.1' : host,
+      port: port.trim() == '' ? 8080 : port,
+      active: active ? true : false,
+    };
     const setProxy = await Session.setProxy(sessao.apikey, proxyConfig);
     if (setProxy.affectedRows === 0) {
       return res.status(500).json({
