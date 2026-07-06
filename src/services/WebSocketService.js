@@ -87,6 +87,10 @@ class WebSocketService {
 
     });
 
+    this.wss.on('close', (teste) => {
+      console.log(teste)
+    })
+
   }
 
   generateClientId() {

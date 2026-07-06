@@ -83,7 +83,7 @@ router.get("/dashboard", checkAuth, async (req, res) => {
   if (modo == "admin") {
     const instances = await Session.findAllSessao();
 
-    res.render("dashboard", { instances, userId: config.manager_senha_admin, error: null });
+    res.render("dashboard", { instances, userId: config.manager_senha_admin, apikey: config.globalApiKey, error: null });
   } else if (modo == "user") {
     const getinstacia = await Session.findById(userId);
 

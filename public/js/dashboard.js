@@ -3,11 +3,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const elementoInfoUsuario = document.getElementById("userInfo");
   const inputFiltroBusca = document.getElementById("filtroBusca");
   const botaoAtualizar = document.getElementById("btnRefreshAnalytics");
-  const modalQrCode = document.getElementById("modalQR");
-  const btn_conectar = document.querySelectorAll(".btn-conectar");
-  const btn_desconectar = document.querySelectorAll(".btn-desconectar");
   const btn_deletar = document.querySelectorAll(".btn-deletar");
-  const btn_configuracao = document.querySelectorAll(".btn-configuracao");
   const btn_copiar = document.querySelectorAll(".copiar-btn");
 
   btn_copiar.forEach((botao) => {
@@ -27,10 +23,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
-  const modalConfig = new bootstrap.Modal(document.getElementById("configSessao"));
-  modalConfig._element.addEventListener("hidden.bs.modal", function () {
-    window.location.reload();
-  });
 
   if (!elementoInfoUsuario) {
     return;
@@ -257,9 +249,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       inputNumero.value = "";
     }
   });
-
-
-
 
   //Verificar status de uma sessao
   async function verificarStatusSessao(sessionId) {
