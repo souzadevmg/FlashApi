@@ -77,8 +77,7 @@ class Message {
 
             const sql = `INSERT INTO mensagens (${colunas.join(", ")}) VALUES (${placeholders}) ON CONFLICT (sessao_id, mensagem_id)
              DO UPDATE SET
-                conteudo_mensagem = EXCLUDED.conteudo_mensagem
-            RETURNING *`
+                conteudo_mensagem = EXCLUDED.conteudo_mensagem`
             const addsessao = await execute(sql, valores);
 
         } catch (error) {
@@ -130,7 +129,6 @@ class Message {
                 ON CONFLICT (sessao_id, mensagem_id)
                 DO UPDATE SET
                     conteudo_mensagem = EXCLUDED.conteudo_mensagem
-                RETURNING *
             `;
 
             const result = await execute(sql, values);

@@ -87,19 +87,19 @@ export const workers = [
     }),
 
     // Loop de sessão
-    createLoopWorker({
-        name: "Sessões",
-        interval: 3000,
-        handler: async () => {
-            for (const [id, sock] of BaileysService.sockets) {
+    // createLoopWorker({
+    //     name: "Sessões",
+    //     interval: 3000,
+    //     handler: async () => {
+    //         for (const [id, sock] of BaileysService.sockets) {
 
-                if (sock.status === "open") {
-                    await Session.update(id, {
-                        status: "connected"
-                    });
-                }
-            }
-        }
-    })
+    //             if (sock.status === "open") {
+    //                 await Session.update(id, {
+    //                     status: "connected"
+    //                 });
+    //             }
+    //         }
+    //     }
+    // })
 
 ];

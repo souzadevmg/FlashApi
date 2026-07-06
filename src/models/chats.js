@@ -50,8 +50,7 @@ class Chats {
                 eh_grupo = EXCLUDED.eh_grupo,
                 mensagens_nao_lidas = EXCLUDED.mensagens_nao_lidas,
                 arquivado = EXCLUDED.arquivado,
-                fixado = EXCLUDED.fixado
-            RETURNING *`
+                fixado = EXCLUDED.fixado`
       const addsessao = await execute(sql, valores);
 
     } catch (error) {
@@ -106,7 +105,6 @@ class Chats {
                 mensagens_nao_lidas = EXCLUDED.mensagens_nao_lidas,
                 arquivado = EXCLUDED.arquivado,
                 fixado = EXCLUDED.fixado
-              RETURNING *
       `;
 
       const result = await execute(sql, values);

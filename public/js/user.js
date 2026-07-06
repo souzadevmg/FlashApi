@@ -435,7 +435,7 @@
 			if (res.success) {
 				setTimeout(() => {
 					findSessao();
-				}, 300);
+				}, 3000);
 
 				return mostrarNotificacao('sucesso', 'Sucesso', 'Qrcode gerado com sucesso');
 

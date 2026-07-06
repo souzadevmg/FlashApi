@@ -97,6 +97,8 @@ export async function execute(query, params = [], options = {}) {
           {
             duration,
             rowCount: result.rowCount,
+            pool: getPoolStatus(),
+            query
           },
           "Query lenta detectada",
         );

@@ -21,7 +21,26 @@ function checkStatusManager(req, res, next) {
 
 router.use(checkStatusManager);
 // Página de login (GET)
-router.get("/login", (req, res) => {
+router.get("/login", async (req, res) => {
+  const { token = null, redirect = null } = req.query
+  if (token) {
+    if (config.manager_senha_admin === token) {
+
+      req.session.userId = config.globalApiKey;
+      req.session.modo = "admin";
+
+      return res.redirect(`/manager/dashboard?redirect=${redirect}`);
+    } else {
+
+      const getsession = await Session.findById(token);
+      if (getsession) {
+        req.session.userId = token;
+        req.session.modo = "user";
+        return res.redirect(`/manager/dashboard?redirect=${redirect}`);
+      }
+
+    }
+  }
   const error = req.session.error;
   delete req.session.error;
   res.render("index", { error });
@@ -33,7 +52,7 @@ router.post("/login", async (req, res) => {
 
   if (config.login_manager_admin === login && config.manager_senha_admin === senha) {
 
-    req.session.userId = config.globalApiKey;
+    req.session.userId = senha;
     req.session.modo = "admin";
 
     return res.redirect("/manager/dashboard");
@@ -59,10 +78,12 @@ router.post("/login", async (req, res) => {
 router.get("/dashboard", checkAuth, async (req, res) => {
   const userId = req.session.userId;
   const modo = req.session.modo;
+  const { redirect = null } = req.query
+
   if (modo == "admin") {
     const instances = await Session.findAllSessao();
 
-    res.render("dashboard", { instances, userId, error: null });
+    res.render("dashboard", { instances, userId: config.manager_senha_admin, error: null });
   } else if (modo == "user") {
     const getinstacia = await Session.findById(userId);
 
@@ -71,7 +92,7 @@ router.get("/dashboard", checkAuth, async (req, res) => {
       res.redirect("/manager/login");
       return;
     }
-    res.render("user", { apikey: userId, error: null });
+    res.render("user", { apikey: userId, error: null, redirect });
   }
 });
 

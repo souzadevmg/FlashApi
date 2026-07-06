@@ -52,7 +52,6 @@ class Contato {
                 nome_verificado = COALESCE(EXCLUDED.nome_verificado, contatos.nome_verificado),
                 url_imagem = EXCLUDED.url_imagem,
                 updated_at = CURRENT_TIMESTAMP
-            RETURNING *;
             `;
             const addsessao = await execute(sql, valores);
 
@@ -105,7 +104,6 @@ class Contato {
                     nome_verificado = COALESCE(EXCLUDED.nome_verificado, contatos.nome_verificado),
                     url_imagem = EXCLUDED.url_imagem,
                     updated_at = CURRENT_TIMESTAMP
-                RETURNING *;
             `;
             const result = await execute(sql, values);
 

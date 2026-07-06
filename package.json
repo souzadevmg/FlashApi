@@ -32,6 +32,7 @@
     "link-preview-js": "^3.2.0",
     "moment-timezone": "^0.6.0",
     "node-cache": "^5.1.2",
+    "p-limit": "^7.3.0",
     "pg": "^8.16.3",
     "pino": "^8.16.2",
     "pino-pretty": "^10.2.3",

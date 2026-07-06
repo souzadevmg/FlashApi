@@ -35,10 +35,9 @@
         <a class="navbar-brand text-primary fw-bold" href="#">Flash API</a>
 
         <div class="d-flex align-items-center">
-          <span class="me-3 text-light small-muted"
-            >APIKEY:
-            <strong class="text-secondary"> <%= userId %> </strong></span
-          >
+          <a href="/manager/logout" class="btn btn-sm btn-danger">
+            <i class="bi bi-box-arrow-right me-1"></i> Sair
+          </a>
         </div>
       </div>
     </nav>
@@ -228,56 +227,25 @@
                     Copiar API Key
                   </button>
                 </div>
+                <div class="col">
+                  <a
+                    href="/manager/login?token=<%= instance.apikey %>&redirect=/manager/login?token=<%= userId %>"
+                    class="btn btn-sm btn-primary w-100"
+                  >
+                    <i class="bi bi-gear me-1"></i>
+                    <span class="btn-text">Gerenciar sessão</span>
+                    <span
+                      class="spinner-border spinner-border-sm d-none"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                  </a>
+                </div>
               </div>
             </div>
           </div>
         </div>
         <% }) %>
-      </div>
-    </div>
-
-    <!-- Modal qrcode -->
-    <div
-      class="modal fade"
-      id="modalQR"
-      data-bs-backdrop="static"
-      data-bs-keyboard="false"
-      tabindex="-1"
-      aria-labelledby="staticBackdropLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white">
-          <div class="modal-header">
-            <h1 class="modal-title fs-5" id="staticBackdropLabel">
-              📱 Conectar WhatsApp
-            </h1>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
-          </div>
-          <div class="modal-body text-center">
-            <div id="qr-code-info"></div>
-            <img
-              id="qr-code-img"
-              class="img-fluid mt-3 border border-light rounded shadow"
-              style="max-width: 300px"
-            />
-            <div id="info-detalhes"></div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -388,265 +356,6 @@
               </button>
               <button type="submit" class="btn btn-primary">
                 ➕ Adicionar
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal de Configuração de Sessão -->
-    <div
-      class="modal fade"
-      id="configSessao"
-      data-bs-backdrop="static"
-      data-bs-keyboard="false"
-      tabindex="-1"
-      aria-labelledby="configSessaoLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white border border-primary">
-          <div class="modal-header">
-            <h5 class="modal-title text-primary" id="configSessaoLabel">
-              ⚙️ Configuração da Sessão
-            </h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-              aria-label="Fechar"
-            ></button>
-          </div>
-
-          <form id="form-config-Instance">
-            <div class="modal-body">
-              <!-- URL Webhook -->
-              <div class="mb-3">
-                <label for="webhook-url" class="form-label text-secondary"
-                  >🔗 URL Webhook</label
-                >
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2"
-                    >URL:</span
-                  >
-                  <input
-                    type="text"
-                    id="webhook-url"
-                    class="form-control border-primary border-2"
-                    placeholder="ex: https://meuwebhook.com/api/receber"
-                  />
-                </div>
-                <div class="form-check mt-2">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    id="webhook-status"
-                  />
-                  <label class="form-check-label" for="webhook-status"
-                    >✅ Ativar webhook</label
-                  >
-                </div>
-              </div>
-
-              <!-- Eventos webhook  -->
-              <div class="mb-3">
-                <label for="webhook-url" class="form-label text-secondary"
-                  >📋 Escolha os eventos</label
-                >
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2"
-                    >Eventos:</span
-                  >
-                  <select
-                    class="form-select"
-                    name="events[]"
-                    id="events[]"
-                    multiple
-                  >
-                    <option value="connection_update">connection_update</option>
-                    <option value="qr_updated">qr_updated</option>
-                    <option value="message_received">message_received</option>
-                    <option value="message_update">message_update</option>
-                    <option value="chats_set">chats_set</option>
-                    <option value="chats_update">chats_update</option>
-                    <option value="contacts_set">contacts_set</option>
-                    <option value="contacts_update">contacts_update</option>
-                    <option value="groups_update">groups_update</option>
-                    <option value="group_participants_update">
-                      group_participants_update
-                    </option>
-                    <option value="presence_update">presence_update</option>
-                    <option value="call">call</option>
-                    <option value="messaging_history_set">
-                      messaging_history_set
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- Mensagem de Rejeição -->
-              <div class="mb-3">
-                <label for="mensagem-rejeicao" class="form-label text-secondary"
-                  >🚫 Mensagem de Rejeição</label
-                >
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2"
-                    >Msg:</span
-                  >
-                  <input
-                    type="text"
-                    id="mensagem-rejeicao"
-                    class="form-control border-primary border-2"
-                    placeholder="ex: Chamada recusada."
-                  />
-                </div>
-              </div>
-
-              <!-- Opções Avançadas -->
-              <div class="row mb-3">
-                <div class="col-6">
-                  <div class="form-check mt-2">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="rejeitar-chamada"
-                    />
-                    <label class="form-check-label" for="rejeitar-chamada"
-                      >📞 Rejeitar chamadas</label
-                    >
-                  </div>
-                </div>
-                <div class="col-6">
-                  <div class="form-check">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="ignorar-grupos"
-                    />
-                    <label class="form-check-label" for="ignorar-grupos"
-                      >👥 Ignorar grupos</label
-                    >
-                  </div>
-                </div>
-
-                <div class="col-6">
-                  <div class="form-check">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="sempre-online"
-                    />
-                    <label class="form-check-label" for="sempre-online"
-                      >🟢 Sempre online</label
-                    >
-                  </div>
-                </div>
-
-                <div class="col-6">
-                  <div class="form-check">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="proxy-ativo"
-                    />
-                    <label class="form-check-label" for="proxy-ativo"
-                      >🟢 Proxy Ativo</label
-                    >
-                  </div>
-                </div>
-              </div>
-
-              <div class="row mb-3 d-none" id="config-proxy">
-                <div class="mb-3 col-6">
-                  <div class="input-group">
-                    <span class="input-group-text border-primary border-2"
-                      >Protocol:</span
-                    >
-                    <input
-                      type="text"
-                      id="proxy-protocol"
-                      class="form-control border-primary border-2"
-                      placeholder="ex: http"
-                    />
-                  </div>
-                </div>
-
-                <div class="mb-3 col-6">
-                  <div class="input-group">
-                    <span class="input-group-text border-primary border-2"
-                      >Username:</span
-                    >
-                    <input
-                      type="text"
-                      id="proxy-username"
-                      class="form-control border-primary border-2"
-                      placeholder="ex: user123"
-                    />
-                  </div>
-                </div>
-
-                <div class="mb-3 col-6">
-                  <div class="input-group">
-                    <span class="input-group-text border-primary border-2"
-                      >Password:</span
-                    >
-                    <input
-                      type="text"
-                      id="proxy-password"
-                      class="form-control border-primary border-2"
-                      placeholder="ex: pass123"
-                    />
-                  </div>
-                </div>
-
-                <div class="mb-3 col-6">
-                  <div class="input-group">
-                    <span class="input-group-text border-primary border-2"
-                      >Port:</span
-                    >
-                    <input
-                      type="text"
-                      id="proxy-port"
-                      class="form-control border-primary border-2"
-                      placeholder="ex: 8080"
-                    />
-                  </div>
-                </div>
-
-                <div class="mb-3 col-6">
-                  <div class="input-group">
-                    <span class="input-group-text border-primary border-2"
-                      >Host:</span
-                    >
-                    <input
-                      type="text"
-                      id="proxy-host"
-                      class="form-control border-primary border-2"
-                      placeholder="ex: 127.0.0.1"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <input type="hidden" name="id_sessao" id="id_sessao" value="" />
-
-            <div class="modal-footer">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                data-bs-dismiss="modal"
-              >
-                Fechar
-              </button>
-              <button type="submit" class="btn btn-primary">
-                <span class="btn-text">💾 Salvar</span>
-                <span
-                  class="spinner-border spinner-border-sm d-none"
-                  role="status"
-                  aria-hidden="true"
-                ></span>
               </button>
             </div>
           </form>

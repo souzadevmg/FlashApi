@@ -36,7 +36,7 @@ class Session {
         .map((_, i) => `$${i + 1}`)
         .join(", ");
 
-      const sql = `INSERT INTO sessao (${colunas.join(", ")}) VALUES (${placeholders}) RETURNING *`
+      const sql = `INSERT INTO sessao (${colunas.join(", ")}) VALUES (${placeholders})`
       const addsessao = await execute(sql, valores);
 
       //Adicionar proxy
@@ -57,7 +57,7 @@ class Session {
           .map((_, i) => `$${i + 1}`)
           .join(", ");
 
-        const sqlProxy = `INSERT INTO proxy (${proxyColunas.join(", ")}) VALUES (${placeholdersProxy}) RETURNING *`
+        const sqlProxy = `INSERT INTO proxy (${proxyColunas.join(", ")}) VALUES (${placeholdersProxy})`
         await execute(sqlProxy, proxyValues);
       } catch (error) { console.log(error) }
       return addsessao;

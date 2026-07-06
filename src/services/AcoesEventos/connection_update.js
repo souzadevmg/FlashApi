@@ -6,6 +6,7 @@ import Session from "../../models/Session.js";
 import logger from "../../utils/logger.js";
 import { DisconnectReason } from "@whiskeysockets/baileys";
 import config from "../../config/env.js";
+import { updateSessao } from "./connection_update_status.js";
 
 
 export const connection = async (sessionId, update) => {
@@ -46,47 +47,49 @@ export const connection = async (sessionId, update) => {
             } catch (error) { }
         }
 
-        getsessao.qrcode = qr;
-        getsessao.code = code;
         logger.info(`Qrcode sessão ${sessionId}`)
         qrcode.generate(qr, { small: true, });
         const qrCode = await QRCode.toDataURL(qr)
+        getsessao.code = code;
         getsessao.qrcode = qrCode
         getsessao.status = "qr_ready";
-        attSessao(sessionId, getsessao)
     }
 
     if (connection === "connecting") {
-        getsessao.status = "connecting"
-        attSessao(sessionId, getsessao)
+        getsessao.status = connection
     }
 
     if (connection === "open") {
-
+        getsessao.status = "connected"
+        void updateSessao(sessionId, getsessao)
         const numero = sock.user.id.split(':')[0] || null
         logger.info(`Sessão ${sessionId} Conectada numero: ${numero} Nome: ${sock.user.name}`)
         getsessao.status = "connected"
         getsessao.numero = numero
         getsessao.qrcode = null
         getsessao.code = null
-        attSessao(sessionId, getsessao)
+
         BaileysService.countQrcode.set(sessionId, 0);
         BaileysService.limitReconnect.set(sessionId, 0);
     }
 
     if (connection === "close") {
         const statusCode = new Boom(lastDisconnect?.error).output.statusCode;
-
         getsessao.status = "disconnected"
-        attSessao(sessionId, getsessao)
+        void updateSessao(sessionId, getsessao)
         if (statusCode == '515') {
             logger.info(`Status 515 Reniciando sessão: ${sessionId}`)
+            getsessao.status = "connecting"
+            void updateSessao(sessionId, getsessao)
+
             await BaileysService.delay(3000);
             return BaileysService.createSession(sessionId)
         }
 
         if (statusCode !== DisconnectReason.loggedOut) {
             logger.info(`Reconectando sessão: ${sessionId}`)
+            getsessao.status = "connecting"
+            void updateSessao(sessionId, getsessao)
             await BaileysService.delay(3000);
             return BaileysService.createSession(sessionId)
 
@@ -94,18 +97,9 @@ export const connection = async (sessionId, update) => {
             Session.delete(sessionId, false)
             logger.info(`Sessão ${sessionId} Deconectada loggedOut Foi limpa do sistema com sucesso`)
         }
+        return
 
     }
-    sock.status = qr ? 'qr_ready' : connection
+    void updateSessao(sessionId, getsessao)
 
-}
-
-async function attSessao(sessionId, getsessao) {
-    Session.update(sessionId, {
-        status: getsessao.status,
-        qr_code: getsessao.qrcode,
-        phone_number: getsessao.numero,
-        code: getsessao.code,
-    })
-    BaileysService.salvarSessao(sessionId, getsessao)
 }

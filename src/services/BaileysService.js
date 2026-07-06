@@ -13,6 +13,7 @@ import logger from "../utils/logger.js";
 import usePostgresAuthState from "./usePostgresAuthStore.js";
 import config from "../config/env.js";
 import Session from "../models/Session.js";
+import pLimit from 'p-limit';
 import { release } from "os";
 import pino from "pino";
 import { eventBaileys } from "./EventService.js";
@@ -41,13 +42,8 @@ class BaileysService {
     const getsessoes = await Session.findAllSessao()
     logger.info(`Iniciando ${getsessoes.length} Sessões..`)
 
-    for (let i = 0; i < getsessoes.length; i++) {
-      logger.info(`Iniciando ${i}/${getsessoes.length}`)
-      const sessao = getsessoes[i]
-      await this.createSession(sessao.apikey, null)
-      await this.delay(3000)
-
-    }
+    const limit = pLimit(15);
+    await Promise.allSettled(getsessoes.map(s => limit(() => this.createSession(s.apikey, null))));
     logger.info('Todos os bots foram iniciados')
   }
 
