@@ -4,6 +4,7 @@ import WebSocketService from "../WebSocketService.js";
 import Message from "../../models/Message.js";
 import digestSync from "crypto-digest-sync";
 import logger from "../../utils/logger.js";
+import config from "../../config/env.js";
 
 
 
@@ -19,7 +20,7 @@ export const messagemap = async (sessionId, dados) => {
 
         let message = JSON.parse(JSON.stringify(msg))
         if (sessao?.ignorar_grupos === true && message?.key?.remoteJid?.endsWith("@g.us")) continue; //Verificar se ta ativo ignorar grupos
-        if (!message.key || message?.key?.remoteJid == "status@broadcast") continue; //Verificar se e evendo de status
+        if (!message.key || (config.ignore_boadcast && message?.key?.remoteJid == "status@broadcast")) continue; //Verificar se e evendo de status
         const messageType = getMessageType(message.message);
         const tiposIgnoraveis = new Set(["protocolMessage", "senderKeyDistributionMessage"]);
         if (tiposIgnoraveis.has(messageType)) continue; //Ignora tipos de messagem

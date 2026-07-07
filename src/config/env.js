@@ -91,7 +91,9 @@ const config = {
   apiversao: process.env.VERSAO || '1.0.4',
   sync_sessions: process.env.SYNC_SESSIONS == 'false' ? false : true,
 
-  batch_size: toPositiveInt(process.env.BATCH_SIZE, 500)
+  batch_size: toPositiveInt(process.env.BATCH_SIZE, 500),
+
+  ignore_boadcast: process.env.IGNORE_BROADCAST == 'false' ? false : true,
 };
 
 
