@@ -250,6 +250,10 @@
 				<button class="btn btn-sm btn-outline-danger btn-disconnect">
 					<i class="bi bi-box-arrow-left me-1"></i>Desconectar
 				</button>
+				
+				<button class="btn btn-sm btn-outline-warning btn-restart">
+					<i class="bi bi-arrow-clockwise me-1"></i>Reiniciar
+				</button>
 			</div>
 		`;
 		}
