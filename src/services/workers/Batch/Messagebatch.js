@@ -89,12 +89,13 @@ async function flushMessages(sessionId) {
             // pega até 500 mensagens
             const lote = batch.splice(0, config.batch_size);
 
-            await Message.SaveMessageBatch(lote);
-
             //Limpar map de duplicados
             for (const msg of lote) {
                 duplicadas.delete(`${msg.sessao_id}:${msg.mensagem_id}`);
             }
+            await Message.SaveMessageBatch(lote);
+
+
 
         }
 

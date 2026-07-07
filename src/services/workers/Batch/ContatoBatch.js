@@ -77,6 +77,9 @@ async function flushContatos(sessionId) {
     saving.add(sessionId);
 
     const batch = batches.get(sessionId);
+    if (batch.length === 0) {
+        batches.delete(sessionId);
+    }
     if (!batch) return
 
     try {
@@ -85,11 +88,11 @@ async function flushContatos(sessionId) {
 
             // pega até 500 mensagens
             const lote = batch.splice(0, config.batch_size);
-
-            await Contato.SaveContatosBatch(lote);
             for (const ctt of lote) {
                 duplicadas.delete(`${ctt.sessao_id}:${ctt.jid}`);
             }
+            await Contato.SaveContatosBatch(lote);
+
 
 
         }

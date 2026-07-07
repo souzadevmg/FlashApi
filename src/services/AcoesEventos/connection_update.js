@@ -75,7 +75,7 @@ export const connection = async (sessionId, update) => {
     }
 
     if (connection === "close") {
-        BaileysService.sockets.delete(sessionId)
+        if (sock) { try { sock.ev.removeAllListeners(); sock.end(); } catch { } }
         const statusCode = new Boom(lastDisconnect?.error).output.statusCode;
         getsessao.status = "disconnected"
         void updateSessao(sessionId, getsessao)

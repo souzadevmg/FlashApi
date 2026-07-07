@@ -23,6 +23,15 @@ class WebSocketService {
         let tipo = 'user';
         let eventos = events
 
+        ws.on('close', () => {
+          clients.delete(clientId);
+        });
+
+        ws.on('error', () => {
+          clients.delete(clientId);
+        });
+
+
         if (typeof events == 'string') {
           try {
             eventos = JSON.parse(events)

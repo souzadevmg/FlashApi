@@ -63,7 +63,9 @@ async function flushChats(sessionId) {
     saving.add(sessionId);
 
     const batch = batches.get(sessionId);
-
+    if (batch.length === 0) {
+        batches.delete(sessionId);
+    }
     if (!batch) return
 
     try {
@@ -91,7 +93,7 @@ async function flushChats(sessionId) {
 
         // chegaram novas mensagens enquanto salvava?
         if (batch.length > 0) {
-            void flushChats();
+            void flushChats(sessionId);
         }
 
     }

@@ -128,7 +128,16 @@ class Session {
       await execute(`DELETE FROM mensagens WHERE sessao_id = $1`, [id]);
       await execute(`DELETE FROM proxy WHERE sessao_id = $1`, [id]);
       await BaileysService.DeleteSessao(id)
-      try { const sock = BaileysService.sockets.get(id); sock.end(); } catch (error) { }
+      try {
+        const sock = BaileysService.sockets.get(id);
+        sock?.end();
+      } catch (error) { }
+      finally {
+        BaileysService.sockets.delete(id);
+        BaileysService.countQrcode.delete(id);
+        BaileysService.limitReconnect.delete(id);
+        BaileysService.limitReconnectLogout.delete(id);
+      }
       await execute(`UPDATE sessao SET status = $1 WHERE apikey = $2`, ['desconnected', id])
 
     } catch (error) {
