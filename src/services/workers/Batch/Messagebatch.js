@@ -95,8 +95,6 @@ async function flushMessages(sessionId) {
             }
             await Message.SaveMessageBatch(lote);
 
-
-
         }
 
     } catch (err) {

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Conector Flash-Api</title>
+    <style>
+      :root {
+        --bg: #0b0b0d;
+        --panel: #151518;
+        --panel-2: #1c1c20;
+        --line: #26262b;
+        --text: #f2f2f0;
+        --muted: #8b8b93;
+        --accent: #ff6a1a;
+        --accent-2: #ffb020;
+        --ok: #25d366;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        width: 380px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* header */
+      .head {
+        padding: 18px 20px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
+        background:
+          radial-gradient(
+            120% 140% at 0% 0%,
+            rgba(255, 106, 26, 0.14),
+            transparent 55%
+          ),
+          var(--bg);
+      }
+      .head img {
+        width: 34px;
+        height: 34px;
+        display: block;
+        filter: drop-shadow(0 0 10px rgba(255, 106, 26, 0.45));
+      }
+      .head h1 {
+        margin: 0;
+        font-size: 15px;
+        letter-spacing: 0.02em;
+        font-weight: 800;
+      }
+      .head h1 span {
+        color: var(--accent);
+      }
+      .head p {
+        margin: 2px 0 0;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+
+      .status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10.5px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--muted);
+        position: relative;
+      }
+      .dot.live {
+        background: var(--ok);
+      }
+      .dot.live::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        border: 1px solid var(--ok);
+        animation: ping 1.8s ease-out infinite;
+      }
+      @keyframes ping {
+        0% {
+          transform: scale(0.6);
+          opacity: 0.9;
+        }
+        100% {
+          transform: scale(1.9);
+          opacity: 0;
+        }
+      }
+
+      /* body */
+      .body {
+        padding: 16px 20px 18px;
+      }
+
+      .lead {
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: var(--muted);
+        margin: 0 0 16px;
+      }
+      .lead b {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .steps {
+        list-style: none;
+        margin: 0 0 16px;
+        padding: 0;
+      }
+      .step {
+        display: flex;
+        gap: 12px;
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
+      }
+      .step:first-child {
+        border-top: none;
+      }
+      .num {
+        flex: 0 0 auto;
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: var(--accent-2);
+        font-size: 11px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .step-text {
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .step-text b {
+        font-weight: 700;
+        color: var(--text);
+      }
+      .step-text small {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 2px;
+      }
+
+      .log {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+        font-size: 10.5px;
+        color: var(--ok);
+        line-height: 1.6;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      .log .muted {
+        color: var(--muted);
+      }
+      .log .caret {
+        display: inline-block;
+        width: 6px;
+        height: 11px;
+        background: var(--ok);
+        margin-left: 2px;
+        vertical-align: -2px;
+        animation: blink 1s step-end infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      .note {
+        margin-top: 14px;
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .note svg {
+        flex: 0 0 auto;
+        margin-top: 1px;
+      }
+      .note p {
+        margin: 0;
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      .note b {
+        color: var(--text);
+      }
+
+      .foot {
+        margin-top: 14px;
+        text-align: center;
+        font-size: 10px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <img src="images/icon48.png" alt="Flash-Api" />
+      <div>
+        <h1>Flash<span>-Api</span> Connector</h1>
+        <p>Sincronização de sessão do WhatsApp Web</p>
+      </div>
+      <div class="status"><span class="dot live"></span>ativo</div>
+    </div>
+
+    <div class="body">
+      <p class="lead">
+        Esta extensão só entra em ação em abas do WhatsApp Web abertas
+        <b>a partir do seu painel Flash-Api</b>, com os parâmetros de conexão na
+        URL. Sem eles, ela fica em silêncio.
+      </p>
+
+      <ul class="steps">
+        <li class="step">
+          <span class="num">1</span>
+          <span class="step-text">
+            <b>Você abre o link de sincronização</b>
+            <small
+              >Gerado no painel, já com <code>apiurl</code> e
+              <code>apikey</code> na URL.</small
+            >
+          </span>
+        </li>
+        <li class="step">
+          <span class="num">2</span>
+          <span class="step-text">
+            <b>Escaneia o QR Code normalmente</b>
+            <small>Como em qualquer login do WhatsApp Web.</small>
+          </span>
+        </li>
+        <li class="step">
+          <span class="num">3</span>
+          <span class="step-text">
+            <b>A extensão detecta o login</b>
+            <small>E aguarda a sessão terminar de carregar por completo.</small>
+          </span>
+        </li>
+        <li class="step">
+          <span class="num">4</span>
+          <span class="step-text">
+            <b>A sessão é enviada à sua API</b>
+            <small
+              >Direto para o <code>apiurl</code> informado. A aba fecha
+              sozinha.</small
+            >
+          </span>
+        </li>
+      </ul>
+
+      <div class="log">
+        <span class="muted">$</span> aguardando login no WhatsApp Web<span
+          class="caret"
+        ></span>
+      </div>
+
+      <div class="note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 2 3 6v6c0 5 3.6 8.7 9 10 5.4-1.3 9-5 9-10V6l-9-4Z"
+            stroke="#ff6a1a"
+            stroke-width="1.6"
+          />
+          <path
+            d="M12 8v5M12 16.2v.1"
+            stroke="#ff6a1a"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+        <p>
+          <b>Somente você.</b> O envio vai direto para o endereço que você
+          configurou — nenhum dado passa por servidores de terceiros.
+        </p>
+      </div>
+
+      <div class="foot">v1.0 · Flash-Api</div>
+    </div>
+  </body>
+</html>
