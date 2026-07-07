@@ -69,11 +69,13 @@ export const connection = async (sessionId, update) => {
         getsessao.qrcode = null
         getsessao.code = null
 
-        BaileysService.countQrcode.set(sessionId, 0);
-        BaileysService.limitReconnect.set(sessionId, 0);
+        BaileysService.countQrcode.delete(sessionId, 0);
+        BaileysService.limitReconnect.delete(sessionId, 0);
+        BaileysService.limitReconnectLogout.delete(sessionId, 0);
     }
 
     if (connection === "close") {
+        BaileysService.sockets.delete(sessionId)
         const statusCode = new Boom(lastDisconnect?.error).output.statusCode;
         getsessao.status = "disconnected"
         void updateSessao(sessionId, getsessao)
@@ -94,6 +96,14 @@ export const connection = async (sessionId, update) => {
             return BaileysService.createSession(sessionId)
 
         } else {
+            //Tentativa de reconexão para ver se realmente foi desconexão do whatsapp
+            const limitReconnectLogout = BaileysService.limitReconnectLogout.get(sessionId) || 0;
+            if (limitReconnectLogout < 5) {
+                logger.info(`Whatsapp deconectado tentando reconexão ${limitReconnectLogout}/5`);
+                return BaileysService.createSession(sessionId)
+            }
+            BaileysService.limitReconnectLogout.set(sessionId, limitReconnectLogout + 1);
+
             Session.delete(sessionId, false)
             logger.info(`Sessão ${sessionId} Deconectada loggedOut Foi limpa do sistema com sucesso`)
         }

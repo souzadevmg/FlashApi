@@ -30,6 +30,7 @@ class BaileysService {
   static sockets = new Map();
   static countQrcode = new Map();
   static limitReconnect = new Map();
+  static limitReconnectLogout = new Map(); //pra ter certeza que foi logout do whatsapp
   static redis = redis;
 
   //Serviço de WebSocket
