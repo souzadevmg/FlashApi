@@ -8,6 +8,7 @@ import authenticateApiKey from "../middleware/auth.js";
 import axios from "axios";
 import path from "path";
 import { insertOrUpdateAuthKey } from "../services/usePostgresAuthStore.js";
+import redis, { KEYS } from "../services/redis.js";
 
 const router = express.Router();
 
@@ -300,18 +301,18 @@ router.put("/restart", authenticateApiKey, async (req, res) => {
 //Buscar status de uma sessão
 router.get("/status", authenticateApiKey, async (req, res) => {
   try {
-    const session = req.sessao;
-
-    const proxy = await Session.getProxy(session.apikey);
-    if (!session) {
-      return res.status(404).json({
+    const sessao = req.sessao;
+    if (!sessao) {
+      return res.json({
         success: false,
         message: "Sessão não encontrada",
       });
     }
+    const proxy = await Session.getProxy(sessao.apikey);
+
 
     const dados = {
-      ...session,
+      ...sessao,
       proxy,
     };
     return res.json({
@@ -462,7 +463,6 @@ router.get("/avatar/:apikey", async (req, res) => {
     }
 
     const url = await sock.profilePictureUrl(sock.user.id, "image");
-    console.log(url)
     const response = await axios.get(url, {
       responseType: "stream",
       timeout: 5000,
@@ -471,7 +471,7 @@ router.get("/avatar/:apikey", async (req, res) => {
     res.setHeader("Content-Type", "image/jpeg");
     response.data.pipe(res);
   } catch (error) {
-    console.log(error)
+    logger.error('Erro ao buscar foto de perfil: ', error)
     return res.sendFile(path.resolve("public/images/image.png"));
   }
 });

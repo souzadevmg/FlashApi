@@ -134,8 +134,25 @@ export const sendMessage = async (sessionId, data) => {
             message.mentions = mentions;
         }
 
+        const outros = {
+            quoted: data.quoted || undefined
+        }
+
+        if (data.statusJidList) {
+            outros.statusJidList = data.statusJidList || undefined
+        }
+        if (data.backgroundArgb) {
+            outros.backgroundArgb = data.backgroundArgb || undefined
+        }
+        if (data.font) {
+            outros.font = data.font || undefined
+        }
+        if (data.broadcast) {
+            outros.broadcast = data.broadcast || undefined
+        }
+
         await BaileysService.delay(delay)
-        await sock.sendPresenceUpdate(data.audio ? "recording" : "composing", data.jid);
+        await sock.sendPresenceUpdate(data.audio ? "recording" : "composing", jid);
         await BaileysService.delay(1200)
 
 
@@ -163,14 +180,13 @@ export const sendMessage = async (sessionId, data) => {
         const send = await sock.sendMessage(
             jid,
             message,
-            { quoted: message.quoted || undefined }
+            outros
         );
         await BaileysService.delay(100)
-        await sock.sendPresenceUpdate("paused", data.jid);
+        await sock.sendPresenceUpdate("paused", jid);
         return { success: true, message: send };
 
     } catch (error) {
-        console.log(error)
         logger.error('Erro ao enviar message: ', error.message || error)
         return { success: false, message: "Erro ao enviar messagem", error: error.message || error };
     }

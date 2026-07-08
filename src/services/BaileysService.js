@@ -17,6 +17,8 @@ import pLimit from 'p-limit';
 import { release } from "os";
 import pino from "pino";
 import { eventBaileys } from "./EventService.js";
+import { HttpsProxyAgent } from "https-proxy-agent";
+
 
 class BaileysService {
   constructor() {
@@ -30,7 +32,6 @@ class BaileysService {
   static sockets = new Map();
   static countQrcode = new Map();
   static limitReconnect = new Map();
-  static limitReconnectLogout = new Map(); //pra ter certeza que foi logout do whatsapp
   static redis = redis;
 
   //Serviço de WebSocket

@@ -12,9 +12,10 @@ import { updateSessao } from "./connection_update_status.js";
 export const connection = async (sessionId, update) => {
     const { connection, lastDisconnect, qr } = update;
 
+    const countConnect = BaileysService.limitReconnect.get(sessionId) || 0;
+    const count = BaileysService.countQrcode.get(sessionId) || 0;
 
     //Limite de conexão
-    const countConnect = BaileysService.limitReconnect.get(sessionId) || 0;
     if (countConnect >= 10) {
         logger.info('Limite de Conexão atingido');
         Session.delete(sessionId, false);
@@ -31,8 +32,6 @@ export const connection = async (sessionId, update) => {
 
     if (qr) {
         const limiteQr = parseInt(config.qrcode_limite)
-
-        const count = BaileysService.countQrcode.get(sessionId) || 0;
         if (count >= limiteQr) {
             logger.info('Limite de Qrcode atingido');
             Session.delete(sessionId, false);
@@ -48,20 +47,21 @@ export const connection = async (sessionId, update) => {
         }
 
         logger.info(`Qrcode sessão ${sessionId}`)
-        qrcode.generate(qr, { small: true, });
+
+        // qrcode.generate(qr, { small: true, });
         const qrCode = await QRCode.toDataURL(qr)
         getsessao.code = code;
         getsessao.qrcode = qrCode
         getsessao.status = "qr_ready";
+        void updateSessao(sessionId, getsessao)
     }
 
     if (connection === "connecting") {
-        getsessao.status = connection
+        void updateSessao(sessionId, connection)
     }
 
     if (connection === "open") {
         getsessao.status = "connected"
-        void updateSessao(sessionId, getsessao)
         const numero = sock.user.id.split(':')[0] || null
         logger.info(`Sessão ${sessionId} Conectada numero: ${numero} Nome: ${sock.user.name}`)
         getsessao.status = "connected"
@@ -69,47 +69,45 @@ export const connection = async (sessionId, update) => {
         getsessao.qrcode = null
         getsessao.code = null
 
+        void updateSessao(sessionId, getsessao)
         BaileysService.countQrcode.delete(sessionId, 0);
         BaileysService.limitReconnect.delete(sessionId, 0);
-        BaileysService.limitReconnectLogout.delete(sessionId, 0);
+
     }
 
     if (connection === "close") {
         if (sock) { try { sock.ev.removeAllListeners(); sock.end(); } catch { } }
         const statusCode = new Boom(lastDisconnect?.error).output.statusCode;
+        const motivo = new Boom(lastDisconnect?.error).output?.payload?.error
+        const message = new Boom(lastDisconnect?.error).output?.payload?.message
+        const payload = new Boom(lastDisconnect?.error).output?.payload
+        logger.info(`sessão desconectado motivo: `, payload)
         getsessao.status = "disconnected"
         void updateSessao(sessionId, getsessao)
-        if (statusCode == '515') {
+
+        if (statusCode == 515) {
             logger.info(`Status 515 Reniciando sessão: ${sessionId}`)
             getsessao.status = "connecting"
             void updateSessao(sessionId, getsessao)
-
             await BaileysService.delay(3000);
             return BaileysService.createSession(sessionId)
         }
 
-        if (statusCode !== DisconnectReason.loggedOut) {
-            logger.info(`Reconectando sessão: ${sessionId}`)
-            getsessao.status = "connecting"
-            void updateSessao(sessionId, getsessao)
-            await BaileysService.delay(3000);
-            return BaileysService.createSession(sessionId)
+
+        if (statusCode == 401 && message == 'Intentional Logout') {
+            logger.info(`Sessão: ${sessionId} Logout Removendo`);
+            await Session.delete(sessionId, false);
+            return;
 
         } else {
-            //Tentativa de reconexão para ver se realmente foi desconexão do whatsapp
-            const limitReconnectLogout = BaileysService.limitReconnectLogout.get(sessionId) || 0;
-            if (limitReconnectLogout < 5) {
-                logger.info(`Whatsapp deconectado tentando reconexão ${limitReconnectLogout}/5`);
-                return BaileysService.createSession(sessionId)
-            }
-            BaileysService.limitReconnectLogout.set(sessionId, limitReconnectLogout + 1);
-
-            Session.delete(sessionId, false)
-            logger.info(`Sessão ${sessionId} Deconectada loggedOut Foi limpa do sistema com sucesso`)
+            logger.info(`Reconectando sessão: ${sessionId}`);
+            getsessao.status = "connecting";
+            void updateSessao(sessionId, getsessao);
+            await BaileysService.delay(3000);
+            return BaileysService.createSession(sessionId);
         }
+        void updateSessao(sessionId, getsessao)
         return
-
     }
-    void updateSessao(sessionId, getsessao)
 
 }

@@ -136,9 +136,8 @@ class Session {
         BaileysService.sockets.delete(id);
         BaileysService.countQrcode.delete(id);
         BaileysService.limitReconnect.delete(id);
-        BaileysService.limitReconnectLogout.delete(id);
       }
-      await execute(`UPDATE sessao SET status = $1 WHERE apikey = $2`, ['desconnected', id])
+      await execute(`UPDATE sessao SET status = $1 WHERE apikey = $2`, ['disconnected', id])
 
     } catch (error) {
       logger.error('Erro ao deletar sessão: ')

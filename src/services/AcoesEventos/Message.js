@@ -20,7 +20,7 @@ export const messagemap = async (sessionId, dados) => {
 
         let message = JSON.parse(JSON.stringify(msg))
         if (sessao?.ignorar_grupos === true && message?.key?.remoteJid?.endsWith("@g.us")) continue; //Verificar se ta ativo ignorar grupos
-        if (!message.key || (config.ignore_boadcast && message?.key?.remoteJid == "status@broadcast")) continue; //Verificar se e evendo de status
+        if (!message.key || (config.ignore_boadcast === true && message?.key?.remoteJid == "status@broadcast")) continue; //Verificar se e evendo de status
         const messageType = getMessageType(message.message);
         const tiposIgnoraveis = new Set(["protocolMessage", "senderKeyDistributionMessage"]);
         if (tiposIgnoraveis.has(messageType)) continue; //Ignora tipos de messagem

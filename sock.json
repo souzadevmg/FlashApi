@@ -1,0 +1,22 @@
+[
+  {
+    "statusCode": 515,
+    "error": "Unknown",
+    "message": "Stream Errored (restart required)"
+  },
+  {
+    "statusCode": 401,
+    "error": "Unauthorized",
+    "message": "Connection Failure"
+  },
+  {
+    "statusCode": 503,
+    "error": "Service Unavailable",
+    "message": "Stream Errored (unknown)"
+  },
+  {
+    "statusCode": 401,
+    "error": "Unauthorized",
+    "message": "Intentional Logout"
+  }
+]

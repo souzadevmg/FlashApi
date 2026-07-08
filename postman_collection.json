@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "dff0bb7e-e61c-4a83-b1bd-a87c9957119a",
         "name": "Flash API",
-        "description": "API completa para gerenciamento de múltiplas sessões WhatsApp\n\nContact Support:\n Name: API Support\n Email: quickgestor@gmail.com",
+        "description": "StartFragment\n\n# 🚀 Flash API\n\nA **Flash API** é uma API REST desenvolvida para integrar o **WhatsApp** de forma rápida, estável e escalável. Ela permite conectar uma sessão do WhatsApp, enviar e receber mensagens, gerenciar contatos, grupos, chats, mídias e webhooks por meio de endpoints simples e bem documentados.\n\n## Recursos\n\n- 📱 Conexão com múltiplas sessões do WhatsApp\n    \n- 💬 Envio de mensagens de texto\n    \n- 📷 Envio de imagens, vídeos, documentos, áudios e stickers\n    \n- 👥 Gerenciamento de contatos, chats e grupos\n    \n- 📥 Recebimento de eventos em tempo real via Webhooks\n    \n- 📂 Consulta de mensagens e histórico\n    \n- 🔄 Gerenciamento completo das sessões\n    \n- 🔐 Autenticação por API Key\n    \n- ⚡ Alto desempenho e suporte a processamento em lote\n    \n\n## Autenticação\n\nTodas as requisições protegidas devem incluir a API Key no cabeçalho:\n\n```\napikey: SUA_API_KEY\n\n ```\n\n## URL Base\n\n```\nhttp://SEU_SERVIDOR:3000\n\n ```\n\nou\n\n```\nhttps://SEU_DOMINIO\n\n ```\n\n## Respostas\n\nA API retorna respostas no formato JSON utilizando os códigos HTTP padrão.\n\nExemplo:\n\n```\n{\n  \"status\": true,\n  \"message\": \"Operação realizada com sucesso.\",\n  \"data\": {}\n}\n\n ```\n\n## Webhooks\n\nA Flash API permite configurar webhooks para receber eventos do WhatsApp em tempo real, como:\n\n- Mensagens recebidas\n    \n- Mensagens enviadas\n    \n- Atualizações de chats\n    \n- Atualizações de contatos\n    \n- Atualizações de grupos\n    \n- Alterações de conexão\n    \n- Alterações de presença\n    \n- Confirmações de entrega e leitura\n    \n\n## Suporte\n\n- GitHub: [https://github.com/clsshbr2/FlashApi](https://github.com/clsshbr2/FlashApi)\n    \n- Comunidade: [https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI](https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI)\n    \n\nObrigado por utilizar a Flash API! 🚀\n\nEndFragment",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
         "_exporter_id": "28738840"
     },
@@ -49,7 +49,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"jid\": \"{{RemoteJid}}\", //Numero a ser enviado a imagem\n  \"caption\": \"Olá mundo\", //Descrição da imagem\n  \"image\": \"https://raw.githubusercontent.com/clsshbr2/FlashApi/v1.0.5/public/images/banner.jpg\", //Link da imagem mais pode ser base64\n  \"delay\": \"1200\", //Delay\n  \"fileName\": \"image.jpg\",\n  \"mimetype\": \"image/jpeg\",\n  \"MarkAll\": false, //Marcar todos do grupo\n  \"mentions\": [] //Ex [number1, number2]\n\n//    \"externalAdReply\": {\n//         \"title\": \"FlashApi\",\n//         \"body\": \"API completa para WhatsApp\",\n//         \"thumbnailUrl\": \"https://raw.githubusercontent.com/clsshbr2/FlashApi/v1.0.5/public/images/banner.jpg\",\n//         \"sourceUrl\": \"https://github.com/clsshbr2/FlashApi\"\n//     } //Visualização de miniatura para link\n}",
+                                    "raw": "{\n  \"jid\": \"status@broadcast\", //Numero a ser enviado a imagem\n  \"caption\": \"Olá mundo\", //Descrição da imagem\n  \"image\": \"https://raw.githubusercontent.com/clsshbr2/FlashApi/v1.0.5/public/images/banner.jpg\", //Link da imagem mais pode ser base64\n  \"delay\": \"1200\", //Delay\n  \"fileName\": \"image.jpg\",\n  \"mimetype\": \"image/jpeg\",\n  \"MarkAll\": false, //Marcar todos do grupo\n   \"mentions\": [], //Ex [number1, number2]\n    \"statusJidList\": [\n        \"5521974963583@s.whatsapp.net\",\n        \"5518981578820@s.whatsapp.net\"\n    ],\n    \"backgroundArgb\": \"#25D366\",\n    \"font\": 2,\n    \"broadcast\": true\n//    \"externalAdReply\": {\n//         \"title\": \"FlashApi\",\n//         \"body\": \"API completa para WhatsApp\",\n//         \"thumbnailUrl\": \"https://raw.githubusercontent.com/clsshbr2/FlashApi/v1.0.5/public/images/banner.jpg\",\n//         \"sourceUrl\": \"https://github.com/clsshbr2/FlashApi\"\n//     } //Visualização de miniatura para link\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -111,7 +111,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"jid\": \"{{RemoteJid}}\", //Numero que vai ser enviado a mensagem\n    \"text\": \"Nosso github: https://github.com/clsshbr2/FlashApi\", //Texto a ser enviado\n    \"delay\": \"1200\", //Delay\n    \"MarkAll\": true, //Função para marcar todos no grupo\n    \"mentions\": [], //Ex: [number1, number2]\n    \"quoted\": {}\n\n    // \"externalAdReply\": {\n    //     \"title\": \"FlashApi\",\n    //     \"body\": \"API completa para WhatsApp\",\n    //     \"thumbnailUrl\": \"https://raw.githubusercontent.com/clsshbr2/FlashApi/v1.0.5/public/images/banner.jpg\",\n    //     \"sourceUrl\": \"https://github.com/clsshbr2/FlashApi\"\n    // } //Visualização de miniatura para link\n  \n}",
+                                    "raw": "{\n    \"jid\": \"{{RemoteJid}}\", //Numero que vai ser enviado a mensagem\n    \"text\": \"Testando api\", //Texto a ser enviado\n    \"delay\": \"1200\", //Delay\n    \"MarkAll\": true, //Função para marcar todos no grupo\n    \"mentions\": [] //Ex: [number1, number2]\n    // \"quoted\": {},\n\n    //Enviar status\n    //\"statusJidList\": [],\n    //\"backgroundArgb\": \"#25D366\",\n    //\"font\": 8,\n    //\"broadcast\": true\n\n    //thumbnail\n    // \"externalAdReply\": {\n    //     \"title\": \"FlashApi\",\n    //     \"body\": \"API completa para WhatsApp\",\n    //     \"thumbnailUrl\": \"https://raw.githubusercontent.com/clsshbr2/FlashApi/v1.0.5/public/images/banner.jpg\",\n    //     \"sourceUrl\": \"https://github.com/clsshbr2/FlashApi\"\n    // } //Visualização de miniatura para link\n  \n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -168,7 +168,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"jid\": \"{{RemoteJid}}\", //Numero que vai ser enviado\n  \"caption\": \"Olá mundo\", //descrição do video\n  \"video\": \"https://s3.quickgestor.com/dados1921/uploads/teste.mp4\", //link do video pode ser base64\n  \"gifPlayback\": true, //enviar em modo gif\n  \"delay\": \"1200\", //delay\n  \"useQueue\": false, //Fila de disparo\n  \"MarkAll\": false, //Marcar todos do grupo\n  \"mentions\": [] //Ex [number1, number2]\n}",
+                                    "raw": "{\n  \"jid\": \"status@broadcast\", //Numero que vai ser enviado\n  \"caption\": \"Olá mundo\", //descrição do video\n  \"video\": \"https://s3.quickgestor.com/dados1921/uploads/teste.mp4\", //link do video pode ser base64\n  \"gifPlayback\": true, //enviar em modo gif\n  \"delay\": \"1200\", //delay\n  \"useQueue\": false, //Fila de disparo\n  \"MarkAll\": false, //Marcar todos do grupo\n  \"mentions\": [] //Ex [number1, number2]\n\n  //\"statusJidList\": [],\n  //\"backgroundArgb\": \"#25D366\",\n  //\"font\": 8,\n  //\"broadcast\": true\n\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -221,7 +221,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"jid\": \"{{RemoteJid}}\", //Numero a ser enviado\n  \"audio\": \"https://s3.quickgestor.com/dados1922/uploads/problemasconexao.mp3\", //link do audio pode ser base64\n  \"ptt\": false, //True envia como audio gravado False enviar como audio normal\n  \"delay\": 1200, //Delay\n  \"MarkAll\": false, //Marcar todos do grupo\n  \"mentions\": [] //Ex [number1, number2]\n\n}",
+                                    "raw": "{\n  \"jid\": \"status@broadcast\", //Numero a ser enviado\n  \"audio\": \"https://s3.quickgestor.com/dados1922/uploads/problemasconexao.mp3\", //link do audio pode ser base64\n  \"ptt\": true, //True envia como audio gravado False enviar como audio normal\n  \"delay\": 1200, //Delay\n  \"MarkAll\": false //Marcar todos do grupo\n//   \"mentions\": [], //Ex [number1, number2]\n  \n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -976,7 +976,7 @@
                             "variable": [
                                 {
                                     "key": "id_message",
-                                    "value": ""
+                                    "value": "ACE55CBCA3A390B1A32702B4BDE45265"
                                 }
                             ]
                         }
@@ -2584,15 +2584,15 @@
         },
         {
             "key": "apikeyGlobal",
-            "value": "<value>"
+            "value": "ASDASDSA55WQ88E55R8ER5T2QW5E5Q"
         },
         {
             "key": "apikey",
-            "value": "<value>"
+            "value": "f9bfdc4c-b309-47d9-9e41-64500f1c536f"
         },
         {
             "key": "RemoteJid",
-            "value": "<value>"
+            "value": "5521972268320@s.whatsapp.net"
         }
     ]
 }
