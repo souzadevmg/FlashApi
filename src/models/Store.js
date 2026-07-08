@@ -24,129 +24,7 @@ function resolveMessageStatus(raw) {
 }
 
 class Store {
-  // ===== MENSAGENS =====
-  static async saveMessage(sessionId, messageData) {
-    try {
-      if (!messageData?.key?.id) {
-        return false;
-      }
 
-      const status = resolveMessageStatus(messageData.status);
-
-      const remoteJid = messageData.key.remoteJid || null;
-
-      // Converter Long para número ou string
-      const timestamp = messageData.messageTimestamp
-        ? Long.isLong(messageData.messageTimestamp)
-          ? messageData.messageTimestamp.toNumber()
-          : messageData.messageTimestamp
-        : Date.now();
-
-      const fields = [
-        "sessao_id",
-        "mensagem_id",
-        "remoteJid",
-        "fromMe",
-        "isgrupo",
-        "participant",
-        "tipo_mensagem",
-        "conteudo_mensagem",
-        "timestamp",
-        "status",
-      ];
-
-      const values = [
-        sessionId,
-        messageData.key.id,
-        remoteJid,
-        messageData.key.fromMe ? 1 : 0,
-        remoteJid && remoteJid.includes("@g.us") ? 1 : 0,
-        messageData.key.participant || null,
-        messageData.messageType || "unknown",
-        JSON.stringify(messageData.message || {}),
-        timestamp,
-        status,
-      ];
-
-      const pgFields = fields.map((_, i) => `$${i + 1}`).join(", ");
-      const sql = `
-        INSERT INTO mensagens (
-          ${fields.join(", ")}
-        ) VALUES (${pgFields})
-        ON CONFLICT (sessao_id, mensagem_id) DO UPDATE SET
-          remoteJid = EXCLUDED.remoteJid,
-          fromMe = EXCLUDED.fromMe,
-          isgrupo = EXCLUDED.isgrupo,
-          participant = EXCLUDED.participant,
-          tipo_mensagem = EXCLUDED.tipo_mensagem,
-          conteudo_mensagem = EXCLUDED.conteudo_mensagem,
-          timestamp = EXCLUDED.timestamp,
-          status = EXCLUDED.status
-      `;
-
-      await execute(sql, values);
-      return true;
-    } catch (error) {
-      logger.error("Erro ao salvar mensagem:", error);
-      return false;
-    }
-  }
-
-  static async getMessages(sessionId, remoteJid = null, limit = 50, offset = 0, mensagem_id = null) {
-    try {
-      let query = `SELECT * FROM mensagens  WHERE sessao_id = ?`;
-      let params = [sessionId];
-
-      if (remoteJid) {
-        query += ` AND remoteJid = ?`;
-        params.push(remoteJid);
-      }
-      if (mensagem_id) {
-        query += ` AND mensagem_id = ?`;
-        params.push(mensagem_id);
-      }
-
-      const parsedLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(500, parseInt(limit, 10))) : 50;
-      const parsedOffset = Number.isFinite(Number(offset)) ? Math.max(0, parseInt(offset, 10)) : 0;
-
-      query += ` ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
-      params.push(parsedLimit, parsedOffset);
-
-      const { rows } = await execute(query, params);
-      return rows || [];
-    } catch (error) {
-      console.error("Erro ao buscar mensagens:", error);
-      logger.error("Erro ao buscar mensagens:", error);
-      return [];
-    }
-  }
-
-  static async getMessagesvote(sessionId, key = null, mensagem_id = null) {
-    try {
-      // Garantir que limit seja um número inteiro
-
-      let query = `SELECT * FROM mensagens  WHERE sessao_id = ?`;
-      let params = [sessionId];
-
-      if (key) {
-        query += ` AND (remoteJid = ? OR remoteJid = ?)`;
-        params.push(key.remoteJid, key.remoteJidAlt);
-      }
-      if (mensagem_id) {
-        query += ` AND mensagem_id = ?`;
-        params.push(mensagem_id);
-      }
-
-      query += ` ORDER BY timestamp`;
-
-      const { rows } = await execute(query, params);
-      return rows[0] || null;
-    } catch (error) {
-      console.error("Erro ao buscar mensagens:", error);
-      logger.error("Erro ao buscar mensagens:", error);
-      return [];
-    }
-  }
 
   // ===== CONTATOS =====
   static async saveContact(sessionId, contactData) {
@@ -422,6 +300,7 @@ class Store {
   // ===== CONFIGURAÇÕES DE SESSÃO =====
   static async saveSessionConfig(sessionId, configData) {
     try {
+      console.log(configData)
       await execute(
         `
         UPDATE sessao SET 
@@ -440,7 +319,7 @@ class Store {
           configData.ignorar_grupos ? 1 : 0,
           configData.leitura_automatica ? 1 : 0,
           configData.rejeitar_ligacoes ? 1 : 0,
-          JSON.stringify(configData.events || {}),
+          JSON.stringify(configData.events || []),
           configData.webhook_status ? 1 : 0,
           configData.msg_rejectcalls,
           sessionId,
@@ -542,7 +421,7 @@ class Store {
   }
 
   static async getjid(key_type, sessionId) {
-    const { rows } = await execute(`SELECT value_json, key_id FROM wa_session_keys WHERE key_type = $1 AND session_id = $2`, [
+    const { rows } = await execute(`SELECT value_json, key_id FROM wa_session_keys WHERE key_type = $1 AND sessao_id = $2`, [
       key_type,
       sessionId,
     ]);
@@ -553,7 +432,6 @@ class Store {
 
   static async saveChatsBatch(chats) {
     if (!chats?.length) return;
-    console.log(`Salvando ${chats.length} chats no Postgres`);
     try {
       const fields = ["sessao_id", "jid", "nome", "eh_grupo", "mensagens_nao_lidas", "arquivado", "fixado", "silenciado_ate"];
       const values = chats.map((chat) => [
@@ -595,7 +473,7 @@ class Store {
 
   static async saveContactsBatch(contatos) {
     if (!contatos?.length) return;
-    console.log(`Salvando ${contatos.length} contatos no Postgres`);
+
     try {
       const fields = ["sessao_id", "jid", "nome", "apelido", "nome_verificado", "url_imagem", "status_contato"];
 
@@ -654,7 +532,6 @@ class Store {
 
   static async saveMessagesBatch(messages) {
     if (!messages?.length) return;
-    console.log(`Salvando ${messages.length} mensagens no Postgres`);
     try {
       const fields = [
         "sessao_id",
@@ -670,7 +547,7 @@ class Store {
       ];
       const normalizedMessages = messages
         .map((message) => {
-          const sessaoId = message?.sessao_id || message?.sessaoId || message?.session_id || null;
+          const sessaoId = message?.sessao_id || message?.sessaoId || message?.sessao_id || null;
           return {
             ...message,
             sessao_id: sessaoId,

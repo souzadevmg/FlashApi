@@ -10,17 +10,16 @@ const authenticateApiKey = async (req, res, next) => {
         message: 'API Key é obrigatória'
       });
     }
-    
+
     const keyData = await ApiKey.findByKey(apiKey);
-    
+
     if (!keyData || !keyData.active) {
       return res.status(401).json({
         success: false,
         message: 'API Key inválida ou inativa'
       });
     }
-    
-    req.apiKey = keyData;
+    req.sessao = keyData;
     next();
   } catch (error) {
     logger.error('Erro na autenticação:', error);

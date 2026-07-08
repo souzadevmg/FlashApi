@@ -6,6 +6,7 @@ import logger from "../utils/logger.js";
 import fs from "fs";
 import util from "util";
 import Session from "../models/Session.js";
+import path from "path";
 
 const router = express.Router();
 
@@ -65,60 +66,33 @@ router.get("/avatar/:apikey/:jid", async (req, res) => {
   }
 });
 
-router.post("/profile", authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers["apikey"];
-    const { jid } = req.body;
-
-    if (!jid) {
-      return res.status(400).json({
-        success: false,
-        message: "JID é obrigatório",
-      });
-    }
-
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Sessão não está conectada",
-      });
-    }
-
-    const profile = await BaileysService.getContactProfile(sessionId, jid);
-
-    res.json({
-      success: true,
-      data: profile,
-    });
-  } catch (error) {
-    logger.error("Erro ao obter perfil do contato:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Erro interno do servidor",
-    });
-  }
-});
-
 router.post("/check", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers["apikey"];
-    const { numbers } = req.body;
+    const sessionId = req.sessao.apikey
+    const { number } = req.body;
 
-    if (!numbers || !Array.isArray(numbers)) {
+    if (!number) {
       return res.status(400).json({
         success: false,
-        message: "Lista de números é obrigatória",
+        message: "Número é obrigatória",
       });
     }
 
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
+    if (typeof number !== 'string') {
+      return res.status(500).json({
         success: false,
-        message: "Sessão não está conectada",
+        message: "numbers deve ser string"
       });
     }
-
-    const results = await BaileysService.checkNumbers(sessionId, numbers);
+    /** @type {import("@whiskeysockets/baileys").WASocket} */
+    const sock = await BaileysService.sockets.get(sessionId)
+    if (!sock) {
+      return res.status(500).json({
+        success: false,
+        message: "Sessão não conectada"
+      });
+    }
+    const results = await sock.onWhatsApp(number)
 
     res.json({
       success: true,
@@ -136,66 +110,38 @@ router.post("/check", authenticateApiKey, async (req, res) => {
 router.post("/block", authenticateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers["apikey"];
-    const { jid } = req.body;
+    const { jid, action } = req.body;
 
-    if (!jid) {
+    if (!jid || !action) {
       return res.status(400).json({
         success: false,
-        message: "JID é obrigatório",
+        message: "jid e action é obrigatório",
       });
     }
 
-    if (!BaileysService.isSessionConnected(sessionId)) {
+    if (action !== "block" && action !== "unblock") {
       return res.status(400).json({
         success: false,
-        message: "Sessão não está conectada",
+        message: "Action Deve ser block ou unblock",
       });
     }
 
-    await BaileysService.blockContact(sessionId, jid);
-
+    /** @type {import("@whiskeysockets/baileys").WASocket} */
+    const sock = await BaileysService.sockets.get(sessionId)
+    if (!sock) {
+      return res.status(400).json({
+        success: false,
+        message: "Sessão não conectada",
+      });
+    }
+    const result = await sock.updateBlockStatus(jid, action)
     res.json({
       success: true,
-      message: "Contato bloqueado com sucesso",
-      data: { jid, action: "blocked" },
+      message: `Contato ${action == 'block' ? "bloqueado" : "desbloqueado"} com sucesso`,
+      data: result,
     });
   } catch (error) {
     logger.error("Erro ao bloquear contato:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Erro interno do servidor",
-    });
-  }
-});
-
-router.post("/unblock", authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers["apikey"];
-    const { jid } = req.body;
-
-    if (!jid) {
-      return res.status(400).json({
-        success: false,
-        message: "JID é obrigatório",
-      });
-    }
-
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Sessão não está conectada",
-      });
-    }
-
-    await BaileysService.unblockContact(sessionId, jid);
-
-    res.json({
-      success: true,
-      message: "Contato desbloqueado com sucesso",
-      data: { jid, action: "unblocked" },
-    });
-  } catch (error) {
-    logger.error("Erro ao desbloquear contato:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Erro interno do servidor",
@@ -216,14 +162,8 @@ router.post("/lid-to-jid", authenticateApiKey, async (req, res) => {
       });
     }
 
-    if (!BaileysService.isSessionConnected(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Sessão não está conectada",
-      });
-    }
     const lidlimpo = lid.split("@")[0];
-    const mapping = await BaileysService.redis.get(`lid-mapping:${sessionId}:${lidlimpo}`);
+    const mapping = await BaileysService.redis.get(BaileysService.keys.lid_map(sessionId, lidlimpo));
     if (!mapping) {
       return res.status(404).json({
         success: false,

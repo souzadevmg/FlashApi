@@ -4,31 +4,55 @@ import config from "../config/env.js";
 import logger from "../utils/logger.js";
 
 class RedisClient {
+
+  createClient() {
+    return new Redis({
+      host: config.redis_host,
+      port: config.redis_port,
+      password: config.redis_pass,
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: true,
+      connectTimeout: 10000,
+      lazyConnect: false,
+      retryStrategy: (times) => {
+        if (times > 100) {
+          logger.error("❌ Redis: Máximo de tentativas de reconexão atingido");
+          return null; // Para de tentar reconectar
+        }
+        // Tempo de reconexão em caso de falha
+        const delay = Math.min(times * 50, 2000);
+        logger.info(`Tentando reconectar ao Redis em ${delay}ms... (tentativa ${times})`);
+        return delay;
+      },
+    });
+  }
   constructor() {
     // Cria apenas uma instância global (Singleton)
     if (!RedisClient.instance) {
       this.hasBeenReady = false;
       this.wasDisconnected = false;
 
-      this.client = new Redis({
-        host: config.redis_host,
-        port: config.redis_port,
-        password: config.redis_pass,
-        maxRetriesPerRequest: 3,
-        enableReadyCheck: true,
-        connectTimeout: 10000,
-        lazyConnect: false,
-        retryStrategy: (times) => {
-          if (times > 100) {
-            logger.error("❌ Redis: Máximo de tentativas de reconexão atingido");
-            return null; // Para de tentar reconectar
-          }
-          // Tempo de reconexão em caso de falha
-          const delay = Math.min(times * 50, 2000);
-          logger.info(`Tentando reconectar ao Redis em ${delay}ms... (tentativa ${times})`);
-          return delay;
-        },
-      });
+
+      this.client = this.createClient();
+
+      // uso geral: lpush, llen, etc
+      this.workerClient = this.createClient();
+
+      // uso exclusivo: para salvamento de sessão
+      this.lidMap = this.createClient();
+
+      this.blockingClients = {
+        // uso exclusivo: brpop/blpop de salvamento de key sessão
+        authKey: this.createClient(),
+        // uso exclusivo: brpop/blpop de salvamento de Messagem
+        message: this.createClient(),
+        // uso exclusivo: brpop/blpop de salvamento de Message
+        contato: this.createClient(),
+        // uso exclusivo: brpop/blpop de salvamento de Contatos
+        util: this.createClient(),
+        // uso exclusivo: brpop/blpop de salvamento de Chats
+        chat: this.createClient()
+      };
 
       this.client.on("connect", () => logger.info("✅ Conectado ao Redis"));
 
@@ -96,7 +120,7 @@ class RedisClient {
       const parsedTtl = ttl != null ? parseInt(ttl, 10) : null;
       if (parsedTtl && !isNaN(parsedTtl) && parsedTtl > 0) {
         // se tiver TTL válido, define com expiração
-        await this.client.set(key, data, "EX", parsedTtl);
+        await this.client.setex(key, parsedTtl, data);
       } else {
         // se não tiver TTL, define permanente
         await this.client.set(key, data);
@@ -121,24 +145,6 @@ class RedisClient {
       }
 
       return sessions;
-    } catch (err) {
-      console.error("Erro ao buscar sessões:", err);
-      return [];
-    }
-  }
-
-  // Retorna todas as sessões salvas no Redis
-  async getAllGrups(sessionId) {
-    try {
-      const keys = await this.scanKeys("grupo:*");
-      const grupos = [];
-
-      for (const key of keys) {
-        const data = await this.client.get(key);
-        grupos.push(JSON.parse(data));
-      }
-
-      return grupos;
     } catch (err) {
       console.error("Erro ao buscar sessões:", err);
       return [];
@@ -202,5 +208,21 @@ class RedisClient {
     logger.info("🔌 Conexão Redis encerrada.");
   }
 }
+
+export const KEYS = () => ({
+
+  sessao: (sessaoId) => `sessao:${sessaoId}`, //Key para salvar sessão
+  pre_keys: () => `queue:authkeys`,  //Key para salvar pre-key de sessão
+  lid_map: (botId, id) => `lid-mapping:${botId}:${id}`,   //Key de lid_map
+
+  Store_contatos: () => `queue:contatos`, //key de cache de contatos
+  Store_chats: () => `queue:chats`, //key de cache de vhats
+  Store_mensagens: () => `queue:mensagens`, //key de cache de messages
+
+  queue_util: () => `queue:util`, //key de cache para outros
+
+  grupos_cache: (sessaoId) => `grupos:${sessaoId}`
+
+});
 
 export default new RedisClient();

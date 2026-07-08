@@ -1,473 +1,414 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dashboard | Flash API</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<head>
-  <meta charset="UTF-8">
-  <title>Dashboard | Flash API</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Boostrap CSS 5.3 -->
+    <link href="/css/bootstrap.min.css" rel="stylesheet" />
 
-  <!-- Boostrap CSS 5.3 -->
-  <link href="/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
 
-  <!-- Bootstrap Icons -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Boostrap JS 5.3 -->
+    <script src="/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Boostrap JS 5.3 -->
-  <script src="/js/bootstrap.bundle.min.js"></script>
+    <!-- Jquery -->
+    <script src="/js/jquery.min.js"></script>
 
-  <!-- Jquery -->
-  <script src="/js/jquery.min.js"></script>
+    <!-- Axios -->
+    <script src="/js/axios.js"></script>
 
-  <!-- Axios -->
-  <script src="/js/axios.js"></script>
+    <link href="/css/futuristic-theme.css" rel="stylesheet" />
+  </head>
 
-  <link href="/css/futuristic-theme.css" rel="stylesheet" />
-</head>
+  <body class="panel-page dashboard-page">
+    <!-- Navbar -->
+    <nav
+      class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-primary"
+    >
+      <div class="container-fluid">
+        <a class="navbar-brand text-primary fw-bold" href="#">Flash API</a>
 
-<body class="panel-page dashboard-page">
-
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-primary">
-    <div class="container-fluid">
-      <a class="navbar-brand text-primary fw-bold" href="#">Flash API</a>
-
-      <div class="d-flex align-items-center">
-        <span class="me-3 text-light small-muted">APIKEY: <strong class="text-secondary">
-            <%= userId %>
-          </strong></span>
-
-      </div>
-    </div>
-  </nav>
-
-  <!-- Conteúdo do painel -->
-  <div class="container mt-4">
-    <div class="row">
-      <div class="col-12">
-        <h2 class="text-primary dashboard-title">Painel de Instâncias Flash API</h2>
-      </div>
-    </div>
-
-    <% if (error) { %>
-    <div class="alert alert-danger">
-      <%= error %>
-    </div>
-    <% } %>
-
-    <section class="analytics-section mb-4" id="analyticsSection">
-      <div class="analytics-header d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-        <div>
-          <h3 class="analytics-heading mb-1">Resumo das Instâncias</h3>
-          <p class="small-muted mb-0" id="dashboardStatusText">Carregando status das instâncias...</p>
+        <div class="d-flex align-items-center">
+          <a href="/manager/logout" class="btn btn-sm btn-danger">
+            <i class="bi bi-box-arrow-right me-1"></i> Sair
+          </a>
         </div>
-        <div class="d-flex align-items-center gap-2">
-          <button id="btnRefreshAnalytics" class="btn btn-sm btn-primary" type="button">
-            <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
-          </button>
+      </div>
+    </nav>
+
+    <!-- Conteúdo do painel -->
+    <div class="container mt-4">
+      <div class="row">
+        <div class="col-12">
+          <h2 class="text-primary dashboard-title">
+            Painel de Instâncias Flash API
+          </h2>
         </div>
       </div>
 
-      <div class="row g-3">
-        <div class="col-6 col-md-3">
-          <article class="metric-card">
-            <span class="metric-label">Total</span>
-            <strong class="metric-value" id="metricTotalInstances">0</strong>
-          </article>
-        </div>
-        <div class="col-6 col-md-3">
-          <article class="metric-card">
-            <span class="metric-label">Conectadas</span>
-            <strong class="metric-value" id="metricConnectedInstances">0</strong>
-          </article>
-        </div>
-        <div class="col-6 col-md-3">
-          <article class="metric-card">
-            <span class="metric-label">Aguardando Conexão</span>
-            <strong class="metric-value" id="metricConnectingInstances">0</strong>
-          </article>
-        </div>
-        <div class="col-6 col-md-3">
-          <article class="metric-card">
-            <span class="metric-label">Desconectadas</span>
-            <strong class="metric-value" id="metricDisconnectedInstances">0</strong>
-          </article>
-        </div>
-      </div>
+      <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+      <% } %>
 
-      <div class="small-muted mt-2 d-flex flex-wrap align-items-center gap-3">
-        <span>Última atualização: <span id="analyticsUpdatedAt">-</span></span>
-        <span>Tempo real: <span id="realtimeStatus" class="badge rounded-pill text-bg-success">Ativo (5s)</span></span>
-      </div>
-    </section>
-
-    <div class="row g-4 mb-3">
-      <div class="col-6">
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalcreateSessao">
-          <i class="bi bi-plus-lg me-1"></i> Adicionar instância
-        </button>
-      </div>
-      <div class="col-12">
-        <a href="/manager/logout" class="btn btn-sm btn-danger">
-          <i class="bi bi-box-arrow-right me-1"></i> 🚪 Sair
-        </a>
-      </div>
-    </div>
-
-    <div id="userInfo" data-instance="<%= JSON.stringify(instances) %>" data-apikey="<%= userId %>"></div>
-    <div class="row mb-4">
-      <div class="col-12">
-        <input type="text" id="filtroBusca" class="form-control" placeholder="🔍 Filtrar por Nome ou API Key">
-      </div>
-    </div>
-    <div class="row g-4">
-      <% instances.forEach(instance=> { %>
-      <div class="col-md-6 col-lg-4">
-        <div class="card-instance" data-nome="<%= instance.nome_sessao %>" data-apikey="<%= instance.apikey %>">
-          <div class="top-row mb-2">
-            <div class="d-flex align-items-center gap-3">
-              <img src="/api/session/avatar/<%= instance.apikey %>?t=<%= Date.now() %>" alt="Foto" class="instance-avatar" data-fallback-src="/images/image.png">
-              <div>
-                <h5 class="text-primary mb-1 instancia_name">📱 <%= instance.nome_sessao %></h5>
-                <div class="small-muted api-key">🔑 <%= instance.apikey %></div>
-                <div class="small-muted phone-number">📞 <strong><%= instance.numero || "N/A" %></strong></div>
-              </div>
-            </div>
-
-            <div class="meta">
-              <button class="btn copiar-btn" data-bs-toggle="tooltip" data-bs-placement="top" data-copy="<%= instance.nome_sessao %>" title="Copiar nome" aria-label="Copiar nome">
-                <i class="bi bi-clipboard"></i>
-              </button>
-
-              <button class="btn copiar-btn" data-bs-toggle="tooltip" data-bs-placement="top" data-copy="<%= instance.apikey %>" title="Copiar APIKey" aria-label="Copiar apikey">
-                <i class="bi bi-clipboard-data"></i>
-              </button>
-            </div>
+      <section class="analytics-section mb-4" id="analyticsSection">
+        <div
+          class="analytics-header d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3"
+        >
+          <div>
+            <h3 class="analytics-heading mb-1">Resumo das Instâncias</h3>
+            <p class="small-muted mb-0" id="dashboardStatusText">
+              Carregando status das instâncias...
+            </p>
           </div>
-
-          <p class="mb-2">📊 Status:
-            <% if (instance.status==='connected' ) { %>
-            <span class="status-connected-badge"><i class="bi bi-check-circle-fill"></i> Conectado</span>
-            <% } else { %>
-            <span class="status-disconnected-badge"><i class="bi bi-x-circle-fill"></i> Desconectado</span>
-            <% } %>
-          </p>
-
-          <div class="card-actions mt-3">
-            <div class="row row-cols-2 g-2">
-
-              <% if (instance.status !=='connected' ) { %>
-              <div class="col">
-                <button class="btn-conectar btn btn-sm btn-success w-100" data-id="<%= instance.apikey %>">
-                  <i class="bi bi-plug-fill me-1"></i><span class="btn-text">Conectar</span>
-                  <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                </button>
-              </div>
-              <% } %>
-
-              <% if (instance.status==='connected' ) { %>
-              <div class="col">
-                <button class="btn-desconectar btn btn-sm btn-danger w-100" data-id="<%= instance.apikey %>">
-                  <i class="bi bi-power me-1"></i><span class="btn-text">Desconectar</span>
-                  <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                </button>
-              </div>
-              <% } %>
-
-              <div class="col">
-                <button class="btn-deletar btn btn-sm btn-danger w-100" data-id="<%= instance.apikey %>">
-                  <i class="bi bi-trash me-1"></i><span class="btn-text">Deletar instância</span>
-                  <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                </button>
-              </div>
-
-              <div class="col">
-                <button class="btn-configuracao btn btn-sm btn-secondary w-100" data-id="<%= instance.apikey %>">
-                  <i class="bi bi-gear me-1"></i><span class="btn-text">Configuração</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <% }) %>
-    </div>
-  </div>
-
-  <!-- Modal qrcode -->
-  <div class="modal fade" id="modalQR" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark text-white">
-        <div class="modal-header">
-          <h1 class="modal-title fs-5" id="staticBackdropLabel">📱 Conectar WhatsApp</h1>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body text-center">
-          <div id="qr-code-info"></div>
-          <img id="qr-code-img" class="img-fluid mt-3 border border-light rounded shadow" style="max-width: 300px;" />
-          <div id="info-detalhes"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal criar sessao -->
-  <div class="modal fade" id="modalcreateSessao" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark text-white">
-        <div class="modal-header">
-          <h1 class="modal-title fs-5" id="staticBackdropLabel">➕ Criar Nova Sessão</h1>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <form id="form-Criar-Instance">
-          <div class="modal-body">
-            <div class="row">
-              <div class="row-12 mb-3">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">📱 Nome Sessão</span>
-                  <input type="text" id="nome-sessao" class="form-control border-primary border-2">
-                </div>
-                <div class="form-text text-white">Deixar vazio para gerar automaticamente</div>
-              </div>
-              <div class="row-12 mb-3">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">🔑 APIKey</span>
-                  <input type="text" id="apikey-sessao" class="form-control border-primary border-2">
-                </div>
-                <div class="form-text text-white">Deixar vazio para gerar automaticamente<br>Formato:
-                  <span class="text-danger">(ex: 83725a47-fc7a-404a-bbac-206d590bae8f)</span>
-                </div>
-              </div>
-              <div class="row-12 mb-3">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2" id="basic-addon3">📞
-                    Número</span>
-                  <input type="number" id="numero-sessao" class="form-control border-primary border-2" placeholder="5521999999999" aria-describedby="basic-addon3 basic-addon4">
-                </div>
-                <div class="form-text text-white" id="basic-addon4">Caso queira conectar via código
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="proxy-ativo-add">
-                  <label class="form-check-label" for="proxy-ativo-add">🟢 Proxy Ativo</label>
-                </div>
-              </div>
-
-            </div>
-
-            <div class="row mb-3 d-none" id="config-proxy-add">
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Protocol:</span>
-                  <input type="text" id="proxy-protocol-add" class="form-control border-primary border-2" placeholder="ex: http">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Username:</span>
-                  <input type="text" id="proxy-username-add" class="form-control border-primary border-2" placeholder="ex: user123">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Password:</span>
-                  <input type="text" id="proxy-password-add" class="form-control border-primary border-2" placeholder="ex: pass123">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Port:</span>
-                  <input type="text" id="proxy-port-add" class="form-control border-primary border-2" placeholder="ex: 8080">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Host:</span>
-                  <input type="text" id="proxy-host-add" class="form-control border-primary border-2" placeholder="ex: 127.0.0.1">
-                </div>
-              </div>
-
-            </div>
-
-          </div>
-
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            <button type="submit" class="btn btn-primary">➕ Adicionar</button>
-          </div>
-        </form>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal de Configuração de Sessão -->
-  <div class="modal fade" id="configSessao" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="configSessaoLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark text-white border border-primary">
-        <div class="modal-header">
-          <h5 class="modal-title text-primary" id="configSessaoLabel">⚙️ Configuração da Sessão</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
-
-        <form id="form-config-Instance">
-          <div class="modal-body">
-
-            <!-- URL Webhook -->
-            <div class="mb-3">
-              <label for="webhook-url" class="form-label text-secondary">🔗 URL Webhook</label>
-              <div class="input-group">
-                <span class="input-group-text border-primary border-2">URL:</span>
-                <input type="text" id="webhook-url" class="form-control border-primary border-2" placeholder="ex: https://meuwebhook.com/api/receber">
-              </div>
-              <div class="form-check mt-2">
-                <input class="form-check-input" type="checkbox" id="webhook-status">
-                <label class="form-check-label" for="webhook-status">✅ Ativar webhook</label>
-              </div>
-            </div>
-
-            <!-- Eventos webhook  -->
-            <div class="mb-3">
-              <label for="webhook-url" class="form-label text-secondary">📋 Escolha os eventos</label>
-              <div class="input-group">
-                <span class="input-group-text border-primary border-2">Eventos:</span>
-                <select class="form-select" name="events[]" id="events[]" multiple>
-                  <option value="connection_update">connection_update</option>
-                  <option value="qr_updated">qr_updated</option>
-                  <option value="message_received">message_received</option>
-                  <option value="message_update">message_update</option>
-                  <option value="chats_set">chats_set</option>
-                  <option value="chats_update">chats_update</option>
-                  <option value="contacts_set">contacts_set</option>
-                  <option value="contacts_update">contacts_update</option>
-                  <option value="groups_update">groups_update</option>
-                  <option value="group_participants_update">group_participants_update</option>
-                  <option value="presence_update">presence_update</option>
-                  <option value="call">call</option>
-                  <option value="messaging_history_set">messaging_history_set</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Mensagem de Rejeição -->
-            <div class="mb-3">
-              <label for="mensagem-rejeicao" class="form-label text-secondary">🚫 Mensagem de
-                Rejeição</label>
-              <div class="input-group">
-                <span class="input-group-text border-primary border-2">Msg:</span>
-                <input type="text" id="mensagem-rejeicao" class="form-control border-primary border-2" placeholder="ex: Chamada recusada.">
-              </div>
-            </div>
-
-            <!-- Opções Avançadas -->
-            <div class="row mb-3">
-              <div class="col-6">
-                <div class="form-check mt-2">
-                  <input class="form-check-input" type="checkbox" id="rejeitar-chamada">
-                  <label class="form-check-label" for="rejeitar-chamada">📞 Rejeitar chamadas</label>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="ignorar-grupos">
-                  <label class="form-check-label" for="ignorar-grupos">👥 Ignorar grupos</label>
-                </div>
-              </div>
-
-              <div class="col-6">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="sempre-online">
-                  <label class="form-check-label" for="sempre-online">🟢 Sempre online</label>
-                </div>
-              </div>
-
-              <div class="col-6">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="proxy-ativo">
-                  <label class="form-check-label" for="proxy-ativo">🟢 Proxy Ativo</label>
-                </div>
-              </div>
-
-            </div>
-
-            <div class="row mb-3 d-none" id="config-proxy">
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Protocol:</span>
-                  <input type="text" id="proxy-protocol" class="form-control border-primary border-2" placeholder="ex: http">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Username:</span>
-                  <input type="text" id="proxy-username" class="form-control border-primary border-2" placeholder="ex: user123">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Password:</span>
-                  <input type="text" id="proxy-password" class="form-control border-primary border-2" placeholder="ex: pass123">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Port:</span>
-                  <input type="text" id="proxy-port" class="form-control border-primary border-2" placeholder="ex: 8080">
-                </div>
-              </div>
-
-              <div class="mb-3 col-6">
-                <div class="input-group">
-                  <span class="input-group-text border-primary border-2">Host:</span>
-                  <input type="text" id="proxy-host" class="form-control border-primary border-2" placeholder="ex: 127.0.0.1">
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <input type="hidden" name="id_sessao" id="id_sessao" value="" />
-
-
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            <button type="submit" class="btn btn-primary">
-              <span class="btn-text">💾 Salvar</span>
-              <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+          <div class="d-flex align-items-center gap-2">
+            <button
+              id="btnRefreshAnalytics"
+              class="btn btn-sm btn-primary"
+              type="button"
+            >
+              <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
             </button>
           </div>
-        </form>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-6 col-md-3">
+            <article class="metric-card">
+              <span class="metric-label">Total</span>
+              <strong class="metric-value" id="metricTotalInstances">0</strong>
+            </article>
+          </div>
+          <div class="col-6 col-md-3">
+            <article class="metric-card">
+              <span class="metric-label">Conectadas</span>
+              <strong class="metric-value" id="metricConnectedInstances"
+                >0</strong
+              >
+            </article>
+          </div>
+          <div class="col-6 col-md-3">
+            <article class="metric-card">
+              <span class="metric-label">Aguardando Conexão</span>
+              <strong class="metric-value" id="metricConnectingInstances"
+                >0</strong
+              >
+            </article>
+          </div>
+          <div class="col-6 col-md-3">
+            <article class="metric-card">
+              <span class="metric-label">Desconectadas</span>
+              <strong class="metric-value" id="metricDisconnectedInstances"
+                >0</strong
+              >
+            </article>
+          </div>
+        </div>
+
+        <div class="small-muted mt-2 d-flex flex-wrap align-items-center gap-3">
+          <span
+            >Última atualização: <span id="analyticsUpdatedAt">-</span></span
+          >
+          <span
+            >Tempo real:
+            <span id="realtimeStatus" class="badge rounded-pill text-bg-success"
+              >Ativo (5s)</span
+            ></span
+          >
+        </div>
+      </section>
+
+      <div class="row g-4 mb-3">
+        <div class="col-6">
+          <button
+            class="btn btn-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#modalcreateSessao"
+          >
+            <i class="bi bi-plus-lg me-1"></i> Adicionar instância
+          </button>
+        </div>
+        <div class="col-12">
+          <a href="/manager/logout" class="btn btn-sm btn-danger">
+            <i class="bi bi-box-arrow-right me-1"></i> 🚪 Sair
+          </a>
+        </div>
+      </div>
+
+      <div
+        id="userInfo"
+        data-instance="<%= JSON.stringify(instances) %>"
+        data-apikey="<%= apikey %>"
+      ></div>
+      <div class="row mb-4">
+        <div class="col-12">
+          <input
+            type="text"
+            id="filtroBusca"
+            class="form-control"
+            placeholder="🔍 Filtrar por Nome ou API Key"
+          />
+        </div>
+      </div>
+      <div class="row g-4">
+        <% instances.forEach(instance=> { %>
+        <div class="col-md-6 col-lg-4">
+          <div
+            class="card-instance"
+            data-nome="<%= instance.nome_sessao %>"
+            data-apikey="<%= instance.apikey %>"
+          >
+            <div class="top-row mb-2">
+              <div class="d-flex align-items-center gap-3">
+                <img
+                  src="/api/session/avatar/<%= instance.apikey %>?t=<%= Date.now() %>"
+                  alt="Foto"
+                  class="instance-avatar"
+                  data-fallback-src="/images/image.png"
+                />
+                <div>
+                  <h5 class="text-primary mb-1 instancia_name">
+                    📱 <%= instance.nome_sessao %>
+                  </h5>
+                  <div class="small-muted api-key">
+                    🔑 <%= instance.apikey.slice(0, 6) %>***
+                  </div>
+                  <div class="small-muted phone-number">
+                    📞 <strong><%= instance.numero || "N/A" %></strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p class="mb-2">
+              📊 Status: <% if (instance.status==='connected' ) { %>
+              <span class="status-connected-badge"
+                ><i class="bi bi-check-circle-fill"></i> Conectado</span
+              >
+              <% } else { %>
+              <span class="status-disconnected-badge"
+                ><i class="bi bi-x-circle-fill"></i> Desconectado</span
+              >
+              <% } %>
+            </p>
+
+            <div class="card-actions mt-3">
+              <div class="row row-cols-2 g-2">
+                <div class="col">
+                  <button
+                    class="btn-deletar btn btn-sm btn-danger w-100"
+                    data-id="<%= instance.apikey %>"
+                  >
+                    <i class="bi bi-trash me-1"></i
+                    ><span class="btn-text">Deletar instância</span>
+                    <span
+                      class="spinner-border spinner-border-sm d-none"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                  </button>
+                </div>
+                <div class="col">
+                  <button
+                    type="button"
+                    class="btn btn-sm text-white copiar-btn mb-2 w-100"
+                    data-copy="<%= instance.apikey %>"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Copiar API Key"
+                    aria-label="Copiar API Key"
+                  >
+                    <i class="bi bi-clipboard"></i>
+                    Copiar API Key
+                  </button>
+                </div>
+                <div class="col">
+                  <a
+                    href="/manager/login?token=<%= instance.apikey %>&redirect=/manager/login?token=<%= userId %>"
+                    class="btn btn-sm btn-primary w-100"
+                  >
+                    <i class="bi bi-gear me-1"></i>
+                    <span class="btn-text">Gerenciar sessão</span>
+                    <span
+                      class="spinner-border spinner-border-sm d-none"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <% }) %>
       </div>
     </div>
-  </div>
 
-  <script src="/js/dashboard.js?j=<%= new Date().getTime() %>"></script>
+    <!-- Modal criar sessao -->
+    <div
+      class="modal fade"
+      id="modalcreateSessao"
+      data-bs-backdrop="static"
+      data-bs-keyboard="false"
+      tabindex="-1"
+      aria-labelledby="staticBackdropLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="staticBackdropLabel">
+              ➕ Criar Nova Sessão
+            </h1>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <form id="form-Criar-Instance">
+            <div class="modal-body">
+              <div class="row">
+                <div class="row-12 mb-3">
+                  <div class="input-group">
+                    <span class="input-group-text border-primary border-2"
+                      >📱 Nome Sessão</span
+                    >
+                    <input
+                      type="text"
+                      id="nome-sessao"
+                      class="form-control border-primary border-2"
+                    />
+                  </div>
+                  <div class="form-text text-white">
+                    Deixar vazio para gerar automaticamente
+                  </div>
+                </div>
+                <div class="row-12 mb-3">
+                  <div class="input-group">
+                    <span class="input-group-text border-primary border-2"
+                      >🔑 APIKey</span
+                    >
+                    <input
+                      type="text"
+                      id="apikey-sessao"
+                      class="form-control border-primary border-2"
+                    />
+                  </div>
+                  <div class="form-text text-white">
+                    Deixar vazio para gerar automaticamente<br />Formato:
+                    <span class="text-danger"
+                      >(ex: 83725a47-fc7a-404a-bbac-206d590bae8f)</span
+                    >
+                  </div>
+                </div>
+                <div class="row-12 mb-3">
+                  <div class="input-group">
+                    <span
+                      class="input-group-text border-primary border-2"
+                      id="basic-addon3"
+                      >📞 Número</span
+                    >
+                    <input
+                      type="number"
+                      id="numero-sessao"
+                      class="form-control border-primary border-2"
+                      placeholder="5521999999999"
+                      aria-describedby="basic-addon3 basic-addon4"
+                    />
+                  </div>
+                  <div class="form-text text-white" id="basic-addon4">
+                    Caso queira conectar via código
+                  </div>
+                </div>
+              </div>
 
-  <!-- Footer -->
-  <footer class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark dashboard-footer">
-    <div class="container">
-      <p class="mb-2">🔗 Links úteis:</p>
-      <div class="d-flex justify-content-center flex-wrap gap-3 mb-3">
-        <a href="https://documenter.getpostman.com/view/28738840/2sBXqJLgmv" target="_blank" class="text-secondary text-decoration-none">📦
-          Postman</a>
-        <a href="https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI" target="_blank" class="text-secondary text-decoration-none">💬 WhatsApp</a>
-        <a href="/api-docs" target="_blank" class="text-secondary text-decoration-none">📄 API Docs</a>
-        <a href="https://github.com/clsshbr2/FlashApi" target="_blank" class="text-secondary text-decoration-none">🐙 GitHub</a>
-        <a href="https://hub.docker.com/r/flashconect/flash-api" target="_blank" class="text-secondary text-decoration-none">🐳 Docker Hub</a>
+              <div class="row mb-3 d-none" id="config-proxy-add">
+                <div class="mb-3 col-6">
+                  <div class="input-group">
+                    <span class="input-group-text border-primary border-2"
+                      >Protocol:</span
+                    >
+                    <input
+                      type="text"
+                      id="proxy-protocol-add"
+                      class="form-control border-primary border-2"
+                      placeholder="ex: http"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Fechar
+              </button>
+              <button type="submit" class="btn btn-primary">
+                ➕ Adicionar
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-      <small class="text-muted">© <%= new Date().getFullYear() %> Flash API. Todos os direitos reservados.</small>
     </div>
-  </footer>
-</body>
 
+    <script src="/js/dashboard.js?j=<%= new Date().getTime() %>"></script>
+
+    <!-- Footer -->
+    <footer
+      class="mt-5 pt-4 border-top border-secondary text-center text-light bg-dark dashboard-footer"
+    >
+      <div class="container">
+        <p class="mb-2">🔗 Links úteis:</p>
+        <div class="d-flex justify-content-center flex-wrap gap-3 mb-3">
+          <a
+            href="https://documenter.getpostman.com/view/28738840/2sBXqJLgmv"
+            target="_blank"
+            class="text-secondary text-decoration-none"
+            >📦 Postman</a
+          >
+          <a
+            href="https://chat.whatsapp.com/Jr3lvW2tbg38MZEMpUNZMI"
+            target="_blank"
+            class="text-secondary text-decoration-none"
+            >💬 WhatsApp</a
+          >
+          <a
+            href="/api-docs"
+            target="_blank"
+            class="text-secondary text-decoration-none"
+            >📄 API Docs</a
+          >
+          <a
+            href="https://github.com/clsshbr2/FlashApi"
+            target="_blank"
+            class="text-secondary text-decoration-none"
+            >🐙 GitHub</a
+          >
+          <a
+            href="https://hub.docker.com/r/flashconect/flash-api?tag=v1.0.6"
+            target="_blank"
+            class="text-secondary text-decoration-none"
+            >🐳 Docker Hub</a
+          >
+        </div>
+        <small class="text-muted"
+          >©
+          <%= new Date().getFullYear() %>
+          Flash API. Todos os direitos reservados.</small
+        >
+      </div>
+    </footer>
+  </body>
 </html>

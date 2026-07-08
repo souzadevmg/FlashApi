@@ -1,25 +1,175 @@
 ﻿document.addEventListener("DOMContentLoaded", async () => {
-	const elementoInfoUsuario = document.getElementById("userInfo");
-	if (!elementoInfoUsuario) {
-		return;
-	}
 
-	const apikeyGlobal = elementoInfoUsuario.getAttribute("data-apikey");
-	const containerNotificacoes = document.getElementById("containerNotificacoes");
-	const botaoTestarWebhook = document.getElementById("btn-testar-webhook");
-	const formConfigInstancia = document.getElementById("form-config-Instance");
-	const toggleProxyAtivo = document.getElementById("proxy-ativo");
+	const eventos = [
+		"connection_update",
+		"creds_update",
+		"messaging_history_set",
+		"messaging_history_status",
+		"chats_upsert",
+		"chats_update",
+		"lid_mapping_update",
+		"chats_delete",
+		"presence_update",
+		"contacts_upsert",
+		"contacts_update",
+		"messages_delete",
+		"messages_update",
+		"messages_media_update",
+		"messages_upsert",
+		"messages_reaction",
+		"message_receipt_update",
+		"groups_upsert",
+		"groups_update",
+		"group_participants_update",
+		"group_join_request",
+		"group_member_tag_update",
+		"blocklist_set",
+		"blocklist_update",
+		"call",
+		"labels_edit",
+		"labels_association",
+		"newsletter_reaction",
+		"newsletter_view",
+		"newsletter_participants_update",
+		"newsletter_settings_update",
+		"message_capping_update",
+		"chats_lock",
+		"settings_update"
+	];
 
-	let apikeyInstanciaEmConfiguracao = null;
-	const intervaloAtualizacaoMs = 20000;
-	let intervaloAtualizacao = null;
+	let dados_sessao = null;
 
-	let instancias = [];
-	try {
-		instancias = JSON.parse(elementoInfoUsuario.getAttribute("data-instance") || "[]");
-	} catch (erro) {
-		instancias = [];
-	}
+	const container = document.getElementById("events-container");
+
+	const apiurl = window.location.origin + "/api";
+	const botaoTestarWebhook = document.getElementById('btn-testar-webhook');
+	const apikey = document.getElementById('userInfo').getAttribute('data-apikey');
+	const name_hello = document.getElementById('name_hello');
+
+	const info_instancia_apikey = document.getElementById('info_instancia_apikey');
+	const info_instancia_status = document.getElementById('info_instancia_status');
+	const info_instancia_nome = document.getElementById('info_instancia_nome');
+	const info_instancia_numero = document.getElementById('info_instancia_numero');
+
+	const form_webhook = document.getElementById('form_webhook');
+	const iconCardWebhook = document.getElementById('icon-card-webhook');
+	const webhook_status = document.getElementById('webhook_status');
+	const webhook_url = document.getElementById('webhook-url');
+
+	const form_chamadas = document.getElementById('form_chamadas');
+	const iconCardChamadas = document.getElementById('icon-card-chamadas');
+	const msg_chamadas = document.getElementById('msg_chamadas');
+	const chamadas_status = document.getElementById('chamadas_status')
+
+	const form_proxy = document.getElementById('form_proxy');
+	const iconCardProxy = document.getElementById('icon-card-proxy');
+	const proxy_status = document.getElementById('proxy_status');
+	const proxy_protocol = document.getElementById('proxy_protocol');
+	const proxy_username = document.getElementById('proxy_username');
+	const proxy_password = document.getElementById('proxy_password');
+	const proxy_port = document.getElementById('proxy_port');
+	const proxy_host = document.getElementById('proxy_host');
+
+	const qr_code_info = document.getElementById('qr-code-info')
+	const qr_info_detalhes = document.getElementById('info-detalhes')
+	const qr_code_img = document.getElementById('qr-code-img')
+	const qrContainer = document.getElementById("qr-container");
+
+	const btn_reniciar_sessao = document.getElementById('btn_reniciar_sessao')
+
+	//Configuração de proxy
+	form_proxy.addEventListener('submit', async (e) => {
+		e.preventDefault();
+		const formData = new FormData(form_proxy);
+		const dados = {
+			protocol: formData.get("proxy_protocol"),
+			username: formData.get("proxy_username"),
+			password: formData.get("proxy_password"),
+			host: formData.get("proxy_host"),
+			port: formData.get("proxy_port"),
+			active: formData.get("proxy_port") == 'true' ? true : false,
+		};
+		const sessao = await fazerRequisicaoApi(`${apiurl}/config/proxy`, "PUT", dados, apikey)
+		if (sessao.success) {
+			mostrarNotificacao('sucesso', 'Sucesso', 'Webhook alterado com sucesso')
+			findSessao()
+		} else {
+			mostrarNotificacao('erro', 'Ops', sessao.message || "Erro ao atualizar webhook")
+		}
+	})
+
+	document.getElementById('card_proxy_togget').addEventListener('click', () => {
+		const getclass = document.getElementById('card_proxy')
+		if (getclass.classList.value.includes('d-none')) {
+			getclass.classList.remove('d-none')
+			iconCardProxy.classList.replace("bi-chevron-down", "bi-chevron-up");
+		} else {
+			getclass.classList.add('d-none')
+			iconCardProxy.classList.replace("bi-chevron-up", "bi-chevron-down");
+		}
+	})
+	//Fim configuração de proxy
+
+	//Configuração de webhook
+	form_webhook.addEventListener('submit', async (e) => {
+		e.preventDefault();
+		const formData = new FormData(form_webhook);
+		const dados = {
+			status_webhook: formData.get("webhook_status") == 'on' ? true : false,
+			webhookUrl: formData.get("webhook_url"),
+			events: formData.getAll("events[]")
+		};
+		const sessao = await fazerRequisicaoApi(`${apiurl}/config/webhook`, "PUT", dados, apikey)
+		if (sessao.success) {
+			mostrarNotificacao('sucesso', 'Sucesso', 'Webhook alterado com sucesso')
+			findSessao()
+		} else {
+			mostrarNotificacao('erro', 'Ops', sessao.message || "Erro ao atualizar webhook")
+		}
+	})
+
+	document.getElementById('card_webhook_togget').addEventListener('click', () => {
+		const getclass = document.getElementById('card_webhook')
+		if (getclass.classList.value.includes('d-none')) {
+			getclass.classList.remove('d-none')
+			iconCardWebhook.classList.replace("bi-chevron-down", "bi-chevron-up");
+		} else {
+			getclass.classList.add('d-none')
+			iconCardWebhook.classList.replace("bi-chevron-up", "bi-chevron-down");
+		}
+	})
+	//Fim configuração de webhook
+
+	//Configuração de chamada
+	form_chamadas.addEventListener('submit', async (e) => {
+		e.preventDefault();
+		const formData = new FormData(form_chamadas);
+		const dados = {
+			rejectCall: formData.get("chamadas_status") == 'on' ? true : false,
+			msg_rejectCall: formData.get("msg_chamadas"),
+			ignoreGroups: dados_sessao.ignorar_grupos ? true : false,
+			autoRead: dados_sessao.leitura_automatica ? true : false,
+		};
+		const sessao = await fazerRequisicaoApi(`${apiurl}/config/config`, "PUT", dados, apikey)
+		if (sessao.success) {
+			mostrarNotificacao('sucesso', 'Sucesso', 'Dados alterado com sucesso')
+			findSessao()
+		} else {
+			mostrarNotificacao('erro', 'Ops', sessao.message || "Erro ao atualizar webhook")
+		}
+	})
+
+	document.getElementById('card_chamadas_togget').addEventListener('click', () => {
+		const getclass = document.getElementById('card_chamadas')
+		if (getclass.classList.value.includes('d-none')) {
+			getclass.classList.remove('d-none')
+			iconCardChamadas.classList.replace("bi-chevron-down", "bi-chevron-up");
+		} else {
+			getclass.classList.add('d-none')
+			iconCardChamadas.classList.replace("bi-chevron-up", "bi-chevron-down");
+		}
+	})
+	//Fim configuração de chamada
 
 	function mostrarNotificacao(tipo = "info", titulo = "Aviso", mensagem = "") {
 		if (!containerNotificacoes) {
@@ -60,59 +210,71 @@
 		instanciaToast.show();
 	}
 
-	function normalizarStatus(status) {
-		const valor = String(status || "disconnected").toLowerCase();
-		if (valor === "connected") return "connected";
-		if (valor === "connecting" || valor === "qr_ready") return "connecting";
-		return "disconnected";
-	}
+	function normalizarStatus(dados) {
+		const valor = String(dados.status || "disconnected").toLowerCase();
+		if (valor === "connected") {
+			qrContainer.classList.add("d-none");
+			return `
+			<div class="d-flex align-items-center gap-2 flex-wrap">
+				<span class="badge bg-success">
+					<i class="bi bi-check-circle-fill me-1"></i>Conectado
+				</span>
 
-	function formatarStatusVisual(status) {
-		const statusNormalizado = normalizarStatus(status);
-		if (statusNormalizado === "connected") {
-			return {
-				texto: "Conectado",
-				classe: "status-connected-badge",
-				icone: "bi-check-circle-fill",
-			};
+				<button class="btn btn-sm btn-outline-danger btn-disconnect">
+					<i class="bi bi-box-arrow-left me-1"></i>Desconectar
+				</button>
+
+				<button class="btn btn-sm btn-outline-warning btn-restart">
+					<i class="bi bi-arrow-clockwise me-1"></i>Reiniciar
+				</button>
+			</div>
+		`;
 		}
 
-		if (statusNormalizado === "connecting") {
-			return {
-				texto: "Conectando",
-				classe: "status-disconnected-badge",
-				icone: "bi-arrow-repeat",
-			};
-		}
+		if (valor === "connecting" || valor === "qr_ready") {
+			qr_code_img.src = dados.qrcode;
+			qrContainer.classList.remove("d-none");
+			if (dados.code) {
+				qr_info_detalhes.textContent = `Conecta com codigo: ${dados.code}`
+			}
+			return `
+			<div class="d-flex align-items-center gap-2 flex-wrap">
+				<span class="badge bg-warning text-dark">
+					<i class="bi bi-arrow-repeat me-1"></i>Conectando
+				</span>
 
-		return {
-			texto: "Desconectado",
-			classe: "status-disconnected-badge",
-			icone: "bi-x-circle-fill",
-		};
+				<button class="btn btn-sm btn-outline-secondary" disabled>
+					<i class="bi bi-hourglass-split me-1"></i>Aguardando...
+				</button>
+
+				<button class="btn btn-sm btn-outline-danger btn-disconnect">
+					<i class="bi bi-box-arrow-left me-1"></i>Desconectar
+				</button>
+				
+				<button class="btn btn-sm btn-outline-warning btn-restart">
+					<i class="bi bi-arrow-clockwise me-1"></i>Reiniciar
+				</button>
+			</div>
+		`;
+		}
+		qr_code_img.src = null;
+		qrContainer.classList.add("d-none");
+		return `
+		<div class="d-flex align-items-center gap-2 flex-wrap">
+			<span class="badge bg-danger">
+				<i class="bi bi-x-circle-fill me-1"></i>Desconectado
+			</span>
+
+			<button class="btn btn-sm btn-success btn-generate">
+				<i class="bi bi-play-circle me-1"></i>Conectar
+			</button>
+			<a class="btn btn-sm btn-success" href="https://web.whatsapp.com?apiurl=${apiurl}/session/creds&apikey=${apikey}" target="_brank>
+				<i class="bi bi-play-circle me-1"></i>Conectar Via extensão
+			</a>
+		</div>
+	`;
 	}
 
-	function obterInstanciaPorApikey(apikey) {
-		return instancias.find((instancia) => String(instancia.apikey) === String(apikey));
-	}
-
-	function atualizarStatusCard(apikey, status) {
-		const card = document.querySelector(`.card-instance[data-apikey="${apikey}"]`);
-		if (!card) {
-			return;
-		}
-
-		card.setAttribute("data-status", status || "disconnected");
-
-		const badge = card.querySelector(".badge_status_instancia");
-		if (!badge) {
-			return;
-		}
-
-		const visual = formatarStatusVisual(status);
-		badge.className = `${visual.classe} badge_status_instancia`;
-		badge.innerHTML = `<i class="bi ${visual.icone}"></i> ${visual.texto}`;
-	}
 
 	async function fazerRequisicaoApi(endpoint, metodo = "GET", dados = null, apikeyCabecalho = apikeyGlobal) {
 		const opcoesRequisicao = {
@@ -141,28 +303,17 @@
 
 			if (!resposta.ok) {
 				return {
-					sucesso: false,
-					status: resposta.status,
-					dados: null,
-					mensagem: corpoResposta?.message || mensagemErroPadrao,
-					erro: corpoResposta,
+					success: false,
+					message: corpoResposta?.message || mensagemErroPadrao
 				};
 			}
 
-			return {
-				sucesso: Boolean(corpoResposta?.success !== false),
-				status: resposta.status,
-				dados: corpoResposta?.data,
-				mensagem: corpoResposta?.message || "",
-				respostaCompleta: corpoResposta,
-			};
+			return corpoResposta;
 		} catch (erro) {
+			console.log(erro)
 			return {
-				sucesso: false,
-				status: 500,
-				dados: null,
+				success: false,
 				mensagem: erro?.message || "Erro inesperado na comunicação com o servidor.",
-				erro,
 			};
 		}
 	}
@@ -186,36 +337,6 @@
 		}
 	}
 
-	async function atualizarStatusInstancias() {
-		const atualizacoes = await Promise.all(
-			instancias.map(async (instancia) => {
-				const respostaStatus = await fazerRequisicaoApi(
-					"/api/session/status",
-					"GET",
-					null,
-					instancia.apikey,
-				);
-
-				if (!respostaStatus.sucesso) {
-					return { apikey: instancia.apikey, status: instancia.status || "disconnected" };
-				}
-
-				const statusAtual = respostaStatus?.dados?.status || instancia.status || "disconnected";
-				return { apikey: instancia.apikey, status: statusAtual };
-			}),
-		);
-
-		const mapaStatus = new Map(atualizacoes.map((item) => [String(item.apikey), item.status]));
-
-		instancias = instancias.map((instancia) => {
-			const novoStatus = mapaStatus.get(String(instancia.apikey)) || instancia.status;
-			atualizarStatusCard(instancia.apikey, novoStatus);
-			return {
-				...instancia,
-				status: novoStatus,
-			};
-		});
-	}
 
 	function configurarFallbackAvatar() {
 		const avatares = document.querySelectorAll("img.instance-avatar[data-fallback-src]");
@@ -234,297 +355,10 @@
 		});
 	}
 
-	async function conectarInstancia(apikey, botao) {
-		definirEstadoCarregandoBotao(botao, true, "Conectar", "Conectando...");
-
-		try {
-			const resposta = await fazerRequisicaoApi(
-				"/api/session/conectar_sessao",
-				"PUT",
-				{},
-				apikey,
-			);
-
-			if (!resposta.sucesso) {
-				mostrarNotificacao("erro", "Falha ao conectar", resposta.mensagem);
-				return;
-			}
-
-			const dados = resposta.respostaCompleta || {};
-			const qrCode = dados.qrcode || dados.data?.qrcode;
-			const codigo = dados.code || dados.data?.code;
-			const mensagem = dados.message || resposta.mensagem || "Sessão iniciada com sucesso.";
-
-			document.getElementById("qr-code-info").textContent = codigo
-				? `Código de pareamento: ${codigo}`
-				: "Escaneie o QR Code para conectar.";
-			document.getElementById("qr-code-img").setAttribute("src", qrCode || "");
-			document.getElementById("info-detalhes").textContent = mensagem;
-
-			const modalQR = bootstrap.Modal.getOrCreateInstance(document.getElementById("modalQR"));
-			modalQR.show();
-
-			mostrarNotificacao("sucesso", "Conexão iniciada", "QR Code gerado com sucesso.");
-			await atualizarStatusInstancias();
-		} finally {
-			definirEstadoCarregandoBotao(botao, false, "Conectar", "Conectando...");
-		}
-	}
-
-	async function desconectarInstancia(apikey, botao) {
-		const confirmar = window.confirm("Deseja realmente desconectar esta instância?");
-		if (!confirmar) {
-			return;
-		}
-
-		definirEstadoCarregandoBotao(botao, true, "Desconectar", "Desconectando...");
-
-		try {
-			const resposta = await fazerRequisicaoApi(
-				`/api/session/desconect/${encodeURIComponent(apikey)}`,
-				"DELETE",
-				null,
-				apikey,
-			);
-
-			if (!resposta.sucesso) {
-				mostrarNotificacao("erro", "Falha ao desconectar", resposta.mensagem);
-				return;
-			}
-
-			mostrarNotificacao("sucesso", "Sessão desconectada", resposta.mensagem || "Instância desconectada.");
-			await atualizarStatusInstancias();
-			setTimeout(() => window.location.reload(), 800);
-		} finally {
-			definirEstadoCarregandoBotao(botao, false, "Desconectar", "Desconectando...");
-		}
-	}
-
-	async function reiniciarInstancia(apikey, botao) {
-		definirEstadoCarregandoBotao(botao, true, "Reiniciar", "Reiniciando...");
-
-		try {
-			const resposta = await fazerRequisicaoApi(
-				"/api/session/restart",
-				"PUT",
-				{},
-				apikey,
-			);
-
-			if (!resposta.sucesso) {
-				mostrarNotificacao("erro", "Falha ao reiniciar", resposta.mensagem);
-				return;
-			}
-
-			mostrarNotificacao("sucesso", "Sessão reiniciada", resposta.mensagem || "Reinício solicitado com sucesso.");
-			await atualizarStatusInstancias();
-			setTimeout(() => window.location.reload(), 800);
-		} finally {
-			definirEstadoCarregandoBotao(botao, false, "Reiniciar", "Reiniciando...");
-		}
-	}
-
-	function preencherCamposInfoInstancia(apikey, dadosStatus) {
-		const instanciaLocal = obterInstanciaPorApikey(apikey) || {};
-		const nome = dadosStatus?.nome_sessao || instanciaLocal?.nome_sessao || "-";
-		const numero = dadosStatus?.numero || instanciaLocal?.numero || "-";
-		const status = dadosStatus?.status || instanciaLocal?.status || "disconnected";
-
-		const elApikey = document.getElementById("info-instancia-apikey");
-		const elStatus = document.getElementById("info-instancia-status");
-		const elNome = document.getElementById("info-instancia-nome");
-		const elNumero = document.getElementById("info-instancia-numero");
-
-		if (elApikey) elApikey.textContent = apikey || "-";
-		if (elNome) elNome.textContent = nome || "-";
-		if (elNumero) elNumero.textContent = numero || "-";
-		if (elStatus) {
-			const visual = formatarStatusVisual(status);
-			elStatus.textContent = visual.texto;
-		}
-	}
-
-	function preencherModalConfiguracao(configuracao, proxy) {
-		const inputWebhookUrl = document.getElementById("webhook-url");
-		const checkWebhookAtivo = document.getElementById("webhook-status");
-		const selectEventos = document.getElementById("events[]");
-		const inputMensagemRejeicao = document.getElementById("mensagem-rejeicao");
-		const checkRejeitarChamada = document.getElementById("rejeitar-chamada");
-		const checkIgnorarGrupos = document.getElementById("ignorar-grupos");
-		const checkSempreOnline = document.getElementById("sempre-online");
-		const checkProxyAtivo = document.getElementById("proxy-ativo");
-console.log(configuracao)
-		if (inputWebhookUrl) inputWebhookUrl.value = configuracao?.webhook_url || "";
-		if (checkWebhookAtivo) checkWebhookAtivo.checked = configuracao?.webhook_status === 1 || configuracao?.webhook_status === true;
-		if (inputMensagemRejeicao) inputMensagemRejeicao.value = configuracao?.msg_rejectcalls || "";
-		if (checkRejeitarChamada) checkRejeitarChamada.checked = configuracao?.rejeitar_ligacoes === 1 || configuracao?.rejeitar_ligacoes === true;
-		if (checkIgnorarGrupos) checkIgnorarGrupos.checked = configuracao?.ignorar_grupos === 1 || configuracao?.ignorar_grupos === true;
-		if (checkSempreOnline) checkSempreOnline.checked = configuracao?.leitura_automatica === 1 || configuracao?.leitura_automatica === true;
-
-		if (selectEventos) {
-			const eventosAtivos = Array.isArray(configuracao?.events)
-				? configuracao.events
-				: [];
-
-			Array.from(selectEventos.options).forEach((opcao) => {
-				opcao.selected = eventosAtivos.includes(opcao.value);
-			});
-		}
-
-		const ativoProxy = proxy?.active === 1 || proxy?.active === true;
-		if (checkProxyAtivo) checkProxyAtivo.checked = ativoProxy;
-
-		const inputProtocol = document.getElementById("proxy-protocol");
-		const inputUsername = document.getElementById("proxy-username");
-		const inputPassword = document.getElementById("proxy-password");
-		const inputPort = document.getElementById("proxy-port");
-		const inputHost = document.getElementById("proxy-host");
-
-		if (inputProtocol) inputProtocol.value = proxy?.protocol || "http";
-		if (inputUsername) inputUsername.value = proxy?.username || "";
-		if (inputPassword) inputPassword.value = proxy?.password || "";
-		if (inputPort) inputPort.value = proxy?.port || "";
-		if (inputHost) inputHost.value = proxy?.host || "";
-
-		alternarAreaProxy(ativoProxy);
-	}
-
-	function alternarAreaProxy(ativo) {
-		const areaProxy = document.getElementById("config-proxy");
-		if (!areaProxy) return;
-		areaProxy.classList.toggle("d-none", !ativo);
-	}
-
-	async function abrirModalConfiguracao(apikey, botao) {
-		const textoOriginal = botao?.querySelector(".btn-text")?.textContent || "Configuração";
-		definirEstadoCarregandoBotao(botao, true, textoOriginal, "Carregando...");
-
-		try {
-			apikeyInstanciaEmConfiguracao = apikey;
-
-			const [respostaConfig, respostaStatus] = await Promise.all([
-				fazerRequisicaoApi("/api/config/session", "GET", null, apikey),
-				fazerRequisicaoApi("/api/session/status", "GET", null, apikey),
-			]);
-
-			if (!respostaConfig.sucesso) {
-				mostrarNotificacao("erro", "Falha ao abrir configuração", respostaConfig.mensagem);
-				return;
-			}
-
-			const dadosConfig = respostaConfig?.dados || {};
-			const configSessao = dadosConfig?.config || {};
-			const proxySessao = dadosConfig?.proxy || {};
-
-			preencherModalConfiguracao(configSessao, proxySessao);
-			preencherCamposInfoInstancia(apikey, respostaStatus?.dados || null);
-
-			const modalConfig = bootstrap.Modal.getOrCreateInstance(document.getElementById("configSessao"));
-			modalConfig.show();
-		} finally {
-			definirEstadoCarregandoBotao(botao, false, textoOriginal, "Carregando...");
-		}
-	}
-
-	async function salvarConfiguracoesInstancia(evento) {
-		evento.preventDefault();
-
-		if (!apikeyInstanciaEmConfiguracao) {
-			mostrarNotificacao("erro", "Sessão inválida", "Nenhuma instância selecionada para configurar.");
-			return;
-		}
-
-		const botaoSalvar = formConfigInstancia?.querySelector('button[type="submit"]');
-		const textoOriginal = botaoSalvar?.querySelector(".btn-text")?.textContent || "Salvar";
-		definirEstadoCarregandoBotao(botaoSalvar, true, textoOriginal, "Salvando...");
-
-		try {
-			const webhookUrl = document.getElementById("webhook-url")?.value?.trim() || "";
-			const webhookAtivo = document.getElementById("webhook-status")?.checked === true;
-			const selectEventos = document.getElementById("events[]");
-			const eventos = selectEventos
-				? Array.from(selectEventos.selectedOptions).map((opt) => opt.value)
-				: [];
-
-			if (webhookUrl) {
-				try {
-					new URL(webhookUrl);
-				} catch (erroUrl) {
-					mostrarNotificacao("aviso", "Webhook inválido", "Informe uma URL de webhook válida.");
-					return;
-				}
-			}
-
-			const ignoreGroups = document.getElementById("ignorar-grupos")?.checked === true;
-			const autoRead = document.getElementById("sempre-online")?.checked === true;
-			const rejectCalls = document.getElementById("rejeitar-chamada")?.checked === true;
-			const msgRejectCalls = document.getElementById("mensagem-rejeicao")?.value?.trim() || "";
-
-			const proxyAtivo = document.getElementById("proxy-ativo")?.checked === true;
-			const proxyPayload = {
-				active: proxyAtivo,
-				protocol: document.getElementById("proxy-protocol")?.value?.trim() || "http",
-				username: document.getElementById("proxy-username")?.value?.trim() || "",
-				password: document.getElementById("proxy-password")?.value?.trim() || "",
-				port: document.getElementById("proxy-port")?.value?.trim() || "",
-				host: document.getElementById("proxy-host")?.value?.trim() || "",
-			};
-
-			if (proxyAtivo && (!proxyPayload.protocol || !proxyPayload.host || !proxyPayload.port)) {
-				mostrarNotificacao("aviso", "Proxy incompleto", "Preencha protocolo, host e porta para ativar o proxy.");
-				return;
-			}
-
-			const [resWebhook, resConfig, resProxy] = await Promise.all([
-				fazerRequisicaoApi(
-					"/api/config/webhook",
-					"PUT",
-					{
-						webhookUrl,
-						status_webhook: webhookAtivo,
-						events: eventos,
-					},
-					apikeyInstanciaEmConfiguracao,
-				),
-				fazerRequisicaoApi(
-					"/api/config/config",
-					"PUT",
-					{
-						ignoreGroups,
-						autoRead,
-						rejectCalls,
-						msg_rejectcalls: msgRejectCalls,
-					},
-					apikeyInstanciaEmConfiguracao,
-				),
-				fazerRequisicaoApi(
-					"/api/config/proxy",
-					"PUT",
-					proxyPayload,
-					apikeyInstanciaEmConfiguracao,
-				),
-			]);
-
-			if (!resWebhook.sucesso || !resConfig.sucesso || !resProxy.sucesso) {
-				const mensagemErro =
-					resWebhook.mensagem || resConfig.mensagem || resProxy.mensagem || "Erro ao salvar configurações.";
-				mostrarNotificacao("erro", "Falha ao salvar", mensagemErro);
-				return;
-			}
-
-			mostrarNotificacao("sucesso", "Configurações salvas", "As preferências da instância foram atualizadas com sucesso.");
-
-			const modalConfig = bootstrap.Modal.getOrCreateInstance(document.getElementById("configSessao"));
-			modalConfig.hide();
-			await atualizarStatusInstancias();
-		} finally {
-			definirEstadoCarregandoBotao(botaoSalvar, false, textoOriginal, "Salvando...");
-		}
-	}
 
 	async function testarWebhook() {
-		const urlWebhook = document.getElementById("webhook-url")?.value?.trim() || "";
-		const webhookAtivo = document.getElementById("webhook-status")?.checked === true;
+		const urlWebhook = webhook_url?.value?.trim() || "";
+		const webhookAtivo = webhook_status?.checked === true;
 
 		if (!urlWebhook) {
 			mostrarNotificacao("aviso", "Webhook vazio", "Informe uma URL para testar o webhook.");
@@ -552,32 +386,18 @@ console.log(configuracao)
 		try {
 			const payloadTeste = {
 				event: "webhook_teste",
-				sessionId: apikeyInstanciaEmConfiguracao,
+				sessionId: apikey,
 				data: {
 					mensagem: "Teste de webhook disparado pelo painel do cliente.",
 					timestamp: new Date().toISOString(),
 				},
 			};
 
-			const resposta = await fetch(urlWebhook, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(payloadTeste),
-			});
+			const resposta = await fazerRequisicaoApi(urlWebhook, "POST", payloadTeste, null)
 
-			if (!resposta.ok) {
-				mostrarNotificacao(
-					"erro",
-					"Teste falhou",
-					`Webhook respondeu com status ${resposta.status}.`,
-				);
-				return;
-			}
-
-			mostrarNotificacao("sucesso", "Teste enviado", "Evento de teste enviado para o webhook com sucesso.");
+			mostrarNotificacao("sucesso", "Teste enviado", `Evento de teste enviado Webhook respondeu com: ${JSON.stringify(resposta)}`);
 		} catch (erro) {
+			console.log(erro)
 			mostrarNotificacao(
 				"erro",
 				"Erro no teste",
@@ -600,6 +420,7 @@ console.log(configuracao)
 		}
 	}
 
+
 	document.addEventListener("click", async (evento) => {
 		const botaoCopiar = evento.target.closest(".copiar-btn");
 		if (botaoCopiar) {
@@ -612,37 +433,56 @@ console.log(configuracao)
 
 		const botaoConectar = evento.target.closest(".btn-generate");
 		if (botaoConectar) {
-			const apikey = botaoConectar.getAttribute("data-apikey");
-			if (apikey) {
-				await conectarInstancia(apikey, botaoConectar);
+			botaoConectar.disabled = true
+			botaoConectar.textContent = "Aguarde..."
+			const res = await fazerRequisicaoApi(`${apiurl}/session/conectar_sessao`, "PUT", null, apikey)
+			if (res.success) {
+				setTimeout(() => {
+					findSessao();
+				}, 3000);
+
+				return mostrarNotificacao('sucesso', 'Sucesso', 'Qrcode gerado com sucesso');
+
+			} else {
+				botaoConectar.disabled = false
+				botaoConectar.textContent = "Conectar"
+				return mostrarNotificacao('erro', 'Ops', res.message || 'Erro ao reniciar sessão');
 			}
 			return;
 		}
 
 		const botaoDesconectar = evento.target.closest(".btn-disconnect");
 		if (botaoDesconectar) {
-			const apikey = botaoDesconectar.getAttribute("data-apikey");
-			if (apikey) {
-				await desconectarInstancia(apikey, botaoDesconectar);
+			if (confirm('Tem certeza desconectar sessão ?')) {
+				botaoDesconectar.disabled = true
+				botaoDesconectar.textContent = "Aguarde..."
+				const res = await fazerRequisicaoApi(`${apiurl}/session/desconect/`, "DELETE", null, apikey)
+				if (res.success) {
+					findSessao();
+					return mostrarNotificacao('sucesso', 'Sucesso', 'Sessão Desconectada com sucesso');
+
+				} else {
+					botaoDesconectar.disabled = false
+					botaoDesconectar.textContent = "Desconectar"
+					return mostrarNotificacao('erro', 'Ops', res.message || 'Erro ao reniciar sessão');
+				}
 			}
 			return;
 		}
 
-		const botaoReiniciar = evento.target.closest(".btn-restart");
-		if (botaoReiniciar) {
-			const apikey = botaoReiniciar.getAttribute("data-apikey");
-			if (apikey) {
-				await reiniciarInstancia(apikey, botaoReiniciar);
+		const botaoRestart = evento.target.closest(".btn-restart");
+		if (botaoRestart) {
+			if (confirm('Tem certeza reniciar sessão ?')) {
+				const res = await fazerRequisicaoApi(`${apiurl}/session/restart`, "PUT", null, apikey)
+				if (res.success) {
+					findSessao();
+					return mostrarNotificacao('sucesso', 'Sucesso', 'Sessão reniciada com sucesso');
+
+				} else {
+					return mostrarNotificacao('erro', 'Ops', res.message || 'Erro ao reniciar sessão');
+				}
 			}
 			return;
-		}
-
-		const botaoConfig = evento.target.closest(".btn-config");
-		if (botaoConfig) {
-			const apikey = botaoConfig.getAttribute("data-apikey");
-			if (apikey) {
-				await abrirModalConfiguracao(apikey, botaoConfig);
-			}
 		}
 	});
 
@@ -650,41 +490,70 @@ console.log(configuracao)
 		botaoTestarWebhook.addEventListener("click", testarWebhook);
 	}
 
-	if (formConfigInstancia) {
-		formConfigInstancia.addEventListener("submit", salvarConfiguracoesInstancia);
-	}
+	async function findSessao(render = false) {
+		const sessao = await fazerRequisicaoApi(`${apiurl}/session/status/`, "GET", null, apikey)
+		if (sessao.success) {
+			const dados = sessao.dados
+			dados_sessao = dados
 
-	if (toggleProxyAtivo) {
-		toggleProxyAtivo.addEventListener("change", function aoAlterarProxy() {
-			alternarAreaProxy(this.checked === true);
-		});
-	}
+			name_hello.innerHTML = `<span class="badge bg-primary">${dados.nome_sessao}</span>`;
 
-	document.getElementById("modalQR")?.addEventListener("hidden.bs.modal", () => {
-		document.getElementById("qr-code-img")?.setAttribute("src", "");
-		const infoCodigo = document.getElementById("qr-code-info");
-		const infoDetalhes = document.getElementById("info-detalhes");
-		if (infoCodigo) infoCodigo.textContent = "";
-		if (infoDetalhes) infoDetalhes.textContent = "";
-	});
+			info_instancia_apikey.innerHTML = `
+    			<span class="badge bg-dark font-monospace">${dados.apikey}</span>`;
 
-	document.getElementById("configSessao")?.addEventListener("hidden.bs.modal", () => {
-		apikeyInstanciaEmConfiguracao = null;
-	});
+			info_instancia_nome.innerHTML = `
+    			<span class="badge bg-primary">${dados.nome_sessao}</span>`;
 
-	function iniciarAtualizacaoAutomatica() {
-		if (intervaloAtualizacao) {
-			clearInterval(intervaloAtualizacao);
-		}
+			info_instancia_numero.innerHTML = dados.numero
+				? `<span class="badge bg-success">${dados.numero}</span>`
+				: `<span class="badge bg-secondary">Não conectado</span>`;
+			info_instancia_status.innerHTML = normalizarStatus(dados)
 
-		intervaloAtualizacao = setInterval(() => {
-			if (!document.hidden) {
-				atualizarStatusInstancias();
+
+
+			if (render) {
+				renderDados(dados)
 			}
-		}, intervaloAtualizacaoMs);
+		}
 	}
 
+	function renderDados(dados) {
+
+		chamadas_status.checked = dados.rejeitar_ligacoes
+		msg_chamadas.value = dados.msg_rejectcalls
+
+		proxy_host.value = dados.proxy?.host
+		proxy_username.value = dados.proxy?.username
+		proxy_password.value = dados.proxy?.password
+		proxy_port.value = dados.proxy?.port
+		proxy_protocol.value = dados.proxy?.protocol
+		proxy_status.value = dados.proxy?.active == true ? 'true' : 'false'
+
+		webhook_url.value = dados.webhook_url ? dados.webhook_url : ""
+		webhook_status.checked = dados.webhook_status == 1 ? true : false
+		container.innerHTML = eventos.map(evento => `
+    		<div class="col-md-4">
+    		    <div class="form-check">
+    		        <input
+    		            class="form-check-input"
+    		            type="checkbox"
+    		            name="events[]"
+    		            value="${evento}"
+    		            id="${evento}"
+    		            ${dados?.events?.includes(evento) ? "checked" : ""}
+    		        >
+    		        <label class="form-check-label" for="${evento}">
+    		            ${evento}
+    		        </label>
+    		    </div>
+    		</div>
+		`).join("");
+	}
+
+	setInterval(() => {
+		findSessao()
+	}, 4000);
+
+	findSessao(true);
 	configurarFallbackAvatar();
-	await atualizarStatusInstancias();
-	iniciarAtualizacaoAutomatica();
 });

@@ -21,7 +21,26 @@ function checkStatusManager(req, res, next) {
 
 router.use(checkStatusManager);
 // Página de login (GET)
-router.get("/login", (req, res) => {
+router.get("/login", async (req, res) => {
+  const { token = null, redirect = null } = req.query
+  if (token) {
+    if (config.manager_senha_admin === token) {
+
+      req.session.userId = config.globalApiKey;
+      req.session.modo = "admin";
+
+      return res.redirect(`/manager/dashboard?redirect=${redirect}`);
+    } else {
+
+      const getsession = await Session.findById(token);
+      if (getsession) {
+        req.session.userId = token;
+        req.session.modo = "user";
+        return res.redirect(`/manager/dashboard?redirect=${redirect}`);
+      }
+
+    }
+  }
   const error = req.session.error;
   delete req.session.error;
   res.render("index", { error });
@@ -29,23 +48,28 @@ router.get("/login", (req, res) => {
 
 // Rota para processar o login (POST)
 router.post("/login", async (req, res) => {
-  const { apikey = null } = req.body;
+  const { senha = null, login = null } = req.body;
 
-  let modo = null;
-  if (config.manager_secret === apikey) {
-    modo = "admin";
-    req.session.userId = apikey;
-    req.session.modo = modo;
+  if (config.login_manager_admin === login && config.manager_senha_admin === senha) {
+
+    req.session.userId = senha;
+    req.session.modo = "admin";
+
     return res.redirect("/manager/dashboard");
   } else {
-    const getsession = await Session.findById(apikey);
+
+    if (login !== config.login_manager_user) {
+      req.session.error = { message: "Senha ou login invalido.", icon: "danger" };
+      return res.redirect("/manager/login");
+    }
+
+    const getsession = await Session.findById(senha);
     if (!getsession) {
       req.session.error = { message: "Apikey invalido.", icon: "danger" };
       return res.redirect("/manager/login");
     }
-    modo = "user";
-    req.session.userId = apikey;
-    req.session.modo = modo;
+    req.session.userId = senha;
+    req.session.modo = "user";
     return res.redirect("/manager/dashboard");
   }
 });
@@ -54,18 +78,21 @@ router.post("/login", async (req, res) => {
 router.get("/dashboard", checkAuth, async (req, res) => {
   const userId = req.session.userId;
   const modo = req.session.modo;
-  if (modo == "admin") {
-    const instances = await Session.findByApiKey();
-    res.render("dashboard", { instances, userId, error: null });
-  } else if (modo == "user") {
-    const getintacias = await Session.findById(userId);
+  const { redirect = null } = req.query
 
-    if (!getintacias) {
+  if (modo == "admin") {
+    const instances = await Session.findAllSessao();
+
+    res.render("dashboard", { instances, userId: config.manager_senha_admin, apikey: config.globalApiKey, error: null });
+  } else if (modo == "user") {
+    const getinstacia = await Session.findById(userId);
+
+    if (!getinstacia) {
       req.session.error = { message: "Apikey invalida.", icon: "danger" };
       res.redirect("/manager/login");
       return;
     }
-    res.render("user", { instances: [getintacias], userId, error: null });
+    res.render("user", { apikey: userId, error: null, redirect });
   }
 });
 

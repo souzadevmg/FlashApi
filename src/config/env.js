@@ -1,7 +1,7 @@
 
 import dotenv from 'dotenv';
 import { resolve } from 'path';
-dotenv.config({ path: resolve('.env')});
+dotenv.config({ path: resolve('.env') });
 
 const minPort = process.env.PROXY_PORT_MIN ? Number(process.env.PROXY_PORT_MIN) : 10000;
 const maxPort = process.env.PROXY_PORT_MAX ? Number(process.env.PROXY_PORT_MAX) : 20000;
@@ -14,7 +14,7 @@ const toPositiveInt = (value, fallback) => {
 const config = {
   // Server
   port: process.env.PORT || 3000,
-  hostapi: process.env.HOST || 'http://localhost:3000',
+  hostapi: process.env.HOST || 'localhost:3000',
   nodeEnv: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
   baileysLogLevel: process.env.BAILEYS_LOG_LEVEL || process.env.LOG_LEVEL || 'info',
@@ -28,7 +28,8 @@ const config = {
   // Global Webhook
   enableGlobalWebhook: process.env.ENABLE_GLOBAL_WEBHOOK == 'true',
   globalWebhookUrl: process.env.GLOBAL_WEBHOOK_URL || null,
-  globalWebhookSecret: process.env.GLOBAL_WEBHOOK_SECRET || 'ASDASDSA55WQ88E55R8ER5T2QW5E5Q',
+  globalWebsocketTentativas: process.env.GLOBAL_WEBHOOK_ATTEMPTS || 4,
+
 
   // Configuração de sessão
   sessao_phone: process.env.SESSION_PHONE_CLIENT || 'Flash_api',
@@ -36,7 +37,7 @@ const config = {
 
   // Global WebSocket
   enableGlobalWebsocket: process.env.ENABLE_WEBSOCKET === 'true',
-  globalWebsocketSecret: process.env.GLOBAL_WEBSOCKET_SECRET || '123',
+  globalWebsocketSecret: process.env.GLOBAL_WEBSOCKET_SECRET || "ASDASDSA55WQ88E55R8ER5T2QW5E5Q",
 
   // Validation
   isProduction: process.env.NODE_ENV === 'production',
@@ -60,23 +61,25 @@ const config = {
   database: process.env.DB_DATABASE || 'FlashApi',
   connectionLimit: toPositiveInt(process.env.DB_CONNECTION_LIMIT, 10),
   queuelimit: toPositiveInt(process.env.QUEUELIMIT, 0),
-  db_client: process.env.DB_TYPE || 'postgres', 
+  db_client: process.env.DB_TYPE || 'postgres',
 
   //Redis
-  redis_host: process.env.REDIS_HOST || '127.0.0.1', 
-  redis_port: process.env.REDIS_PORT || 6379, 
-  redis_pass: process.env.REDIS_PASS || '', 
+  redis_host: process.env.REDIS_HOST || '127.0.0.1',
+  redis_port: process.env.REDIS_PORT || 6379,
+  redis_pass: process.env.REDIS_PASS || '',
 
   //manager
-  manager_secret: process.env.CHAVE_SECRET_SESSION_MANAGER || 'ASDASDSA55WQ88E55R8ER5T2QW5E5Q',
+  login_manager_admin: process.env.LOGIN_MANAGER_ADMIN,
+  login_manager_user: process.env.LOGIN_MANAGER_USER,
+  manager_senha_admin: process.env.SENHA_MANAGER_ADMIN || '123456',
   manager_status: process.env.MANAGER === "true",
 
   //Proxy
   proxy_state: process.env.PROXY_STATE || false,
   proxy_host: process.env.PROXY_HOST || "",
   proxy_port: process.env.PROXY_PORT
-  ? Number(process.env.PROXY_PORT)
-  : getRandomPort(minPort, maxPort),
+    ? Number(process.env.PROXY_PORT)
+    : getRandomPort(minPort, maxPort),
   proxy_protocol: process.env.PROXY_PROTOCOL || "http",
   proxy_usename: process.env.PROXY_USERNAME || "",
   proxy_password: process.env.PROXY_PASSWORD || "",
@@ -85,11 +88,12 @@ const config = {
   qrcode_limite: process.env.LIMITE_QRCODE || 10,
 
   //Temp message
-  delete_message: process.env.DELETE_TEMP_MENSAGE == "true",
-  temp_delet_message: process.env.TEMP_MENSAGE || 3600,
   apiversao: process.env.VERSAO || '1.0.4',
   sync_sessions: process.env.SYNC_SESSIONS == 'false' ? false : true,
-  baileys_debug_events: process.env.BAILEYS_DEBUG_EVENTS == 'true',
+
+  batch_size: toPositiveInt(process.env.BATCH_SIZE, 500),
+
+  ignore_boadcast: process.env.IGNORE_BROADCAST == 'false' ? false : true,
 };
 
 

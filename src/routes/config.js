@@ -12,26 +12,17 @@ const SESSION_STATS_CACHE_TTL_SECONDS = 120;
 // Rota para obter configurações da sessão
 router.get("/session", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers["apikey"];
+    const sessao = req.sessao;
 
-    const sessionRedis = await BaileysService.redis.get(`sessao:${sessionId}`);
-    const sessionDb = await Session.findById(sessionId);
-    const session = sessionRedis || sessionDb;
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Sessão não encontrada",
-      });
-    }
 
-    const config = await Store.getSessionConfig(sessionId);
-    const stats = await Store.getSessionStats(sessionId);
-    const proxy = await Session.getProxy(sessionId);
+    const config = await Store.getSessionConfig(sessao.apikey);
+    const stats = await Store.getSessionStats(sessao.apikey);
+    const proxy = await Session.getProxy(sessao.apikey);
 
     res.json({
       success: true,
-      data: {
-        sessionId,
+      dados: {
+        sessao,
         stats,
         proxy,
         config,
@@ -49,46 +40,28 @@ router.get("/session", authenticateApiKey, async (req, res) => {
 // Rota para atualizar configurações da sessão
 router.put("/config", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers["apikey"];
+    const sessao = req.sessao;
     const {
       ignoreGroups = false,
       autoRead = false,
-      msg_rejectcalls = null,
-      rejectCalls = false,
+      msg_rejectCall = null,
+      rejectCall = false,
     } = req.body;
+    sessao.ignorar_grupos = ignoreGroups;
+    sessao.leitura_automatica = autoRead;
+    sessao.msg_rejectcalls = msg_rejectCall;
+    sessao.rejeitar_ligacoes = rejectCall;
 
-    const sessionRedis = await BaileysService.redis.get(`sessao:${sessionId}`);
-    const sessionDb = await Session.findById(sessionId);
-    const session = sessionRedis || sessionDb;
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Sessão não encontrada",
-      });
-    }
-    session.ignorar_grupos = ignoreGroups;
-    session.leitura_automatica = autoRead;
-    session.msg_rejectcalls = msg_rejectcalls;
-    session.rejeitar_ligacoes = rejectCalls;
-    
-    const success = await Store.saveSessionConfig(sessionId, session);
-    if (!success) {
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao salvar configurações",
-      });
-    }
-    if (sessionRedis) {
-      BaileysService.redis.set(`sessao:${sessionId}`, session);
-    }
+    const success = await Store.saveSessionConfig(sessao.apikey, sessao);
+    BaileysService.salvarSessao(sessao.apikey, sessao);
 
     res.json({
       success: true,
       message: "Configurações atualizadas com sucesso",
-      data: { sessionId, session },
+      data: { sessionId: sessao.apikey, sessao },
     });
 
-    logger.info(`Configurações da sessão ${sessionId} atualizadas`);
+    logger.info(`Configurações da sessão ${sessao.apikey} atualizadas`);
   } catch (error) {
     logger.error("Erro ao atualizar configurações da sessão:", error);
     res.status(500).json({
@@ -101,16 +74,8 @@ router.put("/config", authenticateApiKey, async (req, res) => {
 // Rota para configurar webhook
 router.put("/webhook", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers["apikey"];
+    const sessao = req.sessao;
     const { webhookUrl, status_webhook = false, events = [] } = req.body;
-
-    const session = await Session.findById(sessionId);
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Sessão não encontrada",
-      });
-    }
 
     // Validar URL se fornecida
     if (webhookUrl && webhookUrl !== null) {
@@ -125,26 +90,21 @@ router.put("/webhook", authenticateApiKey, async (req, res) => {
     }
     const status = status_webhook == true ? 1 : 0;
 
-    session.webhook_url = webhookUrl;
-    session.events = events;
-    session.webhook_status = status;
-    const success = await Store.saveSessionConfig(sessionId, session);
-    if (!success) {
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao salvar webhook",
-      });
-    }
-    BaileysService.redis.set(`sessao:${sessionId}`, session);
+    sessao.webhook_url = webhookUrl;
+    sessao.events = events;
+    sessao.webhook_status = status;
+    console.log(sessao)
+    const success = await Store.saveSessionConfig(sessao.apikey, sessao);
+    BaileysService.salvarSessao(sessao.apikey, sessao);
 
     res.json({
       success: true,
       message: "Webhook Atualizado com sucesso",
-      data: { sessionId, currentConfig: session },
+      dados: sessao,
     });
 
     logger.info(
-      `Webhook da sessão ${sessionId} ${webhookUrl ? "configurado" : "removido"}`,
+      `Webhook da sessão ${sessao.apikey} ${webhookUrl ? "configurado" : "removido"}`,
     );
   } catch (error) {
     logger.error("Erro ao configurar webhook:", error);
@@ -155,129 +115,46 @@ router.put("/webhook", authenticateApiKey, async (req, res) => {
   }
 });
 
-// Rota para obter estatísticas da sessão
-router.get("/stats", authenticateApiKey, async (req, res) => {
-  try {
-    const sessionId = req.headers["apikey"];
-
-    const session = await Session.findById(sessionId);
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Sessão não encontrada",
-      });
-    }
-
-    const statsCacheKey = `cache:session:stats:${sessionId}`;
-    try {
-      const cachedStats = await BaileysService.redis.get(statsCacheKey);
-      if (cachedStats) {
-        return res.json(cachedStats);
-      }
-    } catch (cacheError) {
-      logger.warn("Falha ao ler cache de estatísticas da sessão:", cacheError);
-    }
-
-    const stats = await Store.getSessionStats(sessionId);
-
-    const sock = await BaileysService.getSocket(sessionId);
-    if (sock) {
-      try {
-        const groups = await sock.groupFetchAllParticipating();
-        const arr = Object.values(groups);
-        stats.grupos.total_grupos = arr.length;
-      } catch (error) {
-        stats.grupos.total_grupos = 0;
-      }
-    }
-
-    const response = {
-      success: true,
-      data: {
-        sessionId,
-        stats,
-        sessionInfo: {
-          status: session.status,
-          phoneNumber: session.numero,
-          createdAt: session.created_at,
-          updatedAt: session.updated_at,
-        },
-      },
-    };
-
-    try {
-      await BaileysService.redis.set(
-        statsCacheKey,
-        response,
-        SESSION_STATS_CACHE_TTL_SECONDS,
-      );
-    } catch (cacheError) {
-      logger.warn("Falha ao gravar cache de estatísticas da sessão:", cacheError);
-    }
-
-    res.json(response);
-  } catch (error) {
-    logger.error("Erro ao obter estatísticas da sessão:", error);
-    res.status(500).json({
-      success: false,
-      message: "Erro interno do servidor",
-    });
-  }
-}); 
-
 // Rota para atualizar configurações de proxy
 router.put("/proxy", authenticateApiKey, async (req, res) => {
   try {
-    const sessionId = req.headers["apikey"];
+    const sessao = req.sessao;
     const {
-      protocol,
-      username = "",
-      password = "",
-      host,
-      port,
+      protocol = "http",
+      username = "teste",
+      password = "teste",
+      host = "teste",
+      port = 8080,
       active = false,
     } = req.body;
     const requiredFields = ["protocol", "host", "port"];
-    const session = await Session.findById(sessionId);
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Sessão não encontrada",
-      });
-    }
 
-    const proxyConfig = { protocol, username, password, host, port, active };
-    const setProxy = await Session.setProxy(sessionId, proxyConfig);
+    const proxyConfig = {
+      protocol: protocol.trim() == '' ? 'http' : protocol,
+      username: username.trim() == '' ? 'teste' : username,
+      password: password.trim() == '' ? 'teste' : password,
+      host: host.trim() == '' ? '127.0.0.1' : host,
+      port: port.trim() == '' ? 8080 : port,
+      active: active ? true : false,
+    };
+    const setProxy = await Session.setProxy(sessao.apikey, proxyConfig);
     if (setProxy.affectedRows === 0) {
       return res.status(500).json({
         success: false,
         message: "Erro ao salvar configurações de proxy",
       });
     }
-    const sock = await BaileysService.getSocket(sessionId);
-    let conect;
-    if (sock) {
-      if (sock?.end) {
-        try {
-          await sock.end();
-        } catch (error) {
-          conect = await BaileysService.createSession(sessionId);
-        } finally {
-          conect = await BaileysService.createSession(sessionId);
-        }
-      } else {
-        conect = await BaileysService.createSession(sessionId);
-      }
-    } else {
-      conect = await BaileysService.createSession(sessionId);
+    if (active === true) {
+      const sock = await BaileysService.sockets.get(sessao.apikey);
+      try { await sock.end(); } catch (_) {/* ignore */ }
     }
-    res.json({
+    logger.info(`Configurações de proxy da sessão ${sessao.apikey} atualizadas`);
+    return res.json({
       success: true,
       message: "Configurações de proxy atualizadas com sucesso",
-      conect,
-      data: { sessionId, proxyConfig },
+      dados: { proxyConfig, sessao },
     });
-    logger.info(`Configurações de proxy da sessão ${sessionId} atualizadas`);
+
   } catch (error) {
     logger.error("Erro ao atualizar configurações de proxy:", error);
     res.status(500).json({
