@@ -139,7 +139,6 @@ class WebSocketService {
         // Verifica se o cliente está inscrito nesta sessão e evento     
         if (client.tipo == 'admin') {
           try {
-            const events = JSON.parse(client.events)
 
             const foundEvent = client.events.find(e => e === event);
             if (!foundEvent) continue;

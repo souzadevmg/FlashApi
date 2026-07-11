@@ -37,7 +37,8 @@ export const messagemap = async (sessionId, dados) => {
         ) {
             Message.SaveMessage(dadosmsg)
             const getVoto = await pollvote(message, sessionId)
-            message.message.pollUpdateMessage.vote = getVoto
+            try { message.message.pollUpdateMessage.vote = getVoto } catch (e) { }
+
 
         } else {
             //Adicionar messagem a lista de cache

@@ -5,8 +5,7 @@
   "description": "Conector automático da Flash-Api com o WhatsApp Web usando uma sessão ativa.",
   "permissions": [
     "activeTab",
-    "scripting",
-    "clipboardWrite"
+    "scripting"
   ],
   "host_permissions": [
     "https://web.whatsapp.com/*",

@@ -1,6 +1,7 @@
 import logger from "../../utils/logger.js"
 import BaileysService from "../BaileysService.js"
 import { sendMessage } from "../messageService.js"
+import redis, { KEYS } from "../redis.js"
 
 
 export const call = async (sessionId, data) => {
@@ -18,10 +19,25 @@ export const call = async (sessionId, data) => {
                 const message = {
                     text: getsesssao.msg_rejectcalls,
                 };
+
+                if (call.from.includes("@lid")) {
+                    const lid = call.from.split(':')[0]
+
+                    const getjid = await redis.get(KEYS().lid_map(lid))
+                    if (getjid) {
+                        call.from = getjid;
+                    }
+                }
+                if (call.callerPn) {
+                    call.from = call.callerPn
+                }
+
                 const send = await sendMessage(sessionId, {
                     jid: call.from,
-                    text: message
+                    text: getsesssao.msg_rejectcalls,
+                    delay: "1200"
                 })
+                console.log(send)
             }
             logger.info(`📞 Chamada rejeitada automaticamente de ${call.from}`);
         }
