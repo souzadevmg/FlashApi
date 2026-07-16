@@ -720,7 +720,57 @@ Principais eventos disponíveis (configuráveis via `GLOBAL_WEBHOOK_EVENTS` ou p
 Além de webhooks, é possível consumir os mesmos eventos em tempo real via WebSocket:
 
 ```javascript
-const ws = new WebSocket("ws://localhost:3000/ws");
+const ws = new WebSocket("ws://localhost:3000/ws", [], {
+  headers: {
+    apikey: proccess.env.APIKEY,
+    events: JSON.stringify([
+      "connection_update",
+      "creds_update",
+      "messaging_history_set",
+      "messaging_history_status",
+
+      "chats_upsert",
+      "chats_update",
+      "chats_delete",
+      "chats_lock",
+
+      "lid_mapping_update",
+      "presence_update",
+
+      "contacts_upsert",
+      "contacts_update",
+
+      "messages_upsert",
+      "messages_update",
+      "messages_delete",
+      "messages_media_update",
+      "messages_reaction",
+      "message_receipt_update",
+      "message_capping_update",
+
+      "groups_upsert",
+      "groups_update",
+      "group_participants_update",
+      "group_join_request",
+      "group_member_tag_update",
+
+      "blocklist_set",
+      "blocklist_update",
+
+      "call",
+
+      "labels_edit",
+      "labels_association",
+
+      "newsletter_reaction",
+      "newsletter_view",
+      "newsletter_participants_update",
+      "newsletter_settings_update",
+
+      "settings_update",
+    ]),
+  },
+});
 
 ws.onopen = () => {
   console.log("Conectado ao WebSocket da Flash API");
