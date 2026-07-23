@@ -209,24 +209,25 @@ export const sendinteractiveMessage = async (sessionId, data) => {
             : 1200;
 
         const payloadButtons = {
-            interactiveMessage: proto.Message.InteractiveMessage.create({
-                header: proto.Message.InteractiveMessage.Header.create({
+            interactiveMessage: proto.Message.InteractiveMessage.fromObject({
+                header: proto.Message.InteractiveMessage.Header.fromObject({
                     title: data?.header?.title || "",
                     subtitle: data?.header?.subtitle || "",
                     hasMediaAttachment: false
                 }),
-                body: proto.Message.InteractiveMessage.Body.create({
+                body: proto.Message.InteractiveMessage.Body.fromObject({
                     text: data?.body?.text || "",
                 }),
-                footer: proto.Message.InteractiveMessage.Footer.create({
+                footer: proto.Message.InteractiveMessage.Footer.fromObject({
                     text: data?.footer?.text || "",
                 }),
-                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-                    buttons: data.buttons.map((button) => ({
-                        name: typeof button.name === "string" ? button.name : JSON.stringify(button.name),
-                        buttonParamsJson:
-                            typeof button.buttonParamsJson === "string" ? button.buttonParamsJson : JSON.stringify(button.buttonParamsJson),
-                    })),
+                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
+                    buttons: data.buttons.map(button => ({
+                        name: button.name,
+                        buttonParamsJson: typeof button.buttonParamsJson === "string"
+                            ? button.buttonParamsJson
+                            : JSON.stringify(button.buttonParamsJson)
+                    }))
                 }),
             }),
         };
