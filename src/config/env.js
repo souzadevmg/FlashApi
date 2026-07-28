@@ -19,6 +19,7 @@ const config = {
   logLevel: process.env.LOG_LEVEL || 'info',
   baileysLogLevel: process.env.BAILEYS_LOG_LEVEL || process.env.LOG_LEVEL || 'info',
   protocol: process.env.PROTOCOLO || 'http',
+  versao: process.env.VERSION_ZAP || '[2, 3000, 1043914743]',
 
   origins: process.env.CORS_ORIGINS || '*',
 

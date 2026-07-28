@@ -123,7 +123,7 @@ class BaileysService {
       browserOptions = { browser };
 
       const configs = {
-        version,
+        version: JSON.parse(config.versao),
         logger: pino({ level: config.baileysLogLevel || "info" }),
         printQRInTerminal: false,
         ...browserOptions,
