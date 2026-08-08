@@ -137,6 +137,7 @@ router.put("/proxy", authenticateApiKey, async (req, res) => {
       port: port.trim() == '' ? 8080 : port,
       active: active ? true : false,
     };
+
     const setProxy = await Session.setProxy(sessao.apikey, proxyConfig);
     if (setProxy.affectedRows === 0) {
       return res.status(500).json({
