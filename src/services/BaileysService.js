@@ -120,7 +120,10 @@ class BaileysService {
       let number = false;
 
       const browser = [config.sessao_phone, config.sessao_phone_name, release()];
-      browserOptions = { browser };
+      if (!number) {
+        browserOptions = { browser };
+      }
+
 
       const configs = {
         version: JSON.parse(config.versao),
