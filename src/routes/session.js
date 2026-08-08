@@ -260,10 +260,11 @@ router.post("/creds", authenticateApiKey, async (req, res) => {
 //Conectar uma sessão
 router.put("/conectar_sessao", authenticateApiKey, async (req, res) => {
   try {
-    const { phoneNumber = null } = req.body
+    const { numero = null } = req.body
     await BaileysService.limitReconnect.set(req.sessao.apikey, 0)
     await BaileysService.countQrcode.set(req.sessao.apikey, 0);
-    const conect = await BaileysService.createSession(req.sessao.apikey, phoneNumber)
+
+    const conect = await BaileysService.createSession(req.sessao.apikey, numero)
     await BaileysService.delay(4000);
     const sessao = await BaileysService.GetSessao(req.sessao.apikey)
     if (!sessao) {

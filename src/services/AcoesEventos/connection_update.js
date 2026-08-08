@@ -40,10 +40,14 @@ export const connection = async (sessionId, update) => {
         BaileysService.countQrcode.set(sessionId, count + 1);
 
         let code = null
-        if (getsessao.numero !== "") {
+
+        if (getsessao.numero !== "" && !sock.authState?.creds?.registered) {
             try {
                 code = await sock.requestPairingCode(getsessao.numero);
-            } catch (error) { }
+                console.log('code: ', code)
+            } catch (error) {
+                console.log(error)
+            }
         }
 
         logger.info(`Qrcode sessão ${sessionId}`)

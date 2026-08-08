@@ -71,6 +71,7 @@ class BaileysService {
 
   static async createSession(sessionId, phoneNumber) {
     try {
+
       const getsessao = await Session.findById(sessionId);
       if (!getsessao) {
         return {
@@ -120,7 +121,7 @@ class BaileysService {
       let number = false;
 
       const browser = [config.sessao_phone, config.sessao_phone_name, release()];
-      if (!number) {
+      if (!phoneNumber) {
         browserOptions = { browser };
       }
 
@@ -128,7 +129,6 @@ class BaileysService {
       const configs = {
         version: JSON.parse(config.versao),
         logger: pino({ level: config.baileysLogLevel || "info" }),
-        printQRInTerminal: false,
         ...browserOptions,
         auth: {
           creds: state.creds,
