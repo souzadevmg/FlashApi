@@ -44,11 +44,11 @@ class Session {
 
         const proxy = {
           sessao_id: dados.apikey,
-          protocol: dados?.proxy?.protocol || "",
-          username: dados?.proxy?.username || "",
-          password: dados?.proxy?.password || "",
-          host: dados?.proxy?.host || "",
-          port: dados?.proxy?.port || "",
+          protocol: dados?.proxy?.protocol || "http",
+          username: dados?.proxy?.username || "teste",
+          password: dados?.proxy?.password || "teste",
+          host: dados?.proxy?.host || "127.0.0.1",
+          port: dados?.proxy?.port || 8080,
           active: dados?.proxy?.active || false,
         }
         const proxyValues = Object.values(proxy)
