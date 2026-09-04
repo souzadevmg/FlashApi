@@ -549,6 +549,39 @@ Rotas em `src/routes/chat.js` — todas exigem o header `apikey` da sessão.
 | `DELETE` | `/api/chat/delete/:id_message`      | Apaga uma mensagem                                     |
 | `POST`   | `/api/chat/midiaToBase64`           | Converte mídia de uma mensagem recebida em base64      |
 
+#### Mensagens interativas com imagem
+
+Ao combinar `image` com ações nativas como `cta_copy` ou `cta_url`, coloque o
+texto visível em `body.text`. Nesse formato, `header.title` e
+`header.subtitle` não são enviados, pois clientes atuais do WhatsApp rejeitam
+um cabeçalho que mistura imagem e cabeçalho textual.
+
+```json
+{
+  "jid": "5511999999999",
+  "body": { "text": "Escolha uma opção" },
+  "footer": { "text": "Atendimento" },
+  "image": { "url": "https://example.com/header.jpg" },
+  "buttons": [
+    {
+      "name": "quick_reply",
+      "buttonParamsJson": { "display_text": "Suporte", "id": "support" }
+    },
+    {
+      "name": "cta_copy",
+      "buttonParamsJson": { "display_text": "Copiar", "copy_code": "123" }
+    },
+    {
+      "name": "cta_url",
+      "buttonParamsJson": {
+        "display_text": "Abrir site",
+        "url": "https://example.com"
+      }
+    }
+  ]
+}
+```
+
 ### Contatos
 
 Rotas em `src/routes/contact.js`.

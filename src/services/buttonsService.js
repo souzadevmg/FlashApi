@@ -1,7 +1,15 @@
-import { generateWAMessageFromContent, prepareWAMessageMedia, proto } from "@whiskeysockets/baileys";
+import {
+    generateWAMessageFromContent,
+    prepareWAMessageMedia,
+    proto,
+} from "@whiskeysockets/baileys";
 import BaileysService from "./BaileysService.js";
 import logger from "../utils/logger.js";
 import { prepareMedia } from "../utils/prepareMedia.js";
+import {
+    hasImageNativeActions,
+    normalizeInteractiveImageHeader,
+} from "../utils/interactiveMessage.js";
 
 const BIZ_NATIVE_LIST = [
     {
@@ -207,6 +215,7 @@ export const sendinteractiveMessage = async (sessionId, data) => {
         const delay = Number.isFinite(Number(data.delay))
             ? Number(data.delay)
             : 1200;
+        const imageNativeActions = hasImageNativeActions(data);
 
         const payloadButtons = {
             interactiveMessage: proto.Message.InteractiveMessage.fromObject({
@@ -283,6 +292,11 @@ export const sendinteractiveMessage = async (sessionId, data) => {
             payloadButtons.interactiveMessage.header.documentMessage = media.documentMessage
         }
 
+        if (imageNativeActions) {
+            // Current clients reject image headers that also contain text
+            // header fields, even though the server accepts the message.
+            normalizeInteractiveImageHeader(payloadButtons);
+        }
 
         await BaileysService.delay(delay)
         await sock.sendPresenceUpdate("composing", jid);
@@ -291,10 +305,11 @@ export const sendinteractiveMessage = async (sessionId, data) => {
             userJid: sock.user.id,
         });
 
-        const send = await sock.relayMessage(jid, msg.message, {
-            messageId: msg.key.id,
-            additionalNodes: BIZ_NATIVE_FLOW_NODE,
-        });
+        const relayOptions = { messageId: msg.key.id };
+        if (!imageNativeActions) {
+            relayOptions.additionalNodes = BIZ_NATIVE_FLOW_NODE;
+        }
+        const send = await sock.relayMessage(jid, msg.message, relayOptions);
         await BaileysService.delay(100)
         await sock.sendPresenceUpdate("paused", jid);
         return { success: true, message: send }
